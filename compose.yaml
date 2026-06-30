@@ -1,0 +1,92 @@
+services:
+  nginx:
+    build:
+      context: ./nginx
+    image: andrewdrobinson/ucsf:pocr-nginx
+    restart: unless-stopped
+    depends_on:
+      - app
+      - engine
+      - vouch
+    environment:
+      NGINX_SERVER_PORT: ${NGINX_SERVER_PORT:-443}
+      NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-qccrndlap701.campus.net.ucsf.edu}
+      NGINX_GRPC_PORT: ${NGINX_GRPC_PORT:-1443}
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
+    ports:
+      - "443:443"
+    networks:
+      - frontend
+      - backend
+
+  vouch:
+    image: vouch/vouch-proxy:latest
+    restart: unless-stopped
+    volumes:
+      - ./vouch/config.yml:/config/config.yml:ro
+    environment:
+      VOUCH_CONFIG: /config/config.yml
+    networks:
+      - frontend
+    expose:
+      - "9090"
+
+  app:
+    build:
+      context: ./frontend
+    image: andrewdrobinson/ucsf:pocr-app
+    restart: unless-stopped
+    depends_on:
+      - engine
+    networks:
+      - frontend
+    expose:
+      - "80"
+
+  engine:
+    build:
+      context: ./backend
+    image: andrewdrobinson/ucsf:pocr-engine
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      RUST_LOG: info
+    secrets:
+      - redis_password
+    networks:
+      - backend
+    expose:
+      - "3000"
+      - "50051"
+
+  redis:
+    build:
+      context: ./redis
+    image: andrewdrobinson/ucsf:pocr-redis
+    restart: unless-stopped
+    networks:
+      - backend
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  frontend:
+  backend:
+    internal: true
+
+volumes:
+  redis_data:
+
+secrets:
+  redis_password:
+    file: ./secrets/redis_password

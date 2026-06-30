@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.DS_Store
+*.local
+.env
+.nitro
+.tanstack
+.output
+.vinxi
+plans

@@ -1,0 +1,24 @@
+upstream api_backend {
+    server engine:3000;
+    keepalive 32;
+}
+
+server {
+    listen ${NGINX_SERVER_PORT} ssl http2;
+    server_name ${NGINX_SERVER_NAME};
+
+    ssl_certificate     /etc/nginx/certs/ssl.pem;
+    ssl_certificate_key /etc/nginx/certs/ssl.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    location /api/ {
+        include /etc/nginx/snippets/proxy-common.conf;
+        proxy_pass http://api_backend;
+    }
+
+    location /cds-services {
+        include /etc/nginx/snippets/proxy-common.conf;
+        proxy_pass http://api_backend;
+    }
+}

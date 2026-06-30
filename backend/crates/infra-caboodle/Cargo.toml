@@ -1,0 +1,17 @@
+[package]
+name = "infra-caboodle"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tiberius = { version = "0.12", features = ["chrono"] }
+tokio = { workspace = true, features = ["net"] }
+tokio-util = { version = "0.7", features = ["compat"] }
+serde.workspace = true
+secrecy.workspace = true
+tracing.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

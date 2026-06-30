@@ -1,0 +1,52 @@
+upstream app {
+    server app:80;
+    keepalive 32;
+}
+
+upstream vouch {
+    server vouch:9090;
+    keepalive 32;
+}
+
+server {
+    listen ${NGINX_SERVER_PORT} ssl http2;
+    server_name ${NGINX_SERVER_NAME};
+
+    ssl_certificate     /etc/nginx/certs/ssl.pem;
+    ssl_certificate_key /etc/nginx/certs/ssl.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    # Vouch public endpoints
+    location ~ ^/(auth|login|logout|static) {
+        include /etc/nginx/snippets/proxy-common.conf;
+        proxy_set_header Host $host;
+        proxy_pass http://vouch;
+    }
+
+    # Vouch validate endpoint
+    location = /validate {
+        internal;
+        include /etc/nginx/snippets/vouch-validate.conf;
+        proxy_pass http://vouch/validate;
+    }
+
+    error_page 401 = @error401;
+
+    location @error401 {
+        return 302 $scheme://$host/login?url=$scheme://$host$request_uri&vouch-failcount=$auth_resp_failcount&X-Vouch-Token=$auth_resp_jwt&error=$auth_resp_err;
+    }
+
+    # Browser app routes protected by Vouch
+    location / {
+        auth_request /validate;
+        auth_request_set $auth_resp_jwt       $upstream_http_x_vouch_jwt;
+        auth_request_set $auth_resp_err       $upstream_http_x_vouch_err;
+        auth_request_set $auth_resp_failcount $upstream_http_x_vouch_failcount;
+
+        include /etc/nginx/snippets/vouch-proxy-headers.conf;
+        include /etc/nginx/snippets/proxy-common.conf;
+
+        proxy_pass http://app;
+    }
+}

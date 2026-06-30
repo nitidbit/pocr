@@ -1,0 +1,39 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+    command: npm run dev -- --host 0.0.0.0 --port 3000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+
+  backend:
+    build:
+      context: ./backend
+    command: cargo watch -x "run -p engine"
+    volumes:
+      - ./backend:/app
+      - cargo_registry:/usr/local/cargo/registry
+      - cargo_git:/usr/local/cargo/git
+    secrets:
+      - redis-password
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "30000:30000"
+      - "50051:50051"
+
+  redis:
+    image: redis:alpine
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+
+volumes:
+  redis_data:
+  cargo_registry:
+  cargo_git:
