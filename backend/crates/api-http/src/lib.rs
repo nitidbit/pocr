@@ -1,5 +1,6 @@
 //! HTTP API routes and handlers for the POCR engine.
 
+pub mod balance;
 pub mod cds_hooks;
 pub mod error;
 pub mod extractors;
@@ -20,6 +21,7 @@ use pocr_core::ports::{
     LocatorRepository, RandomizationRepository, StudyRepository, UserStudyRepository,
 };
 
+use crate::balance::get_balance;
 use crate::randomizations::list_randomizations;
 use crate::studies::{create_study, get_study, list_studies};
 
@@ -68,7 +70,8 @@ pub fn app(state: Arc<AppState>) -> Router {
         )
         .route("/studies/{id}/share", post(sharing::share_study))
         .route("/studies/join", post(sharing::join_study))
-        .route("/studies/{study_id}/randomizations", get(list_randomizations));
+        .route("/studies/{study_id}/randomizations", get(list_randomizations))
+        .route("/studies/{study_id}/balance", get(get_balance));
 
     let cds = Router::new()
         .route("/cds-services", get(cds_hooks::discover_services))

@@ -42,6 +42,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "chrono",
+ "infra-pg",
  "jsonwebtoken",
  "pocr-core",
  "serde",
@@ -1511,6 +1512,20 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "pocr-sync"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "infra-caboodle",
+ "infra-pg",
+ "observability",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 pocr-core = { path = "../core" }
+infra-pg = { path = "../infra-pg" }
 axum = { workspace = true, features = ["macros"] }
 chrono.workspace = true
 jsonwebtoken.workspace = true

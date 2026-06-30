@@ -1,14 +1,14 @@
 [workspace]
 resolver = "3"
-members = ["apps/engine", "crates/random"]
+members = ["apps/engine", "apps/sync", "crates/api-grpc", "crates/api-http", "crates/core", "crates/infra-caboodle", "crates/infra-pg", "crates/infra-redis", "crates/observability"]
 
 [workspace.dependencies]
-tokio = { version = "1.49.0", features = ["full"] }
+tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread", "signal"] }
 serde = { version = "1.0.228", features = ["derive"] }
 thiserror = "2.0.18"
 chrono = { version = "0.4.43", features = ["serde"] }
 uuid = { version = "1.20.0", features = ["v7", "serde"] }
-quick-xml = { version = "0.39.0", features = ["serialize"] }
+quick-xml = { version = "0.40.0", features = ["serialize"] }
 axum = "0.8.8"
 sqlx = { version = "0.8", features = ["runtime-tokio", "tls-native-tls", "macros", "postgres", "uuid", "chrono"] }
 async-trait = "0.1.89"
@@ -18,3 +18,13 @@ tracing-error = "0.2.1"
 tracing-appender = "0.2.4"
 tower = "0.5.3"
 tower-http = { version = "0.6.8", features = ["trace"] }
+redis = { version = "1.2.1", features = ["aio", "tokio-comp"] }
+serde_json = "1.0.140"
+rand = "0.10.1"
+tonic = "0.14.6"
+prost = "0.14.3"
+jsonwebtoken = "10.4.0"
+once_cell = "1.21.3"
+futures = "0.3.31"
+dashmap = "6.1.0"
+secrecy = "0.10.3"
