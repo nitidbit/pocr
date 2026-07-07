@@ -28,6 +28,24 @@ pub struct Engine {
     inflight: DashMap<String, Arc<Notify>>,
 }
 
+/// Guard that ensures the inflight entry is removed and waiters notified
+/// even if the randomization operation fails.
+struct InflightGuard<'a> {
+    map: &'a DashMap<String, Arc<Notify>>,
+    key: String,
+    notify: Arc<Notify>,
+    defused: bool,
+}
+
+impl Drop for InflightGuard<'_> {
+    fn drop(&mut self) {
+        if !self.defused {
+            self.map.remove(&self.key);
+            self.notify.notify_waiters();
+        }
+    }
+}
+
 impl Engine {
     pub fn new(
         randomization_repo: Arc<dyn RandomizationRepository>,
@@ -58,32 +76,60 @@ impl Engine {
             .randomization_repo
             .exists_for_unit(&study.id, &unit_hash)
             .await
-            .map_err(|e| RandomizationError::NotImplemented(e.to_string()))?
+            .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?
         {
             info!(unit = %unit_hash, "existing randomization returned");
             return Ok(existing);
         }
 
-        // 3. Deduplication — coalesce concurrent requests for the same unit
+        // 3. Deduplication — atomic check-and-set via DashMap::entry()
         let dedup_key = format!("{}:{}", study.id, unit_hash);
-        if let Some(entry) = self.inflight.get(&dedup_key) {
-            let notify = entry.value().clone();
-            drop(entry); // Release DashMap Ref guard before awaiting
-            notify.notified().await;
-            // Re-check idempotency after wake
-            if let Some(existing) = self
-                .randomization_repo
-                .exists_for_unit(&study.id, &unit_hash)
-                .await
-                .map_err(|e| RandomizationError::NotImplemented(e.to_string()))?
-            {
-                return Ok(existing);
+
+        match self.inflight.entry(dedup_key.clone()) {
+            dashmap::mapref::entry::Entry::Occupied(entry) => {
+                // Another request is already in-flight for this unit
+                let notify = entry.get().clone();
+                drop(entry); // Release DashMap guard before awaiting
+                notify.notified().await;
+
+                // Re-check idempotency after wake
+                if let Some(existing) = self
+                    .randomization_repo
+                    .exists_for_unit(&study.id, &unit_hash)
+                    .await
+                    .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?
+                {
+                    return Ok(existing);
+                }
+                // If still not found, fall through to perform randomization.
+                // This handles the case where the first request failed.
+            }
+            dashmap::mapref::entry::Entry::Vacant(entry) => {
+                let notify = Arc::new(Notify::new());
+                entry.insert(notify.clone());
+                // Fall through with guard below
             }
         }
 
-        // Register this request as in-flight
-        let notify = Arc::new(Notify::new());
-        self.inflight.insert(dedup_key.clone(), notify.clone());
+        // At this point, we either won the race (Vacant) or the previous
+        // holder failed (Occupied path fell through). Ensure we're registered.
+        let notify = self
+            .inflight
+            .get(&dedup_key)
+            .map(|r| r.value().clone())
+            .unwrap_or_else(|| {
+                let n = Arc::new(Notify::new());
+                self.inflight.insert(dedup_key.clone(), n.clone());
+                n
+            });
+
+        // Guard ensures cleanup on all paths (success or error)
+        let mut guard = InflightGuard {
+            map: &self.inflight,
+            key: dedup_key,
+            notify: notify.clone(),
+            defused: false,
+        };
 
         // 4. Extract strata (if configured)
         let strata = if config.strata.is_empty() {
@@ -126,10 +172,11 @@ impl Engine {
             .randomization_repo
             .save(&randomization)
             .await
-            .map_err(|e| RandomizationError::NotImplemented(e.to_string()))?;
+            .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?;
 
-        // 7. Clean up deduplication and notify waiters
-        self.inflight.remove(&dedup_key);
+        // 7. Success — defuse guard, then clean up explicitly
+        guard.defused = true;
+        self.inflight.remove(&guard.key);
         notify.notify_waiters();
 
         info!(
@@ -179,7 +226,7 @@ impl Engine {
             .block_cache
             .consume_next(study_id, stratum_key)
             .await
-            .map_err(|e| RandomizationError::NotImplemented(e.to_string()))?
+            .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?
         {
             return Ok(arm_index);
         }
@@ -208,7 +255,7 @@ impl Engine {
         self.block_cache
             .save_block(&block)
             .await
-            .map_err(|e| RandomizationError::NotImplemented(e.to_string()))?;
+            .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?;
 
         Ok(arm_index)
     }
@@ -221,5 +268,240 @@ impl api_http::RandomizationService for Engine {
         request: &'a RandomizationRequest,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = RandomizationResult<Randomization>> + Send + 'a>> {
         Box::pin(self.randomize(study, request))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    use async_trait::async_trait;
+    use pocr_core::ports::{BlockCacheRepository, RandomizationRepository, RepositoryError};
+    use pocr_core::random::{Arm, RandomPermutedBlock, Randomization};
+    use pocr_core::study::{RandomizationConfig, RandomizationStrategy, Study, StudyStatus};
+
+    // -- In-memory test doubles --
+
+    #[derive(Default)]
+    struct InMemoryRandomizationRepo {
+        records: Mutex<Vec<Randomization>>,
+    }
+
+    #[async_trait]
+    impl RandomizationRepository for InMemoryRandomizationRepo {
+        async fn save(&self, randomization: &Randomization) -> Result<Randomization, RepositoryError> {
+            let mut records = self.records.lock().unwrap();
+            records.push(randomization.clone());
+            Ok(randomization.clone())
+        }
+
+        async fn find_by_study(
+            &self,
+            study_id: &Uuid,
+            _limit: u32,
+            _offset: u32,
+        ) -> Result<Vec<Randomization>, RepositoryError> {
+            let records = self.records.lock().unwrap();
+            Ok(records.iter().filter(|r| r.study_id == *study_id).cloned().collect())
+        }
+
+        async fn exists_for_unit(
+            &self,
+            study_id: &Uuid,
+            unit_hash: &str,
+        ) -> Result<Option<Randomization>, RepositoryError> {
+            let records = self.records.lock().unwrap();
+            let found = records
+                .iter()
+                .find(|r| r.study_id == *study_id && String::from(&r.unit) == unit_hash)
+                .cloned();
+            Ok(found)
+        }
+    }
+
+    #[derive(Default)]
+    struct InMemoryBlockCache {
+        blocks: Mutex<HashMap<String, Vec<u32>>>,
+    }
+
+    #[async_trait]
+    impl BlockCacheRepository for InMemoryBlockCache {
+        async fn get_block(
+            &self,
+            _study_id: &Uuid,
+            _stratum_key: &str,
+        ) -> Result<Option<RandomPermutedBlock>, RepositoryError> {
+            Ok(None)
+        }
+
+        async fn save_block(&self, block: &RandomPermutedBlock) -> Result<(), RepositoryError> {
+            let key = format!(
+                "{}:{}",
+                block.study_id,
+                block.stratification.as_deref().unwrap_or("")
+            );
+            self.blocks.lock().unwrap().insert(key, vec![]);
+            Ok(())
+        }
+
+        async fn consume_next(
+            &self,
+            _study_id: &Uuid,
+            _stratum_key: &str,
+        ) -> Result<Option<u32>, RepositoryError> {
+            Ok(None)
+        }
+    }
+
+    fn test_study(strategy: RandomizationStrategy) -> Study {
+        Study {
+            id: Uuid::now_v7(),
+            name: "Test Study".to_string(),
+            description: "A test study".to_string(),
+            status: StudyStatus::Active,
+            randomization_config: RandomizationConfig {
+                strategy,
+                arms: vec![
+                    Arm {
+                        id: Uuid::now_v7(),
+                        name: "Control".to_string(),
+                        ratio: 1,
+                        locator: None,
+                    },
+                    Arm {
+                        id: Uuid::now_v7(),
+                        name: "Treatment".to_string(),
+                        ratio: 1,
+                        locator: None,
+                    },
+                ],
+                keys: vec![Some(KeyVariant::PatientId)],
+                strata: vec![],
+                block_size: Some(4),
+            },
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        }
+    }
+
+    fn test_request(patient_id: &str) -> RandomizationRequest {
+        RandomizationRequest {
+            locator: None,
+            patient_id: Some(patient_id.to_string()),
+            encounter_id: None,
+            user_id: None,
+            context: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn randomize_simple_returns_assignment() {
+        let repo = Arc::new(InMemoryRandomizationRepo::default());
+        let cache = Arc::new(InMemoryBlockCache::default());
+        let engine = Engine::new(repo.clone(), cache);
+
+        let study = test_study(RandomizationStrategy::Simple);
+        let request = test_request("P-001");
+
+        let result = engine.randomize(&study, &request).await;
+
+        assert!(result.is_ok());
+        let randomization = result.unwrap();
+        assert_eq!(randomization.study_id, study.id);
+    }
+
+    #[tokio::test]
+    async fn randomize_block_returns_assignment() {
+        let repo = Arc::new(InMemoryRandomizationRepo::default());
+        let cache = Arc::new(InMemoryBlockCache::default());
+        let engine = Engine::new(repo.clone(), cache);
+
+        let study = test_study(RandomizationStrategy::Block);
+        let request = test_request("P-002");
+
+        let result = engine.randomize(&study, &request).await;
+
+        assert!(result.is_ok());
+        let randomization = result.unwrap();
+        assert_eq!(randomization.study_id, study.id);
+    }
+
+    #[tokio::test]
+    async fn randomize_is_idempotent_for_same_unit() {
+        let repo = Arc::new(InMemoryRandomizationRepo::default());
+        let cache = Arc::new(InMemoryBlockCache::default());
+        let engine = Engine::new(repo.clone(), cache);
+
+        let study = test_study(RandomizationStrategy::Simple);
+        let request = test_request("P-003");
+
+        let first = engine.randomize(&study, &request).await.unwrap();
+        let second = engine.randomize(&study, &request).await.unwrap();
+
+        assert_eq!(first.id, second.id);
+        assert_eq!(first.arm.id, second.arm.id);
+
+        // Only one record should be stored
+        let records = repo.records.lock().unwrap();
+        assert_eq!(records.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn randomize_different_patients_get_different_records() {
+        let repo = Arc::new(InMemoryRandomizationRepo::default());
+        let cache = Arc::new(InMemoryBlockCache::default());
+        let engine = Engine::new(repo.clone(), cache);
+
+        let study = test_study(RandomizationStrategy::Simple);
+
+        let first = engine.randomize(&study, &test_request("P-100")).await.unwrap();
+        let second = engine.randomize(&study, &test_request("P-200")).await.unwrap();
+
+        assert_ne!(first.id, second.id);
+
+        let records = repo.records.lock().unwrap();
+        assert_eq!(records.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn randomize_missing_patient_id_returns_error() {
+        let repo = Arc::new(InMemoryRandomizationRepo::default());
+        let cache = Arc::new(InMemoryBlockCache::default());
+        let engine = Engine::new(repo, cache);
+
+        let study = test_study(RandomizationStrategy::Simple);
+        let request = RandomizationRequest {
+            locator: None,
+            patient_id: None,
+            encounter_id: None,
+            user_id: None,
+            context: None,
+        };
+
+        let result = engine.randomize(&study, &request).await;
+
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            RandomizationError::MissingField { field: "patient_id" }
+        ));
+    }
+
+    #[tokio::test]
+    async fn block_randomize_saves_block_to_cache() {
+        let repo = Arc::new(InMemoryRandomizationRepo::default());
+        let cache = Arc::new(InMemoryBlockCache::default());
+        let engine = Engine::new(repo, cache.clone());
+
+        let study = test_study(RandomizationStrategy::Block);
+        let request = test_request("P-004");
+
+        engine.randomize(&study, &request).await.unwrap();
+
+        // Verify block was saved to cache
+        let blocks = cache.blocks.lock().unwrap();
+        assert!(!blocks.is_empty());
     }
 }

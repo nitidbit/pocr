@@ -233,15 +233,15 @@ pub async fn fetch_bmi(
                 CaboodleError::Query(format!("fetch_bmi results for {patient_id}: {e}"))
             })?;
 
-        if let Some(row) = rows.first() {
-            if let Some(value_str) = row.get::<&str, _>("Value") {
-                match value_str.parse::<f64>() {
-                    Ok(bmi) => {
-                        result.insert(patient_id.clone(), bmi);
-                    }
-                    Err(_) => {
-                        warn!(patient_id = %patient_id, value = %value_str, "non-numeric BMI value");
-                    }
+        if let Some(row) = rows.first()
+            && let Some(value_str) = row.get::<&str, _>("Value")
+        {
+            match value_str.parse::<f64>() {
+                Ok(bmi) => {
+                    result.insert(patient_id.clone(), bmi);
+                }
+                Err(_) => {
+                    warn!(patient_id = %patient_id, value = %value_str, "non-numeric BMI value");
                 }
             }
         }

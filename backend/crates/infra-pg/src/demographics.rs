@@ -126,7 +126,10 @@ impl PgDemographicsRepository {
         }
 
         let rows = sqlx::query_as::<_, DemographicsRow>(
-            "SELECT * FROM patient_demographics WHERE patient_id = ANY($1)",
+            r#"SELECT patient_id, birth_date, sex, races, ethnicity,
+                      primary_language, smoking_status, insurance_type,
+                      bmi::FLOAT8 AS bmi, synced_at
+               FROM patient_demographics WHERE patient_id = ANY($1)"#,
         )
         .bind(patient_ids)
         .fetch_all(&self.pool)
@@ -160,7 +163,7 @@ impl PgDemographicsRepository {
                    pd.primary_language,
                    pd.smoking_status,
                    pd.insurance_type,
-                   pd.bmi,
+                   pd.bmi::FLOAT8 AS bmi,
                    pd.synced_at,
                    (r.arm->>'id')::UUID AS arm_id
                FROM patient_demographics pd

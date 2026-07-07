@@ -1,14 +1,12 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! Redis caching layer for POCR.
+//!
+//! Provides a block cache for permuted-block randomization hot paths
+//! and a study config cache for CDS Hooks locator lookups.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub mod block_cache;
+pub mod connection;
+pub mod study_cache;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use block_cache::RedisBlockCache;
+pub use connection::RedisPool;
+pub use study_cache::RedisStudyCache;

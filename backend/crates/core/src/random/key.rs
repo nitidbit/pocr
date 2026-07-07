@@ -1,9 +1,12 @@
+use serde::{Deserialize, Serialize};
+
 /// Randomization unit key, identifying which request field determines
 /// the subject. `None` indicates no key is configured.
 pub type Key = Option<KeyVariant>;
 
 /// The field used to identify a randomization subject on a request.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum KeyVariant {
     /// Use the patient identifier.
     PatientId,
@@ -17,7 +20,8 @@ pub enum KeyVariant {
 
 /// A pointer into a FHIR resource for extracting a stratification or
 /// unit value from the request context.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FhirPath {
     /// Unique identifier for this path definition.
     pub id: String,

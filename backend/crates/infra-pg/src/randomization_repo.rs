@@ -79,7 +79,7 @@ impl RandomizationRepository for PgRandomizationRepository {
         .map_err(|e| RepositoryError::Internal(e.to_string()))?;
 
         rows.into_iter()
-            .map(|row| row_to_randomization(row))
+            .map(row_to_randomization)
             .collect()
     }
 

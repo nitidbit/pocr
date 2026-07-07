@@ -5,7 +5,7 @@ use uuid::Uuid;
 ///
 /// Each arm has a relative allocation ratio that determines how many
 /// subjects are assigned to it within each permuted block.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Arm {
     /// Unique identifier for this arm.
     pub id: Uuid,
@@ -17,4 +17,16 @@ pub struct Arm {
     pub ratio: u32,
     /// Epic LGL (Locator) ID mapped to this arm, if applicable.
     pub locator: Option<u64>,
+}
+
+impl Arm {
+    /// Create a new arm with a generated UUIDv7 and enforced minimum ratio of 1.
+    pub fn new(name: impl Into<String>, ratio: u32) -> Self {
+        Self {
+            id: Uuid::now_v7(),
+            name: name.into(),
+            ratio: ratio.max(1),
+            locator: None,
+        }
+    }
 }

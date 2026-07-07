@@ -34,6 +34,10 @@ pub enum RandomizationError {
     #[error("not implemented: {0}")]
     NotImplemented(String),
 
+    /// An infrastructure/IO error (database, cache, network).
+    #[error("infrastructure error: {0}")]
+    Infrastructure(String),
+
     /// An unclassified error occurred.
     #[error("unknown randomization error")]
     Unknown,

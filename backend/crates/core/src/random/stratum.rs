@@ -8,7 +8,7 @@ use crate::random::RandomizationRequest;
 ///
 /// Points to a value within the request's FHIR resource context that
 /// partitions subjects into subgroups for balanced allocation.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Stratum {
     /// Unique identifier for this stratum definition.
     pub id: String,

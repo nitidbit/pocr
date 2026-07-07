@@ -123,8 +123,8 @@ mod tests {
     #[test]
     fn generate_block_with_specified_size() {
         let arms = vec![
-            Arm { ratio: 1, ..Default::default() },
-            Arm { ratio: 1, ..Default::default() },
+            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
+            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
         ];
 
         let block = RandomPermutedBlock::try_generate(
@@ -137,8 +137,8 @@ mod tests {
     #[test]
     fn generate_block_respects_arm_ratios() {
         let arms = vec![
-            Arm { ratio: 3, ..Default::default() },
-            Arm { ratio: 1, ..Default::default() },
+            Arm { id: Uuid::nil(), name: String::new(), ratio: 3, locator: None },
+            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
         ];
 
         let block = RandomPermutedBlock::try_generate(
@@ -153,8 +153,8 @@ mod tests {
     #[test]
     fn generate_dynamic_block_is_multiple_of_ratio_sum() {
         let arms = vec![
-            Arm { ratio: 3, ..Default::default() },
-            Arm { ratio: 1, ..Default::default() },
+            Arm { id: Uuid::nil(), name: String::new(), ratio: 3, locator: None },
+            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
         ];
 
         let block = RandomPermutedBlock::try_generate(
@@ -204,8 +204,8 @@ mod tests {
     #[test]
     fn try_generate_returns_invalid_block_size_when_not_multiple_of_ratio_sum() {
         let arms = vec![
-            Arm { ratio: 2, ..Default::default() },
-            Arm { ratio: 1, ..Default::default() },
+            Arm { id: Uuid::nil(), name: String::new(), ratio: 2, locator: None },
+            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
         ];
 
         let result = RandomPermutedBlock::try_generate(
@@ -222,8 +222,8 @@ mod tests {
     #[test]
     fn block_generation_is_deterministic_with_seeded_rng() {
         let arms = vec![
-            Arm { ratio: 1, ..Default::default() },
-            Arm { ratio: 1, ..Default::default() },
+            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
+            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
         ];
 
         let block_a = RandomPermutedBlock::try_generate(
@@ -240,8 +240,8 @@ mod tests {
     #[test]
     fn block_shuffles_assignments_with_rng() {
         let arms = vec![
-            Arm { ratio: 1, ..Default::default() },
-            Arm { ratio: 1, ..Default::default() },
+            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
+            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
         ];
 
         let mut rng = seeded_rng();
@@ -265,8 +265,8 @@ mod tests {
     #[test]
     fn dynamic_block_size_is_deterministic_with_seeded_rng() {
         let arms = vec![
-            Arm { ratio: 2, ..Default::default() },
-            Arm { ratio: 1, ..Default::default() },
+            Arm { id: Uuid::nil(), name: String::new(), ratio: 2, locator: None },
+            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
         ];
 
         let block = RandomPermutedBlock::try_generate(

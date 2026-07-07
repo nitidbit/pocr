@@ -1499,7 +1499,9 @@ name = "pocr-engine"
 version = "0.1.0"
 dependencies = [
  "api-http",
+ "async-trait",
  "axum",
+ "chrono",
  "dashmap",
  "infra-pg",
  "infra-redis",
@@ -2430,6 +2432,7 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
+ "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",

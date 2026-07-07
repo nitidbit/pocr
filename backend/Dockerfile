@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # --- Base stage: Rust toolchain + cargo-chef + protobuf compiler ---
-FROM rust:1.91 AS chef
+FROM rust:1.95 AS chef
 RUN cargo install cargo-chef
 RUN apt-get update && apt-get install -y --no-install-recommends \
     protobuf-compiler && \
@@ -33,7 +33,8 @@ FROM debian:bookworm-slim AS production
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    libssl3 && \
+    libssl3 \
+    wget && \
     rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system --gid 1001 pocr && \
