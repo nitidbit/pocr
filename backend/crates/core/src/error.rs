@@ -38,6 +38,10 @@ pub enum RandomizationError {
     #[error("infrastructure error: {0}")]
     Infrastructure(String),
 
+    /// Study configuration is invalid (e.g., all arm ratios are zero).
+    #[error("invalid configuration: {0}")]
+    InvalidConfiguration(String),
+
     /// An unclassified error occurred.
     #[error("unknown randomization error")]
     Unknown,

@@ -1,3 +1,4 @@
+use crate::environment::Environment;
 use crate::random::{Arm, Strata, Unit};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -11,6 +12,9 @@ pub struct Randomization {
     pub id: Uuid,
     /// Study the subject was randomized into.
     pub study_id: Uuid,
+    /// Environment this assignment belongs to. Partitions production from
+    /// non-production so test randomizations never mix with real trial data.
+    pub environment: Environment,
     /// Stratification applied at time of assignment, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub strata: Option<Strata>,
@@ -33,10 +37,11 @@ pub struct Randomization {
 
 impl Randomization {
     /// Create a simple (unstratified) randomization record.
-    pub fn simple(study_id: &Uuid, unit: &Unit, arm: &Arm) -> Self {
+    pub fn simple(study_id: &Uuid, environment: Environment, unit: &Unit, arm: &Arm) -> Self {
         Self {
             id: Uuid::now_v7(),
             study_id: *study_id,
+            environment,
             strata: None,
             unit: unit.clone(),
             arm: arm.clone(),
@@ -48,10 +53,17 @@ impl Randomization {
     }
 
     /// Create a block-randomization record, optionally stratified.
-    pub fn block(study_id: &Uuid, strata: Option<&Strata>, unit: &Unit, arm: &Arm) -> Self {
+    pub fn block(
+        study_id: &Uuid,
+        environment: Environment,
+        strata: Option<&Strata>,
+        unit: &Unit,
+        arm: &Arm,
+    ) -> Self {
         Self {
             id: Uuid::now_v7(),
             study_id: *study_id,
+            environment,
             strata: strata.cloned(),
             unit: unit.clone(),
             arm: arm.clone(),
@@ -87,9 +99,10 @@ mod tests {
         let unit = sample_unit();
         let arm = sample_arm();
 
-        let result = Randomization::simple(&study_id, &unit, &arm);
+        let result = Randomization::simple(&study_id, Environment::Production, &unit, &arm);
 
         assert_eq!(result.study_id, study_id);
+        assert_eq!(result.environment, Environment::Production);
         assert!(result.strata.is_none());
         assert_eq!(result.unit, unit);
         assert_eq!(result.arm.id, arm.id);
@@ -105,7 +118,8 @@ mod tests {
             value: "adult".to_string(),
         });
 
-        let result = Randomization::block(&study_id, Some(&strata), &unit, &arm);
+        let result =
+            Randomization::block(&study_id, Environment::Production, Some(&strata), &unit, &arm);
 
         assert_eq!(result.study_id, study_id);
         assert!(result.strata.is_some());
@@ -117,7 +131,7 @@ mod tests {
         let unit = sample_unit();
         let arm = sample_arm();
 
-        let result = Randomization::block(&study_id, None, &unit, &arm);
+        let result = Randomization::block(&study_id, Environment::Production, None, &unit, &arm);
 
         assert!(result.strata.is_none());
     }
