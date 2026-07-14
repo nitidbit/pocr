@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::environment::Environment;
 use crate::error::RandomizationError;
 use crate::random::{Randomization, RandomPermutedBlock, RandomizationRequest};
 use crate::study::Study;
@@ -40,44 +41,66 @@ pub trait StudyRepository: Send + Sync {
 }
 
 /// Persistence for randomization assignment records.
+///
+/// All reads and the uniqueness check are partitioned by [`Environment`] so
+/// that non-production assignments never mix with production trial data.
 #[async_trait]
 pub trait RandomizationRepository: Send + Sync {
-    /// Store a new randomization record.
+    /// Store a new randomization record. The record carries its own environment.
     async fn save(&self, randomization: &Randomization) -> Result<Randomization, RepositoryError>;
-    /// List randomizations for a study with pagination.
+    /// List randomizations for a study within one environment, with pagination.
     async fn find_by_study(
         &self,
         study_id: &Uuid,
+        environment: Environment,
         limit: u32,
         offset: u32,
     ) -> Result<Vec<Randomization>, RepositoryError>;
-    /// Check if a randomization already exists for this study + unit combination.
-    /// Returns the existing record if found.
+    /// Check if a randomization already exists for this study + environment +
+    /// unit combination. Returns the existing record if found.
     async fn exists_for_unit(
         &self,
         study_id: &Uuid,
+        environment: Environment,
         unit_hash: &str,
     ) -> Result<Option<Randomization>, RepositoryError>;
+    /// Delete all non-production randomizations for a study, returning the
+    /// count removed. Production records are never touched.
+    async fn purge_nonproduction(&self, study_id: &Uuid) -> Result<u64, RepositoryError>;
 }
 
 /// Cache for permuted blocks (Redis hot path).
+///
+/// Blocks are partitioned by [`Environment`]: production and non-production
+/// draw from independent block sequences, so a test randomization can never
+/// advance or consume the production allocation sequence.
 #[async_trait]
 pub trait BlockCacheRepository: Send + Sync {
-    /// Retrieve the current block for a study/stratum combination.
+    /// Retrieve the current block for an environment/study/stratum combination.
     async fn get_block(
         &self,
+        environment: Environment,
         study_id: &Uuid,
         stratum_key: &str,
     ) -> Result<Option<RandomPermutedBlock>, RepositoryError>;
-    /// Store a block in the cache.
-    async fn save_block(&self, block: &RandomPermutedBlock) -> Result<(), RepositoryError>;
+    /// Store a block in the cache for the given environment.
+    async fn save_block(
+        &self,
+        environment: Environment,
+        block: &RandomPermutedBlock,
+    ) -> Result<(), RepositoryError>;
     /// Atomically consume the next assignment from a cached block.
     /// Returns `None` if the block is exhausted or not found.
     async fn consume_next(
         &self,
+        environment: Environment,
         study_id: &Uuid,
         stratum_key: &str,
     ) -> Result<Option<u32>, RepositoryError>;
+    /// Delete all non-production cached blocks for a study, returning the count
+    /// removed. Production blocks are never touched. Used when resetting test
+    /// data so a subsequent non-production run starts from a fresh sequence.
+    async fn purge_nonproduction(&self, study_id: &Uuid) -> Result<u64, RepositoryError>;
 }
 
 /// Persistence for Epic locator → study mappings.

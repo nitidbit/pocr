@@ -32,6 +32,15 @@ impl Environment {
             Environment::NonProduction => "nonproduction",
         }
     }
+
+    /// Parse the lowercase string form (inverse of [`Environment::as_str`]).
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "production" => Some(Environment::Production),
+            "nonproduction" => Some(Environment::NonProduction),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for Environment {
