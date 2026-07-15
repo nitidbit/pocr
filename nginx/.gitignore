@@ -1,0 +1,15 @@
+# Rendered configs from templates/ (generated at container start)
+conf.d/
+
+# TLS material — never commit
+certs/
+*.pem
+*.crt
+*.key
+
+# Runtime files
+*.pid
+*.log
+
+# macOS Finder metadata
+.DS_Store
