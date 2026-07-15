@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use infra_redis::RedisPool;
 
 /// Adapter to check Redis connectivity via the `HealthCheckable` trait.
@@ -15,15 +16,14 @@ impl RedisHealthCheck {
     }
 }
 
-impl api_http::HealthCheckable for RedisHealthCheck {
-    fn ping(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>> + Send + '_>> {
-        Box::pin(async move {
-            let mut conn = self.pool.connection().await.map_err(|e| e.to_string())?;
-            redis::cmd("PING")
-                .query_async::<String>(&mut conn)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(())
-        })
+#[async_trait]
+impl pocr_core::ports::HealthCheckable for RedisHealthCheck {
+    async fn ping(&self) -> Result<(), String> {
+        let mut conn = self.pool.connection().await.map_err(|e| e.to_string())?;
+        redis::cmd("PING")
+            .query_async::<String>(&mut conn)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
     }
 }

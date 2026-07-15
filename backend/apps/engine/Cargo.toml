@@ -9,6 +9,7 @@ pocr-core = { path = "../../crates/core" }
 infra-pg = { path = "../../crates/infra-pg" }
 infra-redis = { path = "../../crates/infra-redis" }
 observability = { path = "../../crates/observability" }
+async-trait.workspace = true
 axum.workspace = true
 dashmap.workspace = true
 rand.workspace = true
@@ -20,7 +21,6 @@ tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
-async-trait.workspace = true
 chrono.workspace = true
 
 [lints]

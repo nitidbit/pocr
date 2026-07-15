@@ -147,12 +147,15 @@ pub trait HealthCheckable: Send + Sync {
     async fn ping(&self) -> Result<(), String>;
 }
 
-/// Orchestrates the randomization flow for a study + request.
+/// Orchestrates the randomization flow for a study + request within an
+/// [`Environment`]. The environment is resolved by the caller (from the CDS
+/// Hooks `fhirServer` URL) and gates whether the request may proceed.
 #[async_trait]
 pub trait RandomizationService: Send + Sync {
     async fn randomize(
         &self,
         study: &Study,
+        environment: Environment,
         request: &RandomizationRequest,
     ) -> Result<Randomization, RandomizationError>;
 }

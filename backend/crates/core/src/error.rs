@@ -42,6 +42,14 @@ pub enum RandomizationError {
     #[error("invalid configuration: {0}")]
     InvalidConfiguration(String),
 
+    /// The study is not active, so this environment may not randomize into it.
+    #[error("study is not active")]
+    StudyNotActive,
+
+    /// The study is closed; no environment may randomize into it.
+    #[error("study is closed")]
+    StudyClosed,
+
     /// An unclassified error occurred.
     #[error("unknown randomization error")]
     Unknown,

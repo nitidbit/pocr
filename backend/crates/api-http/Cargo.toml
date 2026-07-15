@@ -9,13 +9,16 @@ infra-pg = { path = "../infra-pg" }
 axum = { workspace = true, features = ["macros"] }
 chrono.workspace = true
 jsonwebtoken.workspace = true
+pem.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
 uuid.workspace = true
+x509-parser.workspace = true
 
 [lints]
 workspace = true

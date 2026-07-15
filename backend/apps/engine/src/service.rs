@@ -8,17 +8,19 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use dashmap::DashMap;
 use tokio::sync::Notify;
 use tracing::{info, instrument};
 use uuid::Uuid;
 
+use pocr_core::environment::Environment;
 use pocr_core::error::{RandomizationError, RandomizationResult};
 use pocr_core::ports::{BlockCacheRepository, RandomizationRepository};
 use pocr_core::random::{
     Arm, Key, KeyVariant, RandomPermutedBlock, Randomization, RandomizationRequest, Strata, Unit,
 };
-use pocr_core::study::{RandomizationStrategy, Study};
+use pocr_core::study::{gate, GateDecision, GateRejection, RandomizationStrategy, Study};
 
 /// The randomization service wires together domain logic and persistence.
 pub struct Engine {
@@ -58,23 +60,34 @@ impl Engine {
         }
     }
 
-    /// Execute randomization for a study given a request.
-    #[instrument(skip(self, study, request), fields(study_id = %study.id))]
+    /// Execute randomization for a study given a request in an environment.
+    #[instrument(skip(self, study, request), fields(study_id = %study.id, environment = %environment))]
     pub async fn randomize(
         &self,
         study: &Study,
+        environment: Environment,
         request: &RandomizationRequest,
     ) -> RandomizationResult<Randomization> {
         let config = &study.randomization_config;
+
+        // 0. Environment × status gate — must a request in this environment be
+        //    allowed to randomize into a study in this lifecycle state?
+        if let GateDecision::Reject(reason) = gate(environment, study.status) {
+            return Err(match reason {
+                GateRejection::StudyNotActive => RandomizationError::StudyNotActive,
+                GateRejection::StudyClosed => RandomizationError::StudyClosed,
+            });
+        }
 
         // 1. Extract unit from request using study keys
         let unit = self.extract_unit(&config.keys, request)?;
         let unit_hash = String::from(&unit);
 
-        // 2. Idempotency check — return existing if already randomized
+        // 2. Idempotency check — return existing if already randomized in this
+        //    environment (production and non-production dedup independently).
         if let Some(existing) = self
             .randomization_repo
-            .exists_for_unit(&study.id, &unit_hash)
+            .exists_for_unit(&study.id, environment, &unit_hash)
             .await
             .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?
         {
@@ -82,8 +95,9 @@ impl Engine {
             return Ok(existing);
         }
 
-        // 3. Deduplication — atomic check-and-set via DashMap::entry()
-        let dedup_key = format!("{}:{}", study.id, unit_hash);
+        // 3. Deduplication — atomic check-and-set via DashMap::entry().
+        //    Keyed by environment so a test request never blocks a production one.
+        let dedup_key = format!("{}:{}:{}", environment.as_str(), study.id, unit_hash);
 
         match self.inflight.entry(dedup_key.clone()) {
             dashmap::mapref::entry::Entry::Occupied(entry) => {
@@ -95,7 +109,7 @@ impl Engine {
                 // Re-check idempotency after wake
                 if let Some(existing) = self
                     .randomization_repo
-                    .exists_for_unit(&study.id, &unit_hash)
+                    .exists_for_unit(&study.id, environment, &unit_hash)
                     .await
                     .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?
                 {
@@ -141,10 +155,16 @@ impl Engine {
 
         // 5. Perform randomization based on strategy
         let arm_index = match config.strategy {
-            RandomizationStrategy::Simple => self.simple_randomize(&config.arms),
+            RandomizationStrategy::Simple => self.simple_randomize(&config.arms)?,
             RandomizationStrategy::Block => {
-                self.block_randomize(&study.id, &config.arms, config.block_size, &stratum_key)
-                    .await?
+                self.block_randomize(
+                    &study.id,
+                    environment,
+                    &config.arms,
+                    config.block_size,
+                    &stratum_key,
+                )
+                .await?
             }
         };
 
@@ -158,10 +178,10 @@ impl Engine {
         let epic_ids = request.extract_epic_ids();
         let mut randomization = match config.strategy {
             RandomizationStrategy::Simple => {
-                Randomization::simple(&study.id, &unit, &arm)
+                Randomization::simple(&study.id, environment, &unit, &arm)
             }
             RandomizationStrategy::Block => {
-                Randomization::block(&study.id, strata.as_ref(), &unit, &arm)
+                Randomization::block(&study.id, environment, strata.as_ref(), &unit, &arm)
             }
         };
         randomization.epic_patient_id = epic_ids.patient_id;
@@ -204,19 +224,22 @@ impl Engine {
         Unit::try_parse(keys, request)
     }
 
-    fn simple_randomize(&self, arms: &[Arm]) -> u32 {
+    fn simple_randomize(&self, arms: &[Arm]) -> RandomizationResult<u32> {
         use rand::distr::weighted::WeightedIndex;
         use rand::distr::Distribution;
 
         let weights: Vec<u32> = arms.iter().map(|a| a.ratio).collect();
-        let dist = WeightedIndex::new(&weights).expect("arm ratios must be non-zero");
+        let dist = WeightedIndex::new(&weights).map_err(|_| {
+            RandomizationError::InvalidConfiguration("all arm ratios are zero".into())
+        })?;
         let mut rng = rand::rng();
-        dist.sample(&mut rng) as u32
+        Ok(dist.sample(&mut rng) as u32)
     }
 
     async fn block_randomize(
         &self,
         study_id: &Uuid,
+        environment: Environment,
         arms: &[Arm],
         block_size: Option<u32>,
         stratum_key: &str,
@@ -224,7 +247,7 @@ impl Engine {
         // Try to consume from existing cached block
         if let Some(arm_index) = self
             .block_cache
-            .consume_next(study_id, stratum_key)
+            .consume_next(environment, study_id, stratum_key)
             .await
             .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?
         {
@@ -253,7 +276,7 @@ impl Engine {
 
         // Save the rest of the block to cache
         self.block_cache
-            .save_block(&block)
+            .save_block(environment, &block)
             .await
             .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?;
 
@@ -261,13 +284,15 @@ impl Engine {
     }
 }
 
-impl api_http::RandomizationService for Engine {
-    fn randomize<'a>(
-        &'a self,
-        study: &'a Study,
-        request: &'a RandomizationRequest,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = RandomizationResult<Randomization>> + Send + 'a>> {
-        Box::pin(self.randomize(study, request))
+#[async_trait]
+impl pocr_core::ports::RandomizationService for Engine {
+    async fn randomize(
+        &self,
+        study: &Study,
+        environment: Environment,
+        request: &RandomizationRequest,
+    ) -> RandomizationResult<Randomization> {
+        self.randomize(study, environment, request).await
     }
 }
 
@@ -300,24 +325,43 @@ mod tests {
         async fn find_by_study(
             &self,
             study_id: &Uuid,
+            environment: Environment,
             _limit: u32,
             _offset: u32,
         ) -> Result<Vec<Randomization>, RepositoryError> {
             let records = self.records.lock().unwrap();
-            Ok(records.iter().filter(|r| r.study_id == *study_id).cloned().collect())
+            Ok(records
+                .iter()
+                .filter(|r| r.study_id == *study_id && r.environment == environment)
+                .cloned()
+                .collect())
         }
 
         async fn exists_for_unit(
             &self,
             study_id: &Uuid,
+            environment: Environment,
             unit_hash: &str,
         ) -> Result<Option<Randomization>, RepositoryError> {
             let records = self.records.lock().unwrap();
             let found = records
                 .iter()
-                .find(|r| r.study_id == *study_id && String::from(&r.unit) == unit_hash)
+                .find(|r| {
+                    r.study_id == *study_id
+                        && r.environment == environment
+                        && String::from(&r.unit) == unit_hash
+                })
                 .cloned();
             Ok(found)
+        }
+
+        async fn purge_nonproduction(&self, study_id: &Uuid) -> Result<u64, RepositoryError> {
+            let mut records = self.records.lock().unwrap();
+            let before = records.len();
+            records.retain(|r| {
+                !(r.study_id == *study_id && r.environment == Environment::NonProduction)
+            });
+            Ok((before - records.len()) as u64)
         }
     }
 
@@ -330,15 +374,21 @@ mod tests {
     impl BlockCacheRepository for InMemoryBlockCache {
         async fn get_block(
             &self,
+            _environment: Environment,
             _study_id: &Uuid,
             _stratum_key: &str,
         ) -> Result<Option<RandomPermutedBlock>, RepositoryError> {
             Ok(None)
         }
 
-        async fn save_block(&self, block: &RandomPermutedBlock) -> Result<(), RepositoryError> {
+        async fn save_block(
+            &self,
+            environment: Environment,
+            block: &RandomPermutedBlock,
+        ) -> Result<(), RepositoryError> {
             let key = format!(
-                "{}:{}",
+                "{}:{}:{}",
+                environment.as_str(),
                 block.study_id,
                 block.stratification.as_deref().unwrap_or("")
             );
@@ -348,10 +398,19 @@ mod tests {
 
         async fn consume_next(
             &self,
+            _environment: Environment,
             _study_id: &Uuid,
             _stratum_key: &str,
         ) -> Result<Option<u32>, RepositoryError> {
             Ok(None)
+        }
+
+        async fn purge_nonproduction(&self, study_id: &Uuid) -> Result<u64, RepositoryError> {
+            let mut blocks = self.blocks.lock().unwrap();
+            let prefix = format!("{}:{}:", Environment::NonProduction.as_str(), study_id);
+            let before = blocks.len();
+            blocks.retain(|k, _| !k.starts_with(&prefix));
+            Ok((before - blocks.len()) as u64)
         }
     }
 
@@ -405,7 +464,7 @@ mod tests {
         let study = test_study(RandomizationStrategy::Simple);
         let request = test_request("P-001");
 
-        let result = engine.randomize(&study, &request).await;
+        let result = engine.randomize(&study, Environment::Production, &request).await;
 
         assert!(result.is_ok());
         let randomization = result.unwrap();
@@ -421,7 +480,7 @@ mod tests {
         let study = test_study(RandomizationStrategy::Block);
         let request = test_request("P-002");
 
-        let result = engine.randomize(&study, &request).await;
+        let result = engine.randomize(&study, Environment::Production, &request).await;
 
         assert!(result.is_ok());
         let randomization = result.unwrap();
@@ -437,8 +496,8 @@ mod tests {
         let study = test_study(RandomizationStrategy::Simple);
         let request = test_request("P-003");
 
-        let first = engine.randomize(&study, &request).await.unwrap();
-        let second = engine.randomize(&study, &request).await.unwrap();
+        let first = engine.randomize(&study, Environment::Production, &request).await.unwrap();
+        let second = engine.randomize(&study, Environment::Production, &request).await.unwrap();
 
         assert_eq!(first.id, second.id);
         assert_eq!(first.arm.id, second.arm.id);
@@ -456,8 +515,8 @@ mod tests {
 
         let study = test_study(RandomizationStrategy::Simple);
 
-        let first = engine.randomize(&study, &test_request("P-100")).await.unwrap();
-        let second = engine.randomize(&study, &test_request("P-200")).await.unwrap();
+        let first = engine.randomize(&study, Environment::Production, &test_request("P-100")).await.unwrap();
+        let second = engine.randomize(&study, Environment::Production, &test_request("P-200")).await.unwrap();
 
         assert_ne!(first.id, second.id);
 
@@ -480,7 +539,7 @@ mod tests {
             context: None,
         };
 
-        let result = engine.randomize(&study, &request).await;
+        let result = engine.randomize(&study, Environment::Production, &request).await;
 
         assert!(result.is_err());
         assert!(matches!(
@@ -498,10 +557,118 @@ mod tests {
         let study = test_study(RandomizationStrategy::Block);
         let request = test_request("P-004");
 
-        engine.randomize(&study, &request).await.unwrap();
+        engine.randomize(&study, Environment::Production, &request).await.unwrap();
 
         // Verify block was saved to cache
         let blocks = cache.blocks.lock().unwrap();
         assert!(!blocks.is_empty());
+    }
+
+    // ── Environment isolation ────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn same_unit_randomizes_independently_per_environment() {
+        let repo = Arc::new(InMemoryRandomizationRepo::default());
+        let cache = Arc::new(InMemoryBlockCache::default());
+        let engine = Engine::new(repo.clone(), cache);
+
+        let study = test_study(RandomizationStrategy::Simple);
+        let request = test_request("P-SHARED");
+
+        let prod = engine
+            .randomize(&study, Environment::Production, &request)
+            .await
+            .unwrap();
+        let test = engine
+            .randomize(&study, Environment::NonProduction, &request)
+            .await
+            .unwrap();
+
+        // Two distinct records — the non-production request did not dedup
+        // against the production one.
+        assert_ne!(prod.id, test.id);
+        assert_eq!(prod.environment, Environment::Production);
+        assert_eq!(test.environment, Environment::NonProduction);
+
+        let records = repo.records.lock().unwrap();
+        assert_eq!(records.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn block_cache_keys_differ_by_environment() {
+        let repo = Arc::new(InMemoryRandomizationRepo::default());
+        let cache = Arc::new(InMemoryBlockCache::default());
+        let engine = Engine::new(repo, cache.clone());
+
+        let study = test_study(RandomizationStrategy::Block);
+
+        engine
+            .randomize(&study, Environment::Production, &test_request("P-A"))
+            .await
+            .unwrap();
+        engine
+            .randomize(&study, Environment::NonProduction, &test_request("P-B"))
+            .await
+            .unwrap();
+
+        let blocks = cache.blocks.lock().unwrap();
+        // One key per environment — the sequences are independent.
+        assert_eq!(blocks.len(), 2);
+        assert!(blocks.keys().any(|k| k.starts_with("production:")));
+        assert!(blocks.keys().any(|k| k.starts_with("nonproduction:")));
+    }
+
+    // ── Environment × status gating ──────────────────────────────────────
+
+    fn study_with_status(status: StudyStatus) -> Study {
+        let mut s = test_study(RandomizationStrategy::Simple);
+        s.status = status;
+        s
+    }
+
+    #[tokio::test]
+    async fn production_rejected_when_study_not_active() {
+        let engine = Engine::new(
+            Arc::new(InMemoryRandomizationRepo::default()),
+            Arc::new(InMemoryBlockCache::default()),
+        );
+        let study = study_with_status(StudyStatus::Draft);
+
+        let err = engine
+            .randomize(&study, Environment::Production, &test_request("P-1"))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, RandomizationError::StudyNotActive));
+    }
+
+    #[tokio::test]
+    async fn nonproduction_allowed_when_study_draft() {
+        let engine = Engine::new(
+            Arc::new(InMemoryRandomizationRepo::default()),
+            Arc::new(InMemoryBlockCache::default()),
+        );
+        let study = study_with_status(StudyStatus::Draft);
+
+        let result = engine
+            .randomize(&study, Environment::NonProduction, &test_request("P-1"))
+            .await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn closed_study_rejects_all_environments() {
+        let engine = Engine::new(
+            Arc::new(InMemoryRandomizationRepo::default()),
+            Arc::new(InMemoryBlockCache::default()),
+        );
+        let study = study_with_status(StudyStatus::Closed);
+
+        for env in [Environment::Production, Environment::NonProduction] {
+            let err = engine
+                .randomize(&study, env, &test_request("P-1"))
+                .await
+                .unwrap_err();
+            assert!(matches!(err, RandomizationError::StudyClosed));
+        }
     }
 }
