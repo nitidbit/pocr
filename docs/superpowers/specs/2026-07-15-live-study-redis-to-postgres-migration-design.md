@@ -3,6 +3,12 @@
 **Date:** 2026-07-15
 **Status:** Approved for implementation
 
+> **Addendum (2026-07-15): environment partitioning.** The `env-lifecycle`
+> work merged into `release/v0.1.0` after this spec's first draft. It changes
+> the target schema in three ways the migration MUST honor. See the
+> "Environment partitioning" section below; where it conflicts with the
+> original body, the addendum wins.
+
 ## Problem
 
 A live clinical-trial study is running on the legacy POC engine
@@ -184,6 +190,44 @@ The POCR `find_by_study` reload reconstructs `unit` as a placeholder
 therefore renders units differently than the legacy engine did. This is
 pre-existing engine behavior, independent of migration, and is not data loss —
 `unit_hash`/`strata_key` retain the full information the engine persists.
+
+## Environment partitioning (addendum)
+
+The target engine now isolates production from non-production randomization
+state. The migrated live study is **production**, so the migration tags all of
+its data `production`. Concretely:
+
+1. **`randomizations.environment`** — a required `TEXT NOT NULL` column
+   (`CHECK IN ('production','nonproduction')`). Every migrated record sets
+   `environment = 'production'`. The POCR `Randomization` model carries a
+   required `environment: Environment` field
+   (`core::environment::Environment`), so the transform constructs each record
+   with `Environment::Production`.
+
+2. **Idempotency index changed.** Uniqueness is now
+   `(study_id, environment, unit_hash)` — index
+   `idx_randomizations_study_env_unit`. The upsert's `ON CONFLICT` target must
+   use this three-column key, not the old `(study_id, unit_hash)`.
+
+3. **Block cache key gains an environment segment:**
+   `block:{environment}:{new_study_id}:{stratum_key}`
+   (`RedisBlockCache::block_key(environment, study_id, stratum_key)`). Migrated
+   blocks are written under `block:production:{new_study_id}:{stratum_key}`.
+   The legacy key `block:{study_id}:{stratification}` has no environment
+   segment — the transform prepends `production`.
+
+4. **Study status values changed.** `inactive` no longer exists; valid values
+   are `draft` / `active` / `paused` / `closed`. Legacy proto `StudyStatus`
+   ordinals are `Unspecified=0, Draft=1, Active=2, Inactive=3`. Map:
+   `1 → draft`, `2 → active` **(a live study is Active)**, `3 → closed` (the
+   old catch-all `Inactive` becomes the terminal `closed`; there is no
+   `paused` in legacy data). Pass 1 asserts the live study resolves to
+   `active`. This supersedes the original body's `status` mapping row, which
+   still references `inactive`.
+
+The determinism validation check gains an environment dimension: the
+re-request must be resolved to `production` (via `FHIR_ENV_MAP`) and return the
+same recorded arm from the production partition.
 
 ## Out of scope
 
