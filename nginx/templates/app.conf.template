@@ -1,5 +1,5 @@
 upstream app {
-    server app:80;
+    server app:8080;
     keepalive 32;
 }
 
@@ -8,8 +8,14 @@ upstream vouch {
     keepalive 32;
 }
 
+upstream api_backend {
+    server engine:3000;
+    keepalive 32;
+}
+
 server {
-    listen ${NGINX_SERVER_PORT} ssl http2;
+    listen ${NGINX_SERVER_PORT} ssl;
+    http2 on;
     server_name ${NGINX_SERVER_NAME};
 
     ssl_certificate     /etc/nginx/certs/ssl.pem;
@@ -28,13 +34,23 @@ server {
     location = /validate {
         internal;
         include /etc/nginx/snippets/vouch-validate.conf;
-        proxy_pass http://vouch/validate;
     }
 
     error_page 401 = @error401;
 
     location @error401 {
         return 302 $scheme://$host/login?url=$scheme://$host$request_uri&vouch-failcount=$auth_resp_failcount&X-Vouch-Token=$auth_resp_jwt&error=$auth_resp_err;
+    }
+
+    # API routes — unauthenticated; vouch cookie is forwarded to backend
+    location /api/ {
+        include /etc/nginx/snippets/proxy-common.conf;
+        proxy_pass http://api_backend;
+    }
+
+    location /cds-services {
+        include /etc/nginx/snippets/proxy-common.conf;
+        proxy_pass http://api_backend;
     }
 
     # Browser app routes protected by Vouch

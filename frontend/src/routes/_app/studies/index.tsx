@@ -1,34 +1,56 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { AlertCircle, Plus, RefreshCw } from "lucide-react";
 import type { StudyResponse } from "#/api/client";
 import { useStudies } from "#/api/queries";
 import { formatDate } from "#/lib/format";
+import { STATUS_COLORS, STATUS_LABELS } from "#/lib/types/study";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/_app/studies/")({
 	component: StudiesDashboardPage,
 });
 
-const STATUS_LABELS: Record<string, string> = {
-	draft: "Draft",
-	active: "Active",
-	inactive: "Inactive",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-	draft: "bg-gray-100 text-gray-700",
-	active: "bg-emerald-100 text-emerald-700",
-	inactive: "bg-amber-100 text-amber-700",
-};
-
 function StudiesDashboardPage() {
-	const { data: studies, isLoading } = useStudies();
+	const { data: studies, isLoading, isError, refetch } = useStudies();
 
 	if (isLoading) {
 		return (
-			<div className="flex items-center justify-center py-16">
-				<p className="text-sm text-muted-foreground">Loading studies...</p>
+			<div className="flex flex-col gap-6">
+				<div className="flex items-center justify-between">
+					<div>
+						<Skeleton className="h-8 w-32" />
+						<Skeleton className="mt-2 h-4 w-64" />
+					</div>
+					<Skeleton className="h-9 w-40" />
+				</div>
+				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+					{Array.from({ length: 4 }).map((_, i) => (
+						<Skeleton key={i} className="h-20 rounded-lg" />
+					))}
+				</div>
+				<Skeleton className="h-64 rounded-lg" />
+			</div>
+		);
+	}
+
+	if (isError) {
+		return (
+			<div className="flex flex-col items-center justify-center gap-4 py-16">
+				<div className="flex flex-col items-center gap-2 text-center">
+					<AlertCircle className="size-8 text-destructive" />
+					<h2 className="text-lg font-semibold text-foreground">
+						Failed to load studies
+					</h2>
+					<p className="text-sm text-muted-foreground">
+						Something went wrong while fetching your studies.
+					</p>
+					<Button variant="outline" className="mt-2" onClick={() => refetch()}>
+						<RefreshCw className="size-4" />
+						Try again
+					</Button>
+				</div>
 			</div>
 		);
 	}

@@ -1,1 +1,10 @@
 .idea/
+.claude/
+.vscode/
+
+
+CLAUDE.md
+AGENTS.md
+**/plans/*.md
+# macOS Finder metadata
+.DS_Store

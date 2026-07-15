@@ -1,8 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Calendar } from "lucide-react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { AlertCircle, Calendar, RefreshCw, Trash2 } from "lucide-react";
+import { useState } from "react";
 import type { StudyResponse } from "#/api/client";
-import { useStudy } from "#/api/queries";
+import { useDeleteStudy, useStudy, useUpdateStudy } from "#/api/queries";
 import { formatDate } from "#/lib/format";
+import { STATUS_COLORS, STATUS_LABELS } from "#/lib/types/study";
+import type { StudyStatus } from "#/lib/types/study";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/_app/studies/$studyId/")({
 	component: StudyOverviewPage,
@@ -10,21 +16,140 @@ export const Route = createFileRoute("/_app/studies/$studyId/")({
 
 function StudyOverviewPage() {
 	const { studyId } = Route.useParams();
-	const { data: study } = useStudy(studyId);
+	const { data: study, isLoading, isError, refetch } = useStudy(studyId);
+
+	if (isLoading) {
+		return (
+			<div className="grid gap-6 lg:grid-cols-3">
+				<div className="flex flex-col gap-6 lg:col-span-2">
+					<Skeleton className="h-32 rounded-lg" />
+					<Skeleton className="h-48 rounded-lg" />
+				</div>
+				<Skeleton className="h-64 rounded-lg" />
+			</div>
+		);
+	}
+
+	if (isError) {
+		return (
+			<div className="flex flex-col items-center justify-center gap-4 py-16">
+				<AlertCircle className="size-8 text-destructive" />
+				<h2 className="text-lg font-semibold">Failed to load study</h2>
+				<Button variant="outline" onClick={() => refetch()}>
+					<RefreshCw className="size-4" />
+					Try again
+				</Button>
+			</div>
+		);
+	}
 
 	if (!study) return null;
 
 	return (
-		<div className="grid gap-6 lg:grid-cols-3">
-			<div className="flex flex-col gap-6 lg:col-span-2">
-				<DescriptionSection description={study.description} />
-				<ArmsOverviewSection study={study} />
+		<div className="flex flex-col gap-6">
+			<StatusSection study={study} />
+
+			<div className="grid gap-6 lg:grid-cols-3">
+				<div className="flex flex-col gap-6 lg:col-span-2">
+					<DescriptionSection description={study.description} />
+					<ArmsOverviewSection study={study} />
+				</div>
+
+				<div className="flex flex-col gap-6">
+					<MetadataCard study={study} />
+				</div>
 			</div>
 
-			<div className="flex flex-col gap-6">
-				<MetadataCard study={study} />
-			</div>
+			{study.status === "draft" && <DangerZone study={study} />}
 		</div>
+	);
+}
+
+function StatusSection({ study }: { study: StudyResponse }) {
+	const updateStudy = useUpdateStudy(study.id);
+	const [confirming, setConfirming] = useState<"activate" | "deactivate" | null>(null);
+
+	const handleStatusChange = (status: StudyStatus) => {
+		updateStudy.mutate({ status }, { onSuccess: () => setConfirming(null) });
+	};
+
+	return (
+		<section className="flex items-center justify-between rounded-lg border bg-card p-4">
+			<div className="flex items-center gap-3">
+				<Badge className={STATUS_COLORS[study.status as StudyStatus] ?? "bg-gray-100 text-gray-700"}>
+					{STATUS_LABELS[study.status as StudyStatus] ?? study.status}
+				</Badge>
+				{study.status === "active" && (
+					<span className="text-xs text-muted-foreground">
+						Accepting randomizations via CDS Hooks
+					</span>
+				)}
+			</div>
+
+			<div className="flex items-center gap-2">
+				{study.status === "draft" && !confirming && (
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => setConfirming("activate")}
+					>
+						Activate Study
+					</Button>
+				)}
+				{study.status === "active" && !confirming && (
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => setConfirming("deactivate")}
+					>
+						Deactivate Study
+					</Button>
+				)}
+
+				{confirming === "activate" && (
+					<div className="flex items-center gap-2">
+						<span className="text-xs text-muted-foreground">
+							Activating enables randomization via CDS Hooks.
+						</span>
+						<Button
+							size="sm"
+							onClick={() => handleStatusChange("active")}
+							disabled={updateStudy.isPending}
+						>
+							Confirm
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setConfirming(null)}
+						>
+							Cancel
+						</Button>
+					</div>
+				)}
+				{confirming === "deactivate" && (
+					<div className="flex items-center gap-2">
+						<span className="text-xs text-muted-foreground">
+							Deactivating stops new randomizations. Data is preserved.
+						</span>
+						<Button
+							size="sm"
+							onClick={() => handleStatusChange("inactive")}
+							disabled={updateStudy.isPending}
+						>
+							Confirm
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setConfirming(null)}
+						>
+							Cancel
+						</Button>
+					</div>
+				)}
+			</div>
+		</section>
 	);
 }
 
@@ -55,7 +180,7 @@ function ArmsOverviewSection({ study }: { study: StudyResponse }) {
 					<thead className="border-b bg-muted/50">
 						<tr>
 							<th className="px-4 py-2.5 text-left font-medium text-muted-foreground">
-								Arm ID
+								Name
 							</th>
 							<th className="px-4 py-2.5 text-right font-medium text-muted-foreground">
 								Ratio
@@ -71,8 +196,8 @@ function ArmsOverviewSection({ study }: { study: StudyResponse }) {
 					<tbody>
 						{arms.map((arm) => (
 							<tr key={arm.id} className="border-b last:border-b-0">
-								<td className="px-4 py-2.5 font-mono text-xs text-foreground">
-									{arm.id}
+								<td className="px-4 py-2.5 text-foreground">
+									{arm.name}
 								</td>
 								<td className="px-4 py-2.5 text-right tabular-nums text-foreground">
 									{arm.ratio}
@@ -132,6 +257,65 @@ function MetadataCard({ study }: { study: StudyResponse }) {
 	);
 }
 
+function DangerZone({ study }: { study: StudyResponse }) {
+	const deleteStudy = useDeleteStudy();
+	const navigate = useNavigate();
+	const [showConfirm, setShowConfirm] = useState(false);
+
+	const handleDelete = () => {
+		deleteStudy.mutate(study.id, {
+			onSuccess: () => navigate({ to: "/studies" }),
+		});
+	};
+
+	return (
+		<section className="rounded-lg border border-destructive/30 bg-destructive/5 p-5">
+			<h2 className="mb-2 text-sm font-semibold text-destructive">
+				Danger Zone
+			</h2>
+			{!showConfirm ? (
+				<div className="flex items-center justify-between">
+					<p className="text-sm text-muted-foreground">
+						Permanently delete this study and all its data.
+					</p>
+					<Button
+						variant="destructive"
+						size="sm"
+						onClick={() => setShowConfirm(true)}
+					>
+						<Trash2 className="size-4" />
+						Delete Study
+					</Button>
+				</div>
+			) : (
+				<div className="flex flex-col gap-3">
+					<p className="text-sm text-foreground">
+						Are you sure you want to delete <strong>{study.name}</strong>? This
+						action cannot be undone.
+					</p>
+					<div className="flex items-center gap-2">
+						<Button
+							variant="destructive"
+							size="sm"
+							onClick={handleDelete}
+							disabled={deleteStudy.isPending}
+						>
+							{deleteStudy.isPending ? "Deleting..." : "Confirm Delete"}
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setShowConfirm(false)}
+						>
+							Cancel
+						</Button>
+					</div>
+				</div>
+			)}
+		</section>
+	);
+}
+
 interface MetadataRowProps {
 	label: string;
 	value: string;
@@ -149,4 +333,3 @@ function MetadataRow({ label, value, icon }: MetadataRowProps) {
 		</div>
 	);
 }
-
