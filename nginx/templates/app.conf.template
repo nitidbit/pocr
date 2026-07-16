@@ -42,6 +42,25 @@ server {
         return 302 $scheme://$host/login?url=$scheme://$host$request_uri&vouch-failcount=$auth_resp_failcount&X-Vouch-Token=$auth_resp_jwt&error=$auth_resp_err;
     }
 
+    # XHR-safe 401 for browser API calls — plain status, no HTML login redirect
+    location @api_unauthorized {
+        return 401;
+    }
+
+    # Browser identity endpoint — authenticated so the frontend header
+    # (name/email/avatar) resolves from Vouch. Exact match wins over /api/.
+    location = /api/me {
+        auth_request /validate;
+
+        # An unauthenticated XHR must get a 401, not a 302 to the login page.
+        error_page 401 = @api_unauthorized;
+
+        include /etc/nginx/snippets/vouch-proxy-headers.conf;
+        include /etc/nginx/snippets/proxy-common.conf;
+
+        proxy_pass http://api_backend;
+    }
+
     # API routes — unauthenticated; vouch cookie is forwarded to backend
     location /api/ {
         include /etc/nginx/snippets/proxy-common.conf;
