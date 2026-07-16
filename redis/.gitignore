@@ -1,0 +1,12 @@
+# Redis persistence artifacts (RDB snapshots + AOF)
+*.rdb
+*.aof
+appendonly*/
+dump.rdb
+
+# Server runtime files
+*.pid
+*.log
+
+# macOS Finder metadata
+.DS_Store

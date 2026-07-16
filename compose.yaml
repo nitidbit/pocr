@@ -1,0 +1,143 @@
+services:
+  nginx:
+    build:
+      context: ./nginx
+    image: andrewdrobinson/ucsf:pocr-nginx
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+      engine:
+        condition: service_healthy
+      vouch:
+        condition: service_started
+    environment:
+      NGINX_SERVER_PORT: ${NGINX_SERVER_PORT:-443}
+      NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-pocr-app.ucsf.edu}
+      NGINX_GRPC_PORT: ${NGINX_GRPC_PORT:-1443}
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
+    ports:
+      - "443:443"
+      - "1443:1443"
+    networks:
+      - frontend
+      - backend
+
+  vouch:
+    image: vouch/vouch-proxy:latest
+    restart: unless-stopped
+    volumes:
+      - ./vouch/config.yml:/config/config.yml:ro
+    environment:
+      VOUCH_CONFIG: /config/config.yml
+    networks:
+      - frontend
+    expose:
+      - "9090"
+
+  app:
+    build:
+      context: ./frontend
+    image: andrewdrobinson/ucsf:pocr-app
+    restart: unless-stopped
+    depends_on:
+      - engine
+    networks:
+      - frontend
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:8080/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  engine:
+    build:
+      context: ./backend
+      target: production
+    image: andrewdrobinson/ucsf:pocr-engine
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://pocr:${POSTGRES_PASSWORD}@postgres:5432/pocr
+      REDIS_URL: redis://redis:6379
+      RUST_LOG: info
+      CERT_PATH: /etc/certs/ssl.pem
+    volumes:
+      - ./certs:/etc/certs:ro
+    secrets:
+      - redis_password
+      - postgres_password
+    networks:
+      - backend
+    expose:
+      - "3000"
+      - "50051"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --spider -q http://localhost:3000/health/live || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pocr
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: pocr
+    secrets:
+      - postgres_password
+    networks:
+      - backend
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pocr"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    build:
+      context: ./redis
+    image: andrewdrobinson/ucsf:pocr-redis
+    restart: unless-stopped
+    secrets:
+      - redis_password
+    networks:
+      - backend
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  frontend:
+  backend:
+    internal: true
+
+volumes:
+  pg_data:
+  redis_data:
+
+secrets:
+  redis_password:
+    file: ./secrets/redis_password
+  postgres_password:
+    file: ./secrets/postgres_password

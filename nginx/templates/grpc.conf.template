@@ -1,0 +1,19 @@
+upstream grpc_backend {
+    server engine:50051;
+    keepalive 32;
+}
+
+server {
+    listen ${NGINX_GRPC_PORT} ssl;
+    http2 on;
+    server_name ${NGINX_SERVER_NAME};
+
+    ssl_certificate     /etc/nginx/certs/ssl.pem;
+    ssl_certificate_key /etc/nginx/certs/ssl.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    location / {
+        grpc_pass grpc://grpc_backend;
+    }
+}

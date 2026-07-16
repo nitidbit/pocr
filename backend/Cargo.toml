@@ -1,0 +1,34 @@
+[workspace]
+resolver = "3"
+members = ["apps/engine", "apps/migrate", "apps/sync", "crates/api-grpc", "crates/api-http", "crates/core", "crates/infra-caboodle", "crates/infra-pg", "crates/infra-redis", "crates/observability"]
+
+[workspace.dependencies]
+tokio = { version = "1.49.0", features = ["full"] }
+serde = { version = "1.0.228", features = ["derive"] }
+thiserror = "2.0.18"
+chrono = { version = "0.4.43", features = ["serde"] }
+uuid = { version = "1.20.0", features = ["v7", "serde"] }
+quick-xml = { version = "0.40.0", features = ["serialize"] }
+axum = "0.8.8"
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-native-tls", "macros", "postgres", "uuid", "chrono"] }
+async-trait = "0.1.89"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter", "fmt", "json"] }
+tracing-error = "0.2.1"
+tracing-appender = "0.2.4"
+tower = "0.5.3"
+tower-http = { version = "0.6.8", features = ["trace"] }
+redis = { version = "1.2.1", features = ["aio", "tokio-comp"] }
+serde_json = "1.0.140"
+rand = "0.10.1"
+tonic = "0.14.6"
+prost = "0.14.3"
+jsonwebtoken = "10.4.0"
+futures = "0.3.31"
+dashmap = "6.1.0"
+x509-parser = "0.17"
+pem = "3"
+secrecy = "0.10.3"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

@@ -1,0 +1,42 @@
+# Web
+node_modules
+dist
+*.local
+.nitro
+.tanstack
+.output
+.vinxi
+plans
+
+# Version control
+.git
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Documentation
+*.md
+LICENSE
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Agents
+.claude
+.plans
+
+# Docker (avoid recursive context)
+Dockerfile*
+docker-compose*.yml
+compose*.yaml
