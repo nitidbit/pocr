@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["apps/engine", "apps/sync", "crates/api-grpc", "crates/api-http", "crates/core", "crates/infra-caboodle", "crates/infra-pg", "crates/infra-redis", "crates/observability"]
+members = ["apps/engine", "apps/migrate", "apps/sync", "crates/api-grpc", "crates/api-http", "crates/core", "crates/infra-caboodle", "crates/infra-pg", "crates/infra-redis", "crates/observability"]
 
 [workspace.dependencies]
 tokio = { version = "1.49.0", features = ["full"] }
