@@ -238,4 +238,53 @@ mod tests {
 
         assert_eq!(mapping.study_id, "228835de-96a7-442f-8fdb-6aeae6af8012");
     }
+
+    // ── Hash parity ──────────────────────────────────────────────────────
+    //
+    // The live engine persists each randomization under the Redis key
+    // `randomization:{study_id}:{String::from(&unit)}` (see the legacy
+    // `Key for Randomization` impl). The key suffix is therefore the exact
+    // `unit_hash` the running engine computed. These goldens deserialize a
+    // real record and assert `String::from(&unit)` still reproduces that
+    // suffix — locking hash parity against any future change to the core
+    // `Unit`/`Strata` serde shape or the `From<&Unit> for String` logic.
+
+    /// A real record and its real Redis key suffix, copied verbatim from the
+    /// live study's AOF (`randomization:228835de-...:eaYQYiGc3dMeGffKe8qGUow3`).
+    const GOLDEN_RANDOMIZATION_JSON: &str = r#"{"id":"2f1df2e5-71a4-46b2-90a0-4bd22ac260bd","study_id":"228835de-96a7-442f-8fdb-6aeae6af8012","unit":{"kind":"simple","data":{"PatientId":"eaYQYiGc3dMeGffKe8qGUow3"}},"arm":{"id":"3dcce794-5284-4d7c-b773-2e7d18ffb589","ratio":1,"locator":5802},"issued_at":"2026-03-03T15:56:53.232231178Z"}"#;
+    const GOLDEN_UNIT_HASH: &str = "eaYQYiGc3dMeGffKe8qGUow3";
+
+    #[test]
+    fn unit_hash_matches_live_engine_key_suffix() {
+        let rec: LegacyRandomization = serde_json::from_str(GOLDEN_RANDOMIZATION_JSON).unwrap();
+
+        // The shared core function that both engines use to key a record.
+        let unit_hash = String::from(&rec.unit);
+
+        assert_eq!(
+            unit_hash, GOLDEN_UNIT_HASH,
+            "unit_hash must match the suffix the live engine persisted"
+        );
+    }
+
+    #[test]
+    fn composite_unit_hash_joins_with_pipe() {
+        // Composite units the live engine keys as `a|b` (see `From<&Unit>`).
+        let json = r#"{"kind":"composite","data":[{"PatientId":"pat-1"},{"EncounterId":"enc-2"}]}"#;
+        let unit: Unit = serde_json::from_str(json).unwrap();
+
+        assert_eq!(String::from(&unit), "pat-1|enc-2");
+    }
+
+    #[test]
+    fn strata_key_matches_live_engine_format() {
+        use pocr_core::random::Strata;
+
+        // The live engine serializes a resolved stratum as `name=value` and a
+        // composite as `a=x|b=y` — the string that forms the block key suffix.
+        let json = r#"{"kind":"Simple","data":{"FhirPath":{"name":"age","value":"adult"}}}"#;
+        let strata: Strata = serde_json::from_str(json).unwrap();
+
+        assert_eq!(String::from(&strata), "age=adult");
+    }
 }

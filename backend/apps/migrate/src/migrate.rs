@@ -49,6 +49,17 @@ pub enum MigrateError {
     /// could not be rewritten.
     #[error("block references unknown legacy study id: {0}")]
     UnknownBlockStudy(String),
+    /// A randomization referenced an arm id absent from its study's config —
+    /// migrating it would silently drop a live assignment, so the run aborts.
+    #[error("randomization {id} references arm {arm_id} not in study {study_id}'s config")]
+    UnmappedRandomizationArm {
+        /// Legacy randomization id.
+        id: String,
+        /// Legacy arm id that was not found in the arm map.
+        arm_id: String,
+        /// Legacy study id the randomization belongs to.
+        study_id: String,
+    },
     /// No migrated study resolved to `active`, so the live study is missing —
     /// a strong signal the wrong Redis was pointed at.
     #[error("no migrated study resolved to 'active'; refusing to proceed")]
@@ -181,9 +192,15 @@ pub async fn migrate(
             );
             continue;
         };
+        // An unmapped arm on a record whose study *was* migrated means the
+        // study config and its assignments disagree — skipping would silently
+        // drop a live randomization, so abort rather than lose data.
         let Some(&new_arm_id) = manifest.arms.get(&legacy.arm.id) else {
-            warn!(arm_id = legacy.arm.id, "skipping randomization with unmapped arm");
-            continue;
+            return Err(MigrateError::UnmappedRandomizationArm {
+                id: legacy.id.clone(),
+                arm_id: legacy.arm.id.clone(),
+                study_id: legacy.study_id.clone(),
+            });
         };
         let issued_millis = legacy.issued_at.timestamp_millis().max(0) as u64;
         let new_id = manifest.randomization_id(&legacy.id, issued_millis, &mut rng);

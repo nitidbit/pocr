@@ -282,6 +282,28 @@ mod tests {
     }
 
     #[test]
+    fn key_variant_maps_fhir_path_fields() {
+        let legacy = LegacyKey {
+            variant: Some(LegacyKeyVariant::FhirPath(crate::legacy::LegacyFhirPath {
+                id: "age".to_string(),
+                name: "Age".to_string(),
+                context: "Patient".to_string(),
+                path: "/age".to_string(),
+            })),
+        };
+
+        match transform_key(&legacy) {
+            Some(KeyVariant::FhirPath(fp)) => {
+                assert_eq!(fp.id, "age");
+                assert_eq!(fp.name, "Age");
+                assert_eq!(fp.context, "Patient");
+                assert_eq!(fp.path, "/age");
+            }
+            other => panic!("expected FhirPath, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn epoch_conversion_roundtrips() {
         let dt = epoch_seconds_to_utc(1772550371).unwrap();
         assert_eq!(dt.timestamp(), 1772550371);
