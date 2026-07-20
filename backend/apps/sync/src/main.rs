@@ -22,20 +22,17 @@ async fn main() -> ExitCode {
 }
 
 async fn run() -> Result<(), SyncError> {
-    // 1. Connect to PostgreSQL
     let database_url = env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgres://pocr:pocr@localhost:5432/pocr".into());
     let pg_pool = infra_pg::create_pool(&database_url).await?;
     infra_pg::run_migrations(&pg_pool).await?;
     info!("connected to PostgreSQL");
 
-    // 2. Connect to Caboodle
     let caboodle_config = infra_caboodle::CaboodleConfig::from_env()
         .map_err(|e| SyncError::Config(format!("missing Caboodle env vars: {e}")))?;
     let mut caboodle = infra_caboodle::CaboodleClient::connect(&caboodle_config).await?;
     info!("connected to Caboodle");
 
-    // 3. Query PG for distinct (epic_patient_id, issued_at) from randomizations
     let patients: Vec<PatientRow> = sqlx::query_as(
         r#"SELECT DISTINCT ON (epic_patient_id) epic_patient_id, issued_at
            FROM randomizations
@@ -50,11 +47,13 @@ async fn run() -> Result<(), SyncError> {
         return Ok(());
     }
 
-    info!(patient_count = patients.len(), "found randomized patients to sync");
+    info!(
+        patient_count = patients.len(),
+        "found randomized patients to sync"
+    );
 
     let patient_ids: Vec<String> = patients.iter().map(|p| p.epic_patient_id.clone()).collect();
 
-    // 4. Fetch demographics from Caboodle
     let demographics =
         infra_caboodle::queries::fetch_demographics(&mut caboodle, &patient_ids).await?;
     info!(
@@ -79,10 +78,8 @@ async fn run() -> Result<(), SyncError> {
     // Collect patient_keys for secondary queries
     let patient_keys: Vec<i64> = demographics.iter().map(|d| d.patient_key).collect();
 
-    // 5. Fetch races and insurance
     let races = infra_caboodle::queries::fetch_races(&mut caboodle, &patient_keys).await?;
-    let insurance =
-        infra_caboodle::queries::fetch_insurance(&mut caboodle, &patient_keys).await?;
+    let insurance = infra_caboodle::queries::fetch_insurance(&mut caboodle, &patient_keys).await?;
 
     // BMI needs (epic_id, randomization_date) pairs for patients found in Caboodle
     let bmi_patients: Vec<(String, DateTime<Utc>)> = patients
@@ -92,7 +89,6 @@ async fn run() -> Result<(), SyncError> {
         .collect();
     let bmi = infra_caboodle::queries::fetch_bmi(&mut caboodle, &bmi_patients).await?;
 
-    // 6. Assemble PatientDemographics records
     let now = Utc::now();
     let mut batch: Vec<infra_pg::PatientDemographics> = Vec::with_capacity(demographics.len());
 
@@ -115,7 +111,6 @@ async fn run() -> Result<(), SyncError> {
         });
     }
 
-    // 7. Upsert into PG
     let repo = infra_pg::PgDemographicsRepository::new(pg_pool);
     repo.upsert_batch(&batch).await?;
 
