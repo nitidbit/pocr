@@ -27,7 +27,9 @@ pub async fn discover_services() -> impl IntoResponse {
                 .to_string(),
             id: "randomization".to_string(),
             prefetch: Some(json!({
-                "patient": "Patient/{{context.patientId}}"
+                "patient": "Patient/{{context.patientId}}",
+                "encounter": "Encounter/{{context.encounterId}}",
+                "user": "{{context.userId}}"
             })),
         }],
     };

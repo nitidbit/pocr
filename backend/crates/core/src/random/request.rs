@@ -25,25 +25,63 @@ pub struct EpicIds {
     pub patient_id: Option<String>,
     /// Contact Serial Number (encounter ID in Epic).
     pub csn: Option<String>,
-    /// Epic provider identifier.
-    pub provider_id: Option<String>,
+    /// Epic user (provider) identifier.
+    pub user_id: Option<String>,
 }
 
 impl RandomizationRequest {
-    /// Extract Epic-native IDs from the request context JSON.
+    /// Extract Epic-native IDs from the FHIR resources in the request context.
     ///
-    /// Look for `epicPatientId`, `csn`, and `epicProviderId` at the
-    /// top level of the context object.
+    /// The context is the CDS Hooks `prefetch` block: `patient`, `encounter`,
+    /// and `user` (Practitioner) FHIR resources, each present only if the EHR
+    /// supplied it. Every field is best-effort — a missing resource or
+    /// identifier yields `None`.
+    ///
+    /// - `patient_id`: the Patient's `EXTERNAL`-typed identifier value.
+    /// - `csn`: the Encounter identifier whose system OID ends in `.7.3.698084.8`.
+    /// - `user_id`: the user (Practitioner) `EXTERNAL`-typed identifier value.
     pub fn extract_epic_ids(&self) -> EpicIds {
         let Some(ctx) = &self.context else {
             return EpicIds::default();
         };
         EpicIds {
-            patient_id: ctx.get("epicPatientId").and_then(|v| v.as_str()).map(String::from),
-            csn: ctx.get("csn").and_then(|v| v.as_str()).map(String::from),
-            provider_id: ctx.get("epicProviderId").and_then(|v| v.as_str()).map(String::from),
+            patient_id: identifier_by_type(ctx.get("patient"), "EXTERNAL"),
+            csn: identifier_by_system_suffix(ctx.get("encounter"), CSN_OID_SUFFIX),
+            user_id: identifier_by_type(ctx.get("user"), "EXTERNAL"),
         }
     }
+}
+
+/// Stable trailing segment of the Epic CSN identifier system OID. The leading
+/// segments are deployment-specific; the leading dot anchors the match to a
+/// segment boundary.
+const CSN_OID_SUFFIX: &str = ".7.3.698084.8";
+
+/// Return the value of the first identifier on `resource` whose `type.text`
+/// equals `type_text`.
+fn identifier_by_type(resource: Option<&serde_json::Value>, type_text: &str) -> Option<String> {
+    identifiers(resource)
+        .find(|id| id.get("type").and_then(|t| t.get("text")).and_then(|t| t.as_str()) == Some(type_text))
+        .and_then(|id| id.get("value").and_then(|v| v.as_str()))
+        .map(String::from)
+}
+
+/// Return the value of the first identifier on `resource` whose `system`
+/// ends with `suffix`.
+fn identifier_by_system_suffix(resource: Option<&serde_json::Value>, suffix: &str) -> Option<String> {
+    identifiers(resource)
+        .find(|id| id.get("system").and_then(|s| s.as_str()).is_some_and(|s| s.ends_with(suffix)))
+        .and_then(|id| id.get("value").and_then(|v| v.as_str()))
+        .map(String::from)
+}
+
+/// Iterate the `identifier` array entries of a FHIR resource, if any.
+fn identifiers(resource: Option<&serde_json::Value>) -> impl Iterator<Item = &serde_json::Value> {
+    resource
+        .and_then(|r| r.get("identifier"))
+        .and_then(|i| i.as_array())
+        .into_iter()
+        .flatten()
 }
 
 #[cfg(test)]
@@ -51,29 +89,114 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    #[test]
-    fn extract_epic_ids_returns_all_fields_when_present() {
-        let request = RandomizationRequest {
+    fn request_with(context: serde_json::Value) -> RandomizationRequest {
+        RandomizationRequest {
             locator: None,
             patient_id: None,
             encounter_id: None,
             user_id: None,
-            context: Some(json!({
-                "epicPatientId": "E1234",
-                "csn": "CSN5678",
-                "epicProviderId": "PROV99"
-            })),
-        };
-
-        let ids = request.extract_epic_ids();
-
-        assert_eq!(ids.patient_id.as_deref(), Some("E1234"));
-        assert_eq!(ids.csn.as_deref(), Some("CSN5678"));
-        assert_eq!(ids.provider_id.as_deref(), Some("PROV99"));
+            context: Some(context),
+        }
     }
 
     #[test]
-    fn extract_epic_ids_returns_default_when_context_is_none() {
+    fn extract_patient_id_reads_external_identifier() {
+        let request = request_with(json!({
+            "patient": {
+                "resourceType": "Patient",
+                "identifier": [
+                    { "type": { "text": "EXTERNAL" },
+                      "system": "urn:oid:1.2.840.114350.1.13.266.3.7.2.698084",
+                      "value": "Z2134" }
+                ]
+            }
+        }));
+
+        let ids = request.extract_epic_ids();
+
+        assert_eq!(ids.patient_id.as_deref(), Some("Z2134"));
+    }
+
+    #[test]
+    fn extract_patient_id_does_not_match_internal_identifier() {
+        // INTERNAL shares the EXTERNAL system but carries a padded value; only
+        // the EXTERNAL-typed entry must be selected.
+        let request = request_with(json!({
+            "patient": {
+                "identifier": [
+                    { "type": { "text": "INTERNAL" },
+                      "system": "urn:oid:1.2.840.114350.1.13.266.3.7.2.698084",
+                      "value": "     Z2134" },
+                    { "type": { "text": "EXTERNAL" },
+                      "system": "urn:oid:1.2.840.114350.1.13.266.3.7.2.698084",
+                      "value": "Z2134" }
+                ]
+            }
+        }));
+
+        let ids = request.extract_epic_ids();
+
+        assert_eq!(ids.patient_id.as_deref(), Some("Z2134"));
+    }
+
+    #[test]
+    fn extract_csn_reads_encounter_identifier_by_oid_suffix() {
+        // The CSN system OID has variable segments; only the trailing
+        // `.7.3.698084.8` is stable. A sibling identifier must be ignored.
+        let request = request_with(json!({
+            "encounter": {
+                "resourceType": "Encounter",
+                "identifier": [
+                    { "system": "urn:oid:1.2.840.114350.1.13.266.3.7.3.698084.7",
+                      "value": "OTHER" },
+                    { "system": "urn:oid:1.2.840.114350.1.13.266.3.7.3.698084.8",
+                      "value": "830100123" }
+                ]
+            }
+        }));
+
+        let ids = request.extract_epic_ids();
+
+        assert_eq!(ids.csn.as_deref(), Some("830100123"));
+    }
+
+    #[test]
+    fn extract_user_id_reads_practitioner_external_identifier() {
+        let request = request_with(json!({
+            "user": {
+                "resourceType": "Practitioner",
+                "identifier": [
+                    { "type": { "text": "EXTERNAL" },
+                      "system": "urn:oid:1.2.840.114350.1.13.266.3.7.2.697780",
+                      "value": "1234" }
+                ]
+            }
+        }));
+
+        let ids = request.extract_epic_ids();
+
+        assert_eq!(ids.user_id.as_deref(), Some("1234"));
+    }
+
+    #[test]
+    fn extract_patient_only_prefetch_leaves_csn_and_provider_none() {
+        let request = request_with(json!({
+            "patient": {
+                "identifier": [
+                    { "type": { "text": "EXTERNAL" }, "value": "Z2134" }
+                ]
+            }
+        }));
+
+        let ids = request.extract_epic_ids();
+
+        assert_eq!(ids.patient_id.as_deref(), Some("Z2134"));
+        assert!(ids.csn.is_none());
+        assert!(ids.user_id.is_none());
+    }
+
+    #[test]
+    fn extract_returns_all_none_when_context_absent() {
         let request = RandomizationRequest {
             locator: None,
             patient_id: None,
@@ -86,45 +209,6 @@ mod tests {
 
         assert!(ids.patient_id.is_none());
         assert!(ids.csn.is_none());
-        assert!(ids.provider_id.is_none());
-    }
-
-    #[test]
-    fn extract_epic_ids_handles_partial_context() {
-        let request = RandomizationRequest {
-            locator: None,
-            patient_id: None,
-            encounter_id: None,
-            user_id: None,
-            context: Some(json!({
-                "epicPatientId": "E1234",
-                "otherField": "ignored"
-            })),
-        };
-
-        let ids = request.extract_epic_ids();
-
-        assert_eq!(ids.patient_id.as_deref(), Some("E1234"));
-        assert!(ids.csn.is_none());
-        assert!(ids.provider_id.is_none());
-    }
-
-    #[test]
-    fn extract_epic_ids_ignores_non_string_values() {
-        let request = RandomizationRequest {
-            locator: None,
-            patient_id: None,
-            encounter_id: None,
-            user_id: None,
-            context: Some(json!({
-                "epicPatientId": 12345,
-                "csn": null
-            })),
-        };
-
-        let ids = request.extract_epic_ids();
-
-        assert!(ids.patient_id.is_none());
-        assert!(ids.csn.is_none());
+        assert!(ids.user_id.is_none());
     }
 }

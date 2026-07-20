@@ -81,14 +81,14 @@ impl PocrSink {
         sqlx::query(
             r#"INSERT INTO randomizations
                  (id, study_id, environment, unit_hash, strata_key, arm, issued_at,
-                  epic_patient_id, csn, epic_provider_id)
+                  epic_patient_id, epic_csn, epic_user_id)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                ON CONFLICT (study_id, environment, unit_hash) DO UPDATE SET
                  arm = EXCLUDED.arm,
                  issued_at = EXCLUDED.issued_at,
                  epic_patient_id = EXCLUDED.epic_patient_id,
-                 csn = EXCLUDED.csn,
-                 epic_provider_id = EXCLUDED.epic_provider_id"#,
+                 epic_csn = EXCLUDED.epic_csn,
+                 epic_user_id = EXCLUDED.epic_user_id"#,
         )
         .bind(rec.id)
         .bind(rec.study_id)
@@ -98,8 +98,8 @@ impl PocrSink {
         .bind(&arm_json)
         .bind(rec.issued_at)
         .bind(&rec.epic_patient_id)
-        .bind(&rec.csn)
-        .bind(&rec.epic_provider_id)
+        .bind(&rec.epic_csn)
+        .bind(&rec.epic_user_id)
         .execute(&self.pool)
         .await?;
         Ok(())

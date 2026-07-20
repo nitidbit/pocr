@@ -29,8 +29,8 @@ struct RandomizationRow {
     arm: serde_json::Value,
     issued_at: chrono::DateTime<chrono::Utc>,
     epic_patient_id: Option<String>,
-    csn: Option<String>,
-    epic_provider_id: Option<String>,
+    epic_csn: Option<String>,
+    epic_user_id: Option<String>,
 }
 
 #[async_trait]
@@ -43,7 +43,7 @@ impl RandomizationRepository for PgRandomizationRepository {
             .map_err(|e| RepositoryError::Internal(e.to_string()))?;
 
         sqlx::query(
-            r#"INSERT INTO randomizations (id, study_id, environment, unit_hash, strata_key, arm, issued_at, epic_patient_id, csn, epic_provider_id)
+            r#"INSERT INTO randomizations (id, study_id, environment, unit_hash, strata_key, arm, issued_at, epic_patient_id, epic_csn, epic_user_id)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"#,
         )
         .bind(randomization.id)
@@ -54,8 +54,8 @@ impl RandomizationRepository for PgRandomizationRepository {
         .bind(&arm_json)
         .bind(randomization.issued_at)
         .bind(&randomization.epic_patient_id)
-        .bind(&randomization.csn)
-        .bind(&randomization.epic_provider_id)
+        .bind(&randomization.epic_csn)
+        .bind(&randomization.epic_user_id)
         .execute(&self.pool)
         .await
         .map_err(|e| RepositoryError::Internal(e.to_string()))?;
@@ -144,7 +144,7 @@ fn row_to_randomization(row: RandomizationRow) -> Result<Randomization, Reposito
         arm,
         issued_at: row.issued_at,
         epic_patient_id: row.epic_patient_id,
-        csn: row.csn,
-        epic_provider_id: row.epic_provider_id,
+        epic_csn: row.epic_csn,
+        epic_user_id: row.epic_user_id,
     })
 }

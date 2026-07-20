@@ -179,8 +179,8 @@ pub fn transform_randomization(
         arm: transform_arm(&legacy.arm, new_arm_id),
         issued_at: legacy.issued_at,
         epic_patient_id: None,
-        csn: None,
-        epic_provider_id: None,
+        epic_csn: None,
+        epic_user_id: None,
     }
 }
 

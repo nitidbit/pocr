@@ -27,12 +27,12 @@ pub struct Randomization {
     /// Epic-native patient identifier (PatientEpicId), used as join key for Caboodle.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub epic_patient_id: Option<String>,
-    /// Contact Serial Number (encounter ID in Epic).
+    /// Epic Contact Serial Number (encounter ID in Epic).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub csn: Option<String>,
-    /// Epic provider identifier.
+    pub epic_csn: Option<String>,
+    /// Epic user (provider) identifier.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub epic_provider_id: Option<String>,
+    pub epic_user_id: Option<String>,
 }
 
 impl Randomization {
@@ -47,8 +47,8 @@ impl Randomization {
             arm: arm.clone(),
             issued_at: Utc::now(),
             epic_patient_id: None,
-            csn: None,
-            epic_provider_id: None,
+            epic_csn: None,
+            epic_user_id: None,
         }
     }
 
@@ -69,8 +69,8 @@ impl Randomization {
             arm: arm.clone(),
             issued_at: Utc::now(),
             epic_patient_id: None,
-            csn: None,
-            epic_provider_id: None,
+            epic_csn: None,
+            epic_user_id: None,
         }
     }
 }

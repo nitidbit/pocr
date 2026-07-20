@@ -185,8 +185,8 @@ impl Engine {
             }
         };
         randomization.epic_patient_id = epic_ids.patient_id;
-        randomization.csn = epic_ids.csn;
-        randomization.epic_provider_id = epic_ids.provider_id;
+        randomization.epic_csn = epic_ids.csn;
+        randomization.epic_user_id = epic_ids.user_id;
 
         let saved = self
             .randomization_repo
