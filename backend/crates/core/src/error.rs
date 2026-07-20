@@ -5,6 +5,7 @@ pub type RandomizationResult<T> = Result<T, RandomizationError>;
 
 /// Errors produced by randomization operations.
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum RandomizationError {
     /// The requested block size is not a valid multiple of the ratio sum.
     #[error("invalid block size (size {block_size:?} is not a multiple of ratio sum {ratio_sum:?})")]

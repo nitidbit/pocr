@@ -36,10 +36,15 @@ pub struct CdsHookRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FhirAuthorization {
+    /// OAuth2 bearer token for FHIR server requests.
     pub access_token: String,
+    /// Token type (typically `"Bearer"`).
     pub token_type: String,
+    /// Lifetime of the token in seconds.
     pub expires_in: u64,
+    /// Granted OAuth2 scopes.
     pub scope: String,
+    /// Client identifier the token was issued to.
     pub subject: String,
 }
 
@@ -47,13 +52,17 @@ pub struct FhirAuthorization {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CdsContext {
+    /// FHIR Patient resource ID in context.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub patient_id: Option<String>,
+    /// FHIR Encounter resource ID in context.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub encounter_id: Option<String>,
+    /// FHIR ID of the user (Practitioner) who triggered the hook.
     #[serde(rename = "userId")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_id: Option<String>,
+    /// FHIR resource references the user has selected in the EHR, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selections: Option<Vec<String>>,
 }
@@ -63,6 +72,7 @@ pub struct CdsContext {
 /// The response returned to the EHR after a CDS Hooks invocation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CdsHookResponse {
+    /// Decision support cards to display to the clinician.
     pub cards: Vec<Card>,
 }
 
@@ -70,15 +80,22 @@ pub struct CdsHookResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Card {
+    /// Unique card identifier, for tracking suggestion acceptance.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uuid: Option<String>,
+    /// One-sentence summary shown to the clinician.
     pub summary: String,
+    /// Optional longer detail (Markdown).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detail: Option<String>,
+    /// Urgency level.
     pub indicator: Indicator,
+    /// Attribution for the card content.
     pub source: Source,
+    /// Suggested actions the clinician can take.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suggestions: Option<Vec<Suggestion>>,
+    /// External links surfaced on the card.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub links: Option<Vec<Link>>,
 }
@@ -87,19 +104,26 @@ pub struct Card {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Indicator {
+    /// Informational; no action required.
     Info,
+    /// Notable; clinician should review.
     Warning,
+    /// Urgent; demands clinician attention.
     Critical,
 }
 
 /// Attribution for the card content.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Source {
+    /// Human-readable source name.
     pub label: String,
+    /// Link to the source of the guidance.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+    /// URL of a small icon representing the source.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+    /// Coded topic categorizing the card content.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub topic: Option<Coding>,
 }
@@ -108,11 +132,15 @@ pub struct Source {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Suggestion {
+    /// Human-readable label for the suggestion.
     pub label: String,
+    /// Unique suggestion identifier, for tracking acceptance.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uuid: Option<String>,
+    /// Whether the EHR should present this as the recommended choice.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_recommended: Option<bool>,
+    /// FHIR actions applied together if the suggestion is accepted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actions: Option<Vec<Action>>,
 }
@@ -120,9 +148,12 @@ pub struct Suggestion {
 /// A FHIR action within a suggestion.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Action {
+    /// The kind of change to apply.
     #[serde(rename = "type")]
     pub action_type: ActionType,
+    /// Human-readable description of the action.
     pub description: String,
+    /// FHIR resource the action operates on (required for create/update).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resource: Option<serde_json::Value>,
 }
@@ -131,16 +162,22 @@ pub struct Action {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ActionType {
+    /// Create the supplied resource.
     Create,
+    /// Update the supplied resource.
     Update,
+    /// Delete the referenced resource.
     Delete,
 }
 
 /// An external link on a card.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Link {
+    /// Human-readable label for the link.
     pub label: String,
+    /// Link target URL.
     pub url: String,
+    /// Link type, e.g. `"absolute"` or `"smart"`.
     #[serde(rename = "type")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub link_type: Option<String>,
@@ -149,10 +186,13 @@ pub struct Link {
 /// A coded value (system + code + display).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Coding {
+    /// Code system URI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system: Option<String>,
+    /// Code within the system.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub code: Option<String>,
+    /// Human-readable display text for the code.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display: Option<String>,
 }
@@ -162,16 +202,22 @@ pub struct Coding {
 /// Response for `GET /cds-services` discovery endpoint.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CdsServiceDiscovery {
+    /// The CDS services this server offers.
     pub services: Vec<CdsServiceDescriptor>,
 }
 
 /// Metadata about a single CDS service.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CdsServiceDescriptor {
+    /// Hook this service responds to (e.g. `"patient-view"`).
     pub hook: String,
+    /// Human-readable service title.
     pub title: String,
+    /// Description of what the service does.
     pub description: String,
+    /// Service identifier, used in the invocation URL path.
     pub id: String,
+    /// FHIR resources the EHR should prefetch, keyed by template name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prefetch: Option<serde_json::Value>,
 }

@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::demographics::{PatientDemographics, PatientDemographicsWithArm};
 use crate::environment::Environment;
 use crate::error::RandomizationError;
 use crate::random::{Randomization, RandomPermutedBlock, RandomizationRequest};
@@ -14,6 +15,7 @@ use crate::study::Study;
 
 /// Errors that can occur in repository operations.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum RepositoryError {
     #[error("not found")]
     NotFound,
@@ -58,11 +60,14 @@ pub trait RandomizationRepository: Send + Sync {
     ) -> Result<Vec<Randomization>, RepositoryError>;
     /// Check if a randomization already exists for this study + environment +
     /// unit combination. Returns the existing record if found.
+    ///
+    /// `unit_key` is the delimiter-joined string form of the randomization
+    /// [`Unit`](crate::random::Unit) (see `String::from(&Unit)`), not a hash.
     async fn exists_for_unit(
         &self,
         study_id: &Uuid,
         environment: Environment,
-        unit_hash: &str,
+        unit_key: &str,
     ) -> Result<Option<Randomization>, RepositoryError>;
     /// Delete all non-production randomizations for a study, returning the
     /// count removed. Production records are never touched.
@@ -124,6 +129,30 @@ pub trait UserStudyRepository: Send + Sync {
     ) -> Result<(), RepositoryError>;
     /// Remove a user's association with a study.
     async fn remove_user(&self, user_id: &str, study_id: &Uuid) -> Result<(), RepositoryError>;
+}
+
+/// Persistence for patient demographics used by balance assessment.
+///
+/// Demographics are synced in bulk from an external source (Caboodle) and read
+/// back joined with randomization arm assignments for parity reporting.
+#[async_trait]
+pub trait DemographicsRepository: Send + Sync {
+    /// Bulk upsert a batch of demographic records, refreshing existing rows.
+    async fn upsert_batch(
+        &self,
+        batch: &[PatientDemographics],
+    ) -> Result<(), RepositoryError>;
+    /// Fetch demographics for a set of patient IDs.
+    async fn find_by_patient_ids(
+        &self,
+        patient_ids: &[String],
+    ) -> Result<Vec<PatientDemographics>, RepositoryError>;
+    /// Fetch demographics for all randomized patients in a study, joined with
+    /// their arm assignment.
+    async fn find_by_study(
+        &self,
+        study_id: &Uuid,
+    ) -> Result<Vec<PatientDemographicsWithArm>, RepositoryError>;
 }
 
 /// Cache for study configs on the CDS Hooks hot path.
