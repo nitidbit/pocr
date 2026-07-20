@@ -26,8 +26,8 @@ function StudiesDashboardPage() {
 					<Skeleton className="h-9 w-40" />
 				</div>
 				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-					{Array.from({ length: 4 }).map((_, i) => (
-						<Skeleton key={i} className="h-20 rounded-lg" />
+					{["active", "total", "draft", "inactive"].map((stat) => (
+						<Skeleton key={stat} className="h-20 rounded-lg" />
 					))}
 				</div>
 				<Skeleton className="h-64 rounded-lg" />
@@ -55,7 +55,7 @@ function StudiesDashboardPage() {
 		);
 	}
 
-	const list = (studies ?? []) as StudyResponse[];
+	const list = studies ?? [];
 	const activeCount = list.filter((s) => s.status === "active").length;
 	const draftCount = list.filter((s) => s.status === "draft").length;
 	const inactiveCount = list.filter((s) => s.status === "inactive").length;
@@ -210,4 +210,3 @@ function StudyRow({ study }: { study: StudyResponse }) {
 		</tr>
 	);
 }
-

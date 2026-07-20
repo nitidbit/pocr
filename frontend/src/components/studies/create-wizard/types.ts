@@ -43,7 +43,6 @@ export interface StepConfig {
 	id: number;
 	label: string;
 	shortLabel: string;
-	validate: (data: CreateStudyFormData) => Record<string, string>;
 }
 
 /** Props passed to each step component. */
@@ -107,34 +106,9 @@ export const INITIAL_FORM_DATA: CreateStudyFormData = {
 
 /** Step labels for the wizard stepper. */
 export const STEPS: StepConfig[] = [
-	{
-		id: 1,
-		label: "Study Information",
-		shortLabel: "Study Info",
-		validate: () => ({}),
-	},
-	{
-		id: 2,
-		label: "Team & Timeline",
-		shortLabel: "Team",
-		validate: () => ({}),
-	},
-	{
-		id: 3,
-		label: "Randomization Design",
-		shortLabel: "Randomize",
-		validate: () => ({}),
-	},
-	{
-		id: 4,
-		label: "Keys & Strata",
-		shortLabel: "Keys",
-		validate: () => ({}),
-	},
-	{
-		id: 5,
-		label: "Review & Confirm",
-		shortLabel: "Review",
-		validate: () => ({}),
-	},
+	{ id: 1, label: "Study Information", shortLabel: "Study Info" },
+	{ id: 2, label: "Team & Timeline", shortLabel: "Team" },
+	{ id: 3, label: "Randomization Design", shortLabel: "Randomize" },
+	{ id: 4, label: "Keys & Strata", shortLabel: "Keys" },
+	{ id: 5, label: "Review & Confirm", shortLabel: "Review" },
 ];

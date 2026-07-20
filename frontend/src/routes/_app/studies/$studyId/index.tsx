@@ -4,8 +4,8 @@ import { useState } from "react";
 import type { StudyResponse } from "#/api/client";
 import { useDeleteStudy, useStudy, useUpdateStudy } from "#/api/queries";
 import { formatDate } from "#/lib/format";
-import { STATUS_COLORS, STATUS_LABELS } from "#/lib/types/study";
 import type { StudyStatus } from "#/lib/types/study";
+import { STATUS_COLORS, STATUS_LABELS } from "#/lib/types/study";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -67,7 +67,9 @@ function StudyOverviewPage() {
 
 function StatusSection({ study }: { study: StudyResponse }) {
 	const updateStudy = useUpdateStudy(study.id);
-	const [confirming, setConfirming] = useState<"activate" | "deactivate" | null>(null);
+	const [confirming, setConfirming] = useState<
+		"activate" | "deactivate" | null
+	>(null);
 
 	const handleStatusChange = (status: StudyStatus) => {
 		updateStudy.mutate({ status }, { onSuccess: () => setConfirming(null) });
@@ -76,7 +78,12 @@ function StatusSection({ study }: { study: StudyResponse }) {
 	return (
 		<section className="flex items-center justify-between rounded-lg border bg-card p-4">
 			<div className="flex items-center gap-3">
-				<Badge className={STATUS_COLORS[study.status as StudyStatus] ?? "bg-gray-100 text-gray-700"}>
+				<Badge
+					className={
+						STATUS_COLORS[study.status as StudyStatus] ??
+						"bg-gray-100 text-gray-700"
+					}
+				>
 					{STATUS_LABELS[study.status as StudyStatus] ?? study.status}
 				</Badge>
 				{study.status === "active" && (
@@ -196,9 +203,7 @@ function ArmsOverviewSection({ study }: { study: StudyResponse }) {
 					<tbody>
 						{arms.map((arm) => (
 							<tr key={arm.id} className="border-b last:border-b-0">
-								<td className="px-4 py-2.5 text-foreground">
-									{arm.name}
-								</td>
+								<td className="px-4 py-2.5 text-foreground">{arm.name}</td>
 								<td className="px-4 py-2.5 text-right tabular-nums text-foreground">
 									{arm.ratio}
 								</td>

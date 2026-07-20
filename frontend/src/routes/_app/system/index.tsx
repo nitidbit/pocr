@@ -27,8 +27,8 @@ function SystemStatusPage() {
 			<div className="flex flex-col gap-6">
 				<Skeleton className="h-8 w-48" />
 				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-					{Array.from({ length: 4 }).map((_, i) => (
-						<Skeleton key={i} className="h-28 rounded-lg" />
+					{["status", "uptime", "postgres", "redis"].map((metric) => (
+						<Skeleton key={metric} className="h-28 rounded-lg" />
 					))}
 				</div>
 				<Skeleton className="h-64 rounded-lg" />
@@ -84,11 +84,7 @@ function SystemStatusPage() {
 					icon={Database}
 					health={data.services.postgres}
 				/>
-				<ServiceCard
-					label="Redis"
-					icon={Server}
-					health={data.services.redis}
-				/>
+				<ServiceCard label="Redis" icon={Server} health={data.services.redis} />
 				<TlsSummaryCard tls={data.tls} />
 			</div>
 
@@ -122,7 +118,9 @@ function OverallStatusBanner({ status }: { status: SystemStatus }) {
 	const Icon = config.icon;
 
 	return (
-		<div className={`flex items-center gap-3 rounded-lg border p-4 ${config.bg}`}>
+		<div
+			className={`flex items-center gap-3 rounded-lg border p-4 ${config.bg}`}
+		>
 			<Icon className={`size-5 ${config.text}`} />
 			<span className={`text-sm font-medium ${config.text}`}>
 				{config.label}
@@ -168,9 +166,7 @@ function ServiceCard({
 				</div>
 				<Badge
 					className={
-						isUp
-							? "bg-emerald-100 text-emerald-700"
-							: "bg-red-100 text-red-700"
+						isUp ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
 					}
 				>
 					{isUp ? "Up" : "Down"}
@@ -201,11 +197,12 @@ function TlsSummaryCard({ tls }: { tls?: TlsStatus }) {
 		);
 	}
 
-	const urgency = tls.daysRemaining <= 7
-		? "bg-red-100 text-red-700"
-		: tls.daysRemaining <= 30
-			? "bg-amber-100 text-amber-700"
-			: "bg-emerald-100 text-emerald-700";
+	const urgency =
+		tls.daysRemaining <= 7
+			? "bg-red-100 text-red-700"
+			: tls.daysRemaining <= 30
+				? "bg-amber-100 text-amber-700"
+				: "bg-emerald-100 text-emerald-700";
 
 	return (
 		<div className="rounded-lg border bg-card p-5">

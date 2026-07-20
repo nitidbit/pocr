@@ -114,10 +114,7 @@ function DemographicBalance({
 				</h2>
 				<div className="flex flex-col gap-2">
 					{[1, 2, 3].map((i) => (
-						<div
-							key={i}
-							className="h-8 animate-pulse rounded bg-muted/50"
-						/>
+						<div key={i} className="h-8 animate-pulse rounded bg-muted/50" />
 					))}
 				</div>
 			</section>
@@ -234,7 +231,8 @@ function VariableRows({
 							key={armId}
 							className="px-4 py-2 text-right tabular-nums text-foreground"
 						>
-							{arm.mean.toFixed(1)} <span className="text-muted-foreground">±</span>{" "}
+							{arm.mean.toFixed(1)}{" "}
+							<span className="text-muted-foreground">±</span>{" "}
 							{arm.sd.toFixed(1)}
 							{arm.missing > 0 && (
 								<span className="ml-1 text-xs text-muted-foreground">
@@ -254,15 +252,10 @@ function VariableRows({
 	return (
 		<>
 			{variable.categories.map((category, idx) => (
-				<tr
-					key={category.value}
-					className="border-b last:border-b-0"
-				>
+				<tr key={category.value} className="border-b last:border-b-0">
 					<td className="px-4 py-2 text-foreground">
 						{idx === 0 && (
-							<span className="font-medium capitalize">
-								{variable.name}
-							</span>
+							<span className="font-medium capitalize">{variable.name}</span>
 						)}
 						<span className={idx === 0 ? "ml-2" : "ml-6"}>
 							{category.value}
@@ -274,18 +267,14 @@ function VariableRows({
 						const countDisplay =
 							typeof arm.count === "string" ? arm.count : String(arm.count);
 						const pctDisplay =
-							typeof arm.pct === "string"
-								? arm.pct
-								: `${arm.pct}%`;
+							typeof arm.pct === "string" ? arm.pct : `${arm.pct}%`;
 						return (
 							<td
 								key={armId}
 								className="px-4 py-2 text-right tabular-nums text-foreground"
 							>
 								{countDisplay}{" "}
-								<span className="text-muted-foreground">
-									({pctDisplay})
-								</span>
+								<span className="text-muted-foreground">({pctDisplay})</span>
 							</td>
 						);
 					})}
