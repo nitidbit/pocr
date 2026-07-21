@@ -36,6 +36,36 @@ pub struct PatientDemographics {
     pub synced_at: DateTime<Utc>,
 }
 
+impl PatientDemographics {
+    /// Construct a record from all fields, in declaration order.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        patient_id: String,
+        birth_date: Option<NaiveDate>,
+        sex: Option<String>,
+        races: Option<Vec<String>>,
+        ethnicity: Option<String>,
+        primary_language: Option<String>,
+        smoking_status: Option<String>,
+        insurance_type: Option<String>,
+        bmi: Option<f64>,
+        synced_at: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            patient_id,
+            birth_date,
+            sex,
+            races,
+            ethnicity,
+            primary_language,
+            smoking_status,
+            insurance_type,
+            bmi,
+            synced_at,
+        }
+    }
+}
+
 /// A patient's demographics joined with their randomization arm assignment.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -62,4 +92,36 @@ pub struct PatientDemographicsWithArm {
     pub synced_at: DateTime<Utc>,
     /// Arm the patient was randomized into.
     pub arm_id: Uuid,
+}
+
+impl PatientDemographicsWithArm {
+    /// Construct a record from all fields, in declaration order.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        patient_id: String,
+        birth_date: Option<NaiveDate>,
+        sex: Option<String>,
+        races: Option<Vec<String>>,
+        ethnicity: Option<String>,
+        primary_language: Option<String>,
+        smoking_status: Option<String>,
+        insurance_type: Option<String>,
+        bmi: Option<f64>,
+        synced_at: DateTime<Utc>,
+        arm_id: Uuid,
+    ) -> Self {
+        Self {
+            patient_id,
+            birth_date,
+            sex,
+            races,
+            ethnicity,
+            primary_language,
+            smoking_status,
+            insurance_type,
+            bmi,
+            synced_at,
+            arm_id,
+        }
+    }
 }
