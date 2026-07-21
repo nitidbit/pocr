@@ -126,7 +126,13 @@ impl BlockCacheRepository for RedisBlockCache {
             .await
             .map_err(|e| RepositoryError::Internal(e.to_string()))?;
 
-        Ok(result.map(|v| v as u32))
+        result
+            .map(|v| {
+                u32::try_from(v).map_err(|_| {
+                    RepositoryError::Internal(format!("block arm index {v} out of u32 range"))
+                })
+            })
+            .transpose()
     }
 
     #[instrument(skip(self))]

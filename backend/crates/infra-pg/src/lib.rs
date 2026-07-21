@@ -16,4 +16,4 @@ pub use pool::{create_pool, run_migrations};
 pub use randomization_repo::PgRandomizationRepository;
 pub use study_repo::PgStudyRepository;
 pub use user_study_repo::PgUserStudyRepository;
-pub use demographics::{PatientDemographics, PatientDemographicsWithArm, PgDemographicsRepository};
+pub use demographics::PgDemographicsRepository;

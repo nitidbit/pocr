@@ -17,7 +17,7 @@ const config = defineConfig({
 	server: {
 		proxy: {
 			"/api": {
-				target: process.env.VITE_PROXY_TARGET ?? "http://backend:3000",
+				target: process.env.VITE_PROXY_TARGET ?? "http://engine:3000",
 				changeOrigin: true,
 			},
 		},

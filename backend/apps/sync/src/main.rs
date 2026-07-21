@@ -3,6 +3,8 @@ use std::env;
 use std::process::ExitCode;
 
 use chrono::{DateTime, Utc};
+use pocr_core::demographics::PatientDemographics;
+use pocr_core::ports::DemographicsRepository;
 use tracing::{error, info};
 
 #[tokio::main]
@@ -67,7 +69,7 @@ async fn run() -> Result<(), SyncError> {
         return Ok(());
     }
 
-    let not_found_count = patient_ids.len() - demographics.len();
+    let not_found_count = patient_ids.len().saturating_sub(demographics.len());
 
     // Build lookup by patient_epic_id for BMI query filtering
     let demo_by_id: HashMap<&str, &infra_caboodle::CaboodleDemographics> = demographics
@@ -90,25 +92,25 @@ async fn run() -> Result<(), SyncError> {
     let bmi = infra_caboodle::queries::fetch_bmi(&mut caboodle, &bmi_patients).await?;
 
     let now = Utc::now();
-    let mut batch: Vec<infra_pg::PatientDemographics> = Vec::with_capacity(demographics.len());
+    let mut batch: Vec<PatientDemographics> = Vec::with_capacity(demographics.len());
 
     for demo in &demographics {
         let patient_races = races.get(&demo.patient_key).cloned();
         let patient_insurance = insurance.get(&demo.patient_key).cloned();
         let patient_bmi = bmi.get(&demo.patient_epic_id).copied();
 
-        batch.push(infra_pg::PatientDemographics {
-            patient_id: demo.patient_epic_id.clone(),
-            birth_date: demo.birth_date,
-            sex: demo.sex.clone(),
-            races: patient_races,
-            ethnicity: demo.ethnicity.clone(),
-            primary_language: demo.primary_language.clone(),
-            smoking_status: demo.smoking_status.clone(),
-            insurance_type: patient_insurance,
-            bmi: patient_bmi,
-            synced_at: now,
-        });
+        batch.push(PatientDemographics::new(
+            demo.patient_epic_id.clone(),
+            demo.birth_date,
+            demo.sex.clone(),
+            patient_races,
+            demo.ethnicity.clone(),
+            demo.primary_language.clone(),
+            demo.smoking_status.clone(),
+            patient_insurance,
+            patient_bmi,
+            now,
+        ));
     }
 
     let repo = infra_pg::PgDemographicsRepository::new(pg_pool);
@@ -146,5 +148,5 @@ enum SyncError {
     Caboodle(#[from] infra_caboodle::CaboodleError),
 
     #[error("demographics upsert error: {0}")]
-    Upsert(#[from] infra_pg::error::PgError),
+    Upsert(#[from] pocr_core::ports::RepositoryError),
 }

@@ -5,46 +5,16 @@
 //! [`PgDemographicsRepository::find_by_study`] to retrieve demographics
 //! joined with randomization arm assignments.
 
+use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, Utc};
-use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tracing::instrument;
 use uuid::Uuid;
 
+use pocr_core::demographics::{PatientDemographics, PatientDemographicsWithArm};
+use pocr_core::ports::{DemographicsRepository, RepositoryError};
+
 use crate::error::PgError;
-
-/// Patient demographic record synced from Caboodle.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PatientDemographics {
-    /// Epic patient identifier (MRN or internal ID).
-    pub patient_id: String,
-    pub birth_date: Option<NaiveDate>,
-    pub sex: Option<String>,
-    pub races: Option<Vec<String>>,
-    pub ethnicity: Option<String>,
-    pub primary_language: Option<String>,
-    pub smoking_status: Option<String>,
-    pub insurance_type: Option<String>,
-    pub bmi: Option<f64>,
-    pub synced_at: DateTime<Utc>,
-}
-
-/// Demographics joined with randomization arm assignment for a study.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PatientDemographicsWithArm {
-    pub patient_id: String,
-    pub birth_date: Option<NaiveDate>,
-    pub sex: Option<String>,
-    pub races: Option<Vec<String>>,
-    pub ethnicity: Option<String>,
-    pub primary_language: Option<String>,
-    pub smoking_status: Option<String>,
-    pub insurance_type: Option<String>,
-    pub bmi: Option<f64>,
-    pub synced_at: DateTime<Utc>,
-    /// Arm UUID from the randomization record.
-    pub arm_id: Uuid,
-}
 
 /// PostgreSQL-backed demographics repository.
 pub struct PgDemographicsRepository {
@@ -55,22 +25,25 @@ impl PgDemographicsRepository {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
+}
 
+#[async_trait]
+impl DemographicsRepository for PgDemographicsRepository {
     /// Bulk upsert patient demographics from a Caboodle sync batch.
     ///
     /// Use `ON CONFLICT DO UPDATE` to refresh all fields and bump
-    /// `synced_at` on each upsert.
+    /// `synced_at` on each upsert. An empty batch is a no-op.
     ///
     /// # Errors
     ///
-    /// Return [`PgError::Database`] on connection or query failure.
+    /// Return [`RepositoryError::Internal`] on connection or query failure.
     #[instrument(name = "demographics.upsert_batch", skip(self, batch), fields(batch_size = batch.len()))]
-    pub async fn upsert_batch(&self, batch: &[PatientDemographics]) -> Result<(), PgError> {
+    async fn upsert_batch(&self, batch: &[PatientDemographics]) -> Result<(), RepositoryError> {
         if batch.is_empty() {
             return Ok(());
         }
 
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self.pool.begin().await.map_err(PgError::from)?;
 
         for record in batch {
             let races: Option<&[String]> = record.races.as_deref();
@@ -102,10 +75,11 @@ impl PgDemographicsRepository {
             .bind(record.bmi)
             .bind(record.synced_at)
             .execute(&mut *tx)
-            .await?;
+            .await
+            .map_err(PgError::from)?;
         }
 
-        tx.commit().await?;
+        tx.commit().await.map_err(PgError::from)?;
 
         tracing::info!(count = batch.len(), "demographics batch upserted");
         Ok(())
@@ -113,14 +87,16 @@ impl PgDemographicsRepository {
 
     /// Fetch demographics for a set of patient IDs.
     ///
+    /// An empty `patient_ids` slice returns an empty vector without querying.
+    ///
     /// # Errors
     ///
-    /// Return [`PgError::Database`] on connection or query failure.
+    /// Return [`RepositoryError::Internal`] on connection or query failure.
     #[instrument(name = "demographics.find_by_patient_ids", skip(self, patient_ids), fields(count = patient_ids.len()))]
-    pub async fn find_by_patient_ids(
+    async fn find_by_patient_ids(
         &self,
         patient_ids: &[String],
-    ) -> Result<Vec<PatientDemographics>, PgError> {
+    ) -> Result<Vec<PatientDemographics>, RepositoryError> {
         if patient_ids.is_empty() {
             return Ok(Vec::new());
         }
@@ -133,7 +109,8 @@ impl PgDemographicsRepository {
         )
         .bind(patient_ids)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(PgError::from)?;
 
         Ok(rows.into_iter().map(Into::into).collect())
     }
@@ -147,12 +124,12 @@ impl PgDemographicsRepository {
     ///
     /// # Errors
     ///
-    /// Return [`PgError::Database`] on connection or query failure.
+    /// Return [`RepositoryError::Internal`] on connection or query failure.
     #[instrument(name = "demographics.find_by_study", skip(self))]
-    pub async fn find_by_study(
+    async fn find_by_study(
         &self,
         study_id: &Uuid,
-    ) -> Result<Vec<PatientDemographicsWithArm>, PgError> {
+    ) -> Result<Vec<PatientDemographicsWithArm>, RepositoryError> {
         let rows = sqlx::query_as::<_, DemographicsWithArmRow>(
             r#"SELECT
                    pd.patient_id,
@@ -172,7 +149,8 @@ impl PgDemographicsRepository {
         )
         .bind(study_id)
         .fetch_all(&self.pool)
-        .await?;
+        .await
+        .map_err(PgError::from)?;
 
         Ok(rows.into_iter().map(Into::into).collect())
     }
@@ -196,18 +174,18 @@ struct DemographicsRow {
 
 impl From<DemographicsRow> for PatientDemographics {
     fn from(row: DemographicsRow) -> Self {
-        Self {
-            patient_id: row.patient_id,
-            birth_date: row.birth_date,
-            sex: row.sex,
-            races: row.races,
-            ethnicity: row.ethnicity,
-            primary_language: row.primary_language,
-            smoking_status: row.smoking_status,
-            insurance_type: row.insurance_type,
-            bmi: row.bmi,
-            synced_at: row.synced_at,
-        }
+        PatientDemographics::new(
+            row.patient_id,
+            row.birth_date,
+            row.sex,
+            row.races,
+            row.ethnicity,
+            row.primary_language,
+            row.smoking_status,
+            row.insurance_type,
+            row.bmi,
+            row.synced_at,
+        )
     }
 }
 
@@ -228,18 +206,18 @@ struct DemographicsWithArmRow {
 
 impl From<DemographicsWithArmRow> for PatientDemographicsWithArm {
     fn from(row: DemographicsWithArmRow) -> Self {
-        Self {
-            patient_id: row.patient_id,
-            birth_date: row.birth_date,
-            sex: row.sex,
-            races: row.races,
-            ethnicity: row.ethnicity,
-            primary_language: row.primary_language,
-            smoking_status: row.smoking_status,
-            insurance_type: row.insurance_type,
-            bmi: row.bmi,
-            synced_at: row.synced_at,
-            arm_id: row.arm_id,
-        }
+        PatientDemographicsWithArm::new(
+            row.patient_id,
+            row.birth_date,
+            row.sex,
+            row.races,
+            row.ethnicity,
+            row.primary_language,
+            row.smoking_status,
+            row.insurance_type,
+            row.bmi,
+            row.synced_at,
+            row.arm_id,
+        )
     }
 }

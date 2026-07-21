@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-tiberius = { version = "0.12", features = ["chrono"] }
+tiberius.workspace = true
 tokio = { workspace = true, features = ["net"] }
-tokio-util = { version = "0.7", features = ["compat"] }
+tokio-util.workspace = true
 serde.workspace = true
 secrecy.workspace = true
 tracing.workspace = true

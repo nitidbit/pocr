@@ -60,6 +60,10 @@ impl PocrSink {
     }
 
     /// Upsert a study (idempotent on the study PK).
+    ///
+    /// # Errors
+    ///
+    /// Return [`SinkError::Repository`] if the underlying study upsert fails.
     #[instrument(skip(self, study), fields(study_id = %study.id))]
     pub async fn write_study(&self, study: &Study) -> Result<(), SinkError> {
         self.studies.save(study).await?;
@@ -72,6 +76,11 @@ impl PocrSink {
     /// shared `String::from` hashes — but adds the `ON CONFLICT` clause the
     /// migration needs for idempotent re-runs. On conflict the arm, issued-at,
     /// and Epic-id columns are refreshed so a corrected re-run converges.
+    ///
+    /// # Errors
+    ///
+    /// Return [`SinkError::Serialization`] if the arm cannot be encoded to
+    /// JSONB, or [`SinkError::Postgres`] if the upsert fails.
     #[instrument(skip(self, rec), fields(study_id = %rec.study_id))]
     pub async fn write_randomization(&self, rec: &Randomization) -> Result<(), SinkError> {
         let unit_hash = String::from(&rec.unit);
@@ -106,6 +115,10 @@ impl PocrSink {
     }
 
     /// Upsert a locator → study mapping.
+    ///
+    /// # Errors
+    ///
+    /// Return [`SinkError::Repository`] if the mapping upsert fails.
     #[instrument(skip(self))]
     pub async fn write_locator(&self, locator: u64, study_id: &Uuid) -> Result<(), SinkError> {
         self.locators.save_mapping(locator, study_id).await?;
@@ -113,6 +126,10 @@ impl PocrSink {
     }
 
     /// Associate a user with a study as `owner` (idempotent).
+    ///
+    /// # Errors
+    ///
+    /// Return [`SinkError::Repository`] if the association upsert fails.
     #[instrument(skip(self))]
     pub async fn write_owner(&self, user_id: &str, study_id: &Uuid) -> Result<(), SinkError> {
         self.users.add_user(user_id, study_id, "owner").await?;
@@ -122,6 +139,10 @@ impl PocrSink {
     /// Write a production block into the Redis cache.
     ///
     /// `RedisBlockCache::save_block` keys it `block:production:{study_id}:{stratum_key}`.
+    ///
+    /// # Errors
+    ///
+    /// Return [`SinkError::Repository`] if the Redis block write fails.
     #[instrument(skip(self, block), fields(study_id = %block.study_id))]
     pub async fn write_block(&self, block: &RandomPermutedBlock) -> Result<(), SinkError> {
         self.blocks
