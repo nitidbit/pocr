@@ -25,7 +25,7 @@ services:
       - backend
 
   vouch:
-    image: quay.io/vouch/vouch-proxy:0.48.0@sha256:a9aafe3ab0f78f6e038f450b0bf24727fdf34774529f08234347e9e17a8c8c4d
+    image: quay.io/vouch/vouch-proxy:latest
     restart: unless-stopped
     volumes:
       - ./vouch/config.yml:/config/config.yml:ro
@@ -92,7 +92,7 @@ services:
       start_period: 10s
 
   postgres:
-    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    image: postgres:18-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: pocr
@@ -103,7 +103,7 @@ services:
     networks:
       - backend
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - pg_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pocr"]
       interval: 5s
