@@ -108,8 +108,14 @@ impl Engine {
                 }
                 dashmap::mapref::entry::Entry::Occupied(entry) => {
                     let notify = entry.get().clone();
+                    // enable() registers this waiter before the map guard is
+                    // released, so a notify from the holder in the gap between
+                    // dropping the guard and awaiting cannot be lost.
+                    let notified = notify.notified();
+                    tokio::pin!(notified);
+                    notified.as_mut().enable();
                     drop(entry);
-                    notify.notified().await;
+                    notified.await;
 
                     if let Some(existing) = self
                         .randomization_repo
