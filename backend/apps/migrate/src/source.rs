@@ -48,18 +48,34 @@ impl LegacySource {
     }
 
     /// All `study:*` records.
+    ///
+    /// # Errors
+    ///
+    /// Return [`SourceError::Redis`] if a SCAN or GET fails, or
+    /// [`SourceError::Parse`] if a stored value is not a valid `LegacyStudy`.
     #[instrument(skip(self))]
     pub async fn studies(&self) -> Result<Vec<LegacyStudy>, SourceError> {
         self.load_prefix("study:").await
     }
 
     /// All `randomization:*` records.
+    ///
+    /// # Errors
+    ///
+    /// Return [`SourceError::Redis`] if a SCAN or GET fails, or
+    /// [`SourceError::Parse`] if a stored value is not a valid
+    /// `LegacyRandomization`.
     #[instrument(skip(self))]
     pub async fn randomizations(&self) -> Result<Vec<LegacyRandomization>, SourceError> {
         self.load_prefix("randomization:").await
     }
 
     /// All `block:*` records.
+    ///
+    /// # Errors
+    ///
+    /// Return [`SourceError::Redis`] if a SCAN or GET fails, or
+    /// [`SourceError::Parse`] if a stored value is not a valid `LegacyBlock`.
     #[instrument(skip(self))]
     pub async fn blocks(&self) -> Result<Vec<LegacyBlock>, SourceError> {
         self.load_prefix("block:").await
@@ -69,6 +85,12 @@ impl LegacySource {
     ///
     /// Keys whose suffix is not a valid `u64` are skipped with a warning so a
     /// single malformed key cannot abort the migration.
+    ///
+    /// # Errors
+    ///
+    /// Return [`SourceError::Redis`] if a SCAN or GET fails, or
+    /// [`SourceError::Parse`] if a stored value is not a valid
+    /// `LegacyLocatorMapping`.
     #[instrument(skip(self))]
     pub async fn locators(&self) -> Result<Vec<LocatorRecord>, SourceError> {
         let keys = self.scan_keys("locator:*").await?;

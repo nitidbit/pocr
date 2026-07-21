@@ -15,7 +15,7 @@ use serde::Serialize;
 use tracing::instrument;
 use uuid::Uuid;
 
-use infra_pg::PgDemographicsRepository;
+use pocr_core::demographics::PatientDemographicsWithArm;
 
 use crate::smd::{smd_max_pairwise, ArmStats};
 use crate::AppState;
@@ -96,9 +96,8 @@ pub async fn get_balance(
     State(state): State<Arc<AppState>>,
     Path(study_id): Path<Uuid>,
 ) -> Result<Json<BalanceResponse>, StatusCode> {
-    let demographics_repo = PgDemographicsRepository::new(state.pg_pool.clone());
-
-    let records = demographics_repo
+    let records = state
+        .demographics_repo
         .find_by_study(&study_id)
         .await
         .map_err(|err| {
@@ -120,8 +119,6 @@ pub async fn get_balance(
 }
 
 // -- Aggregation logic --
-
-use infra_pg::PatientDemographicsWithArm;
 
 /// Build the full balance response from raw demographics records.
 fn build_balance_response(
@@ -277,7 +274,6 @@ fn build_categorical_variable(
     extract: impl Fn(&PatientDemographicsWithArm) -> Option<Vec<String>>,
 ) -> Option<BalanceVariable> {
     // Collect all distinct category values and per-arm counts.
-    // key: category value, value: map of arm_id -> count
     let mut category_counts: HashMap<String, HashMap<Uuid, usize>> = HashMap::new();
     let mut arm_totals: HashMap<Uuid, usize> = HashMap::new();
 
@@ -394,25 +390,28 @@ mod tests {
     use super::*;
     use chrono::NaiveDate;
 
+    // Core's `PatientDemographicsWithArm` is `#[non_exhaustive]`; build fixtures
+    // through its `Deserialize` impl rather than a struct literal.
     fn make_record(
         arm_id: Uuid,
         birth_date: Option<NaiveDate>,
         sex: Option<&str>,
         bmi: Option<f64>,
     ) -> PatientDemographicsWithArm {
-        PatientDemographicsWithArm {
-            patient_id: Uuid::now_v7().to_string(),
-            birth_date,
-            sex: sex.map(|s| s.to_owned()),
-            races: None,
-            ethnicity: None,
-            primary_language: None,
-            smoking_status: None,
-            insurance_type: None,
-            bmi,
-            synced_at: Utc::now(),
-            arm_id,
-        }
+        serde_json::from_value(serde_json::json!({
+            "patient_id": Uuid::now_v7().to_string(),
+            "birth_date": birth_date,
+            "sex": sex,
+            "races": null,
+            "ethnicity": null,
+            "primary_language": null,
+            "smoking_status": null,
+            "insurance_type": null,
+            "bmi": bmi,
+            "synced_at": Utc::now(),
+            "arm_id": arm_id,
+        }))
+        .expect("valid demographics fixture")
     }
 
     const TODAY: &str = "2026-06-29";

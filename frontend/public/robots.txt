@@ -1,3 +1,4 @@
+# POCR is an authenticated internal application — exclude it from indexing.
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+Disallow: /

@@ -5,7 +5,7 @@ use tokio_util::compat::TokioAsyncWriteCompatExt;
 use tracing::{info, instrument};
 
 use crate::config::CaboodleConfig;
-use crate::error::CaboodleError;
+use crate::error::{CaboodleError, CaboodleResult};
 
 /// A connected client to the Caboodle MS-SQL database.
 pub struct CaboodleClient {
@@ -14,8 +14,13 @@ pub struct CaboodleClient {
 
 impl CaboodleClient {
     /// Establish a connection to Caboodle using SQL Server authentication.
+    ///
+    /// # Errors
+    ///
+    /// Return [`CaboodleError::Connection`] if the TCP connection, socket
+    /// configuration, or TDS handshake fails.
     #[instrument(skip(config), fields(host = %config.host, port = config.port, database = %config.database))]
-    pub async fn connect(config: &CaboodleConfig) -> Result<Self, CaboodleError> {
+    pub async fn connect(config: &CaboodleConfig) -> CaboodleResult<Self> {
         let mut tib_config = TiberiusConfig::new();
         tib_config.host(&config.host);
         tib_config.port(config.port);

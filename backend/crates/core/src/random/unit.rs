@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use crate::error::{RandomizationError, RandomizationResult};
-use crate::random::{Key, KeyVariant};
+use crate::random::KeyVariant;
 use crate::random::RandomizationRequest;
 
 /// A name-value pair extracted from a FHIR resource path.
@@ -43,32 +43,31 @@ impl SimpleUnit {
     /// # Errors
     ///
     /// Return [`RandomizationError::MissingField`] if the key's corresponding
-    /// request field is `None`. Return [`RandomizationError::NotFound`] if
-    /// the key itself is `None`.
-    pub fn try_parse(key: &Key, request: &RandomizationRequest) -> RandomizationResult<Self> {
+    /// request field is absent. Return [`RandomizationError::NotImplemented`]
+    /// for a [`KeyVariant::FhirPath`] key.
+    pub fn try_parse(key: &KeyVariant, request: &RandomizationRequest) -> RandomizationResult<Self> {
         match key {
-            Some(KeyVariant::PatientId) => {
+            KeyVariant::PatientId => {
                 let id = request.patient_id.clone().ok_or(
                     RandomizationError::MissingField { field: "patient_id" },
                 )?;
                 Ok(SimpleUnit::PatientId(id))
             }
-            Some(KeyVariant::EncounterId) => {
+            KeyVariant::EncounterId => {
                 let id = request.encounter_id.clone().ok_or(
                     RandomizationError::MissingField { field: "encounter_id" },
                 )?;
                 Ok(SimpleUnit::EncounterId(id))
             }
-            Some(KeyVariant::ProviderId) => {
+            KeyVariant::ProviderId => {
                 let id = request.user_id.clone().ok_or(
                     RandomizationError::MissingField { field: "user_id" },
                 )?;
                 Ok(SimpleUnit::ProviderId(id))
             }
-            Some(KeyVariant::FhirPath(_fp)) => Err(RandomizationError::NotImplemented(
+            KeyVariant::FhirPath(_fp) => Err(RandomizationError::NotImplemented(
                 "FhirPath -> Unit".to_string(),
             )),
-            None => Err(RandomizationError::NotFound),
         }
     }
 }
@@ -83,7 +82,7 @@ impl Unit {
     ///
     /// Return [`RandomizationError::NotFound`] if `keys` is empty.
     /// Propagate errors from [`SimpleUnit::try_parse`] for each key.
-    pub fn try_parse(keys: &[Key], request: &RandomizationRequest) -> RandomizationResult<Self> {
+    pub fn try_parse(keys: &[KeyVariant], request: &RandomizationRequest) -> RandomizationResult<Self> {
         match keys.len() {
             0 => Err(RandomizationError::NotFound),
             1 => {
@@ -141,7 +140,7 @@ mod tests {
 
     #[test]
     fn try_parse_returns_error_when_patient_id_missing() {
-        let key: Key = Some(KeyVariant::PatientId);
+        let key = KeyVariant::PatientId;
         let request = empty_request();
 
         let result = SimpleUnit::try_parse(&key, &request);
@@ -155,7 +154,7 @@ mod tests {
 
     #[test]
     fn try_parse_returns_error_when_encounter_id_missing() {
-        let key: Key = Some(KeyVariant::EncounterId);
+        let key = KeyVariant::EncounterId;
         let request = empty_request();
 
         let result = SimpleUnit::try_parse(&key, &request);
@@ -169,7 +168,7 @@ mod tests {
 
     #[test]
     fn try_parse_returns_error_when_user_id_missing() {
-        let key: Key = Some(KeyVariant::ProviderId);
+        let key = KeyVariant::ProviderId;
         let request = empty_request();
 
         let result = SimpleUnit::try_parse(&key, &request);
@@ -183,7 +182,7 @@ mod tests {
 
     #[test]
     fn try_parse_succeeds_when_patient_id_present() {
-        let key: Key = Some(KeyVariant::PatientId);
+        let key = KeyVariant::PatientId;
         let request = RandomizationRequest {
             patient_id: Some("P-001".to_string()),
             ..empty_request()
@@ -196,21 +195,8 @@ mod tests {
     }
 
     #[test]
-    fn try_parse_returns_not_found_when_key_is_none() {
-        let key: Key = None;
-        let request = empty_request();
-
-        let result = SimpleUnit::try_parse(&key, &request);
-
-        assert!(matches!(
-            result.unwrap_err(),
-            RandomizationError::NotFound
-        ));
-    }
-
-    #[test]
     fn unit_try_parse_returns_not_found_for_empty_keys() {
-        let keys: &[Key] = &[];
+        let keys: &[KeyVariant] = &[];
         let request = empty_request();
 
         let result = Unit::try_parse(keys, &request);
@@ -225,12 +211,12 @@ mod tests {
     fn try_parse_returns_not_implemented_for_fhir_path() {
         use crate::random::FhirPath;
 
-        let key: Key = Some(KeyVariant::FhirPath(FhirPath {
+        let key = KeyVariant::FhirPath(FhirPath {
             id: "fp-1".to_string(),
             name: "test".to_string(),
             context: "Patient".to_string(),
             path: "/age".to_string(),
-        }));
+        });
         let request = empty_request();
 
         let result = SimpleUnit::try_parse(&key, &request);
@@ -243,7 +229,7 @@ mod tests {
 
     #[test]
     fn unit_try_parse_returns_simple_for_single_key() {
-        let keys: Vec<Key> = vec![Some(KeyVariant::PatientId)];
+        let keys: Vec<KeyVariant> = vec![KeyVariant::PatientId];
         let request = RandomizationRequest {
             patient_id: Some("P-001".to_string()),
             ..empty_request()
@@ -256,9 +242,9 @@ mod tests {
 
     #[test]
     fn unit_try_parse_returns_composite_for_multiple_keys() {
-        let keys: Vec<Key> = vec![
-            Some(KeyVariant::PatientId),
-            Some(KeyVariant::EncounterId),
+        let keys: Vec<KeyVariant> = vec![
+            KeyVariant::PatientId,
+            KeyVariant::EncounterId,
         ];
         let request = RandomizationRequest {
             patient_id: Some("P-001".to_string()),

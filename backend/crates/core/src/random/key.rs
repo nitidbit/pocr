@@ -1,12 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-/// Randomization unit key, identifying which request field determines
-/// the subject. `None` indicates no key is configured.
-pub type Key = Option<KeyVariant>;
-
 /// The field used to identify a randomization subject on a request.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum KeyVariant {
     /// Use the patient identifier.
     PatientId,

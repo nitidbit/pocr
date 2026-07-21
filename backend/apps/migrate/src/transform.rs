@@ -16,7 +16,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use pocr_core::environment::Environment;
-use pocr_core::random::{Arm, Key, KeyVariant, RandomPermutedBlock, Randomization};
+use pocr_core::random::{Arm, KeyVariant, RandomPermutedBlock, Randomization};
 use pocr_core::study::{RandomizationConfig, RandomizationStrategy, Study, StudyStatus};
 
 use crate::legacy::{
@@ -39,6 +39,15 @@ pub enum TransformError {
     /// A randomization referenced an arm id absent from the study's arm map.
     #[error("randomization references unknown arm id: {0}")]
     UnknownArm(String),
+    /// A legacy block could not be reconstructed into a core
+    /// [`RandomPermutedBlock`] from its injected-id serialized form.
+    #[error("failed to construct block for study {study_id}: {message}")]
+    BlockConstruction {
+        /// The remapped study id the block belongs to.
+        study_id: String,
+        /// The underlying deserialization error message.
+        message: String,
+    },
 }
 
 /// Map a proto `StudyStatus` ordinal to a [`StudyStatus`].
@@ -85,10 +94,10 @@ pub fn transform_arm(legacy: &LegacyArm, new_id: Uuid) -> Arm {
     }
 }
 
-/// Translate a legacy key `oneof` into a core [`Key`] (`Option<KeyVariant>`).
+/// Translate a legacy key `oneof` into a core [`KeyVariant`].
 ///
-/// A `None` variant (unset `oneof`) maps to `None`.
-pub fn transform_key(legacy: &LegacyKey) -> Key {
+/// An unset `oneof` maps to `None` and is dropped by the caller.
+pub fn transform_key(legacy: &LegacyKey) -> Option<KeyVariant> {
     legacy.variant.as_ref().map(|variant| match variant {
         LegacyKeyVariant::PatientId {} => KeyVariant::PatientId,
         LegacyKeyVariant::EncounterId {} => KeyVariant::EncounterId,
@@ -126,7 +135,7 @@ fn transform_config(
             Ok(transform_arm(arm, new_id))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let keys = legacy.keys.iter().map(transform_key).collect();
+    let keys = legacy.keys.iter().filter_map(transform_key).collect();
 
     Ok(RandomizationConfig {
         strategy,
@@ -191,10 +200,15 @@ pub fn transform_randomization(
 /// serialized form and deserializing. `index` and `values` are carried over
 /// byte-for-byte so a partially-consumed block resumes mid-sequence; `values`
 /// are arm indices and are never remapped.
+///
+/// # Errors
+///
+/// Return [`TransformError::BlockConstruction`] if the injected-id form does
+/// not deserialize into a [`RandomPermutedBlock`].
 pub fn transform_block(
     legacy: &LegacyBlock,
     new_study_id: Uuid,
-) -> Result<RandomPermutedBlock, serde_json::Error> {
+) -> Result<RandomPermutedBlock, TransformError> {
     let value = serde_json::json!({
         "id": Uuid::now_v7(),
         "study_id": new_study_id,
@@ -202,7 +216,10 @@ pub fn transform_block(
         "index": legacy.index,
         "values": legacy.values,
     });
-    serde_json::from_value(value)
+    serde_json::from_value(value).map_err(|e| TransformError::BlockConstruction {
+        study_id: new_study_id.to_string(),
+        message: e.to_string(),
+    })
 }
 
 #[cfg(test)]
@@ -301,6 +318,19 @@ mod tests {
             }
             other => panic!("expected FhirPath, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn config_drops_unset_key_variants() {
+        let legacy: LegacyStudy = serde_json::from_str(
+            r#"{"id":"s","name":"n","description":"d","randomization_config":{"strategy":1,"block_size":0,"arms":[{"id":"a","ratio":1,"locator":null}],"keys":[{"variant":{"PatientId":{}}},{"variant":null}],"strata":[]},"status":2,"created_at":1,"updated_at":1}"#,
+        )
+        .unwrap();
+        let arm_ids = HashMap::from([("a".to_string(), Uuid::now_v7())]);
+
+        let study = transform_study(&legacy, Uuid::now_v7(), &arm_ids).unwrap();
+
+        assert_eq!(study.randomization_config.keys, vec![KeyVariant::PatientId]);
     }
 
     #[test]

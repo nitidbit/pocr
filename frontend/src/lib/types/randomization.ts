@@ -12,30 +12,3 @@ export enum KeyType {
 	ClusterId = "cluster-id",
 	FhirPath = "fhir-path",
 }
-
-export interface Arm {
-	id: string;
-	name: string;
-	ratio: number;
-}
-
-export interface Key {
-	id: string;
-	name: string;
-	type: KeyType;
-}
-
-export interface Stratum {
-	id: string;
-	name: string;
-	type: "fhir-path" | "custom";
-	values?: string[];
-}
-
-export interface RandomizationConfig {
-	strategy: RandomizationStrategy;
-	arms: Arm[];
-	keys: Key[];
-	strata: Stratum[];
-	blockSize?: number;
-}

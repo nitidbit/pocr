@@ -15,7 +15,12 @@ export const MOCK_STUDIES: StudyResponse[] = [
 			],
 			keys: [{ PatientId: null }],
 			strata: [
-				{ id: "stratum-001", name: "Surgery Type", context: "Patient", path: "/surgeryType" },
+				{
+					id: "stratum-001",
+					name: "Surgery Type",
+					context: "Patient",
+					path: "/surgeryType",
+				},
 			],
 			blockSize: 4,
 		},
@@ -73,7 +78,12 @@ export const MOCK_STUDIES: StudyResponse[] = [
 			],
 			keys: [{ PatientId: null }],
 			strata: [
-				{ id: "stratum-003", name: "Stroke Severity", context: "Patient", path: "/nihss" },
+				{
+					id: "stratum-003",
+					name: "Stroke Severity",
+					context: "Patient",
+					path: "/nihss",
+				},
 			],
 			blockSize: 4,
 		},

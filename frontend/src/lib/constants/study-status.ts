@@ -1,1 +1,1 @@
-export { STATUS_LABELS, STATUS_COLORS } from "#/lib/types/study";
+export { STATUS_COLORS, STATUS_LABELS } from "#/lib/types/study";

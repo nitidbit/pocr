@@ -18,14 +18,20 @@ impl PgRandomizationRepository {
     }
 }
 
+/// Columns selected for reconstructing a [`Randomization`].
+///
+/// `strata_key` is intentionally omitted: it is a lossy delimiter-joined
+/// string, not the full [`Strata`](pocr_core::random::Strata) object, and is
+/// never rehydrated on read.
+const RANDOMIZATION_COLUMNS: &str =
+    "id, study_id, environment, unit_hash, arm, issued_at, epic_patient_id, epic_csn, epic_user_id";
+
 #[derive(sqlx::FromRow)]
 struct RandomizationRow {
     id: Uuid,
     study_id: Uuid,
     environment: String,
     unit_hash: String,
-    #[allow(dead_code)]
-    strata_key: Option<String>,
     arm: serde_json::Value,
     issued_at: chrono::DateTime<chrono::Utc>,
     epic_patient_id: Option<String>,
@@ -71,17 +77,19 @@ impl RandomizationRepository for PgRandomizationRepository {
         limit: u32,
         offset: u32,
     ) -> Result<Vec<Randomization>, RepositoryError> {
-        let rows = sqlx::query_as::<_, RandomizationRow>(
-            r#"SELECT * FROM randomizations WHERE study_id = $1 AND environment = $2
-               ORDER BY issued_at DESC LIMIT $3 OFFSET $4"#,
-        )
-        .bind(study_id)
-        .bind(environment.as_str())
-        .bind(limit as i64)
-        .bind(offset as i64)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        let query = format!(
+            "SELECT {RANDOMIZATION_COLUMNS} FROM randomizations \
+             WHERE study_id = $1 AND environment = $2 \
+             ORDER BY issued_at DESC LIMIT $3 OFFSET $4"
+        );
+        let rows = sqlx::query_as::<_, RandomizationRow>(&query)
+            .bind(study_id)
+            .bind(environment.as_str())
+            .bind(i64::from(limit))
+            .bind(i64::from(offset))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
 
         rows.into_iter().map(row_to_randomization).collect()
     }
@@ -91,17 +99,19 @@ impl RandomizationRepository for PgRandomizationRepository {
         &self,
         study_id: &Uuid,
         environment: Environment,
-        unit_hash: &str,
+        unit_key: &str,
     ) -> Result<Option<Randomization>, RepositoryError> {
-        let row = sqlx::query_as::<_, RandomizationRow>(
-            "SELECT * FROM randomizations WHERE study_id = $1 AND environment = $2 AND unit_hash = $3",
-        )
-        .bind(study_id)
-        .bind(environment.as_str())
-        .bind(unit_hash)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        let query = format!(
+            "SELECT {RANDOMIZATION_COLUMNS} FROM randomizations \
+             WHERE study_id = $1 AND environment = $2 AND unit_hash = $3"
+        );
+        let row = sqlx::query_as::<_, RandomizationRow>(&query)
+            .bind(study_id)
+            .bind(environment.as_str())
+            .bind(unit_key)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
 
         row.map(row_to_randomization).transpose()
     }
@@ -129,11 +139,14 @@ fn row_to_randomization(row: RandomizationRow) -> Result<Randomization, Reposito
         RepositoryError::Internal(format!("invalid environment value: {}", row.environment))
     })?;
 
-    // Reconstruct a minimal Randomization — the unit is stored as hash only,
-    // so we use a placeholder. The full unit is in the arm context.
+    // Lossy reconstruction: the persisted row keeps only the delimiter-joined
+    // unit_key and strata_key, not the full Unit/Strata objects. The original
+    // shape is unrecoverable, so unit_key is surfaced as a PatientId-wrapped
+    // string and strata is dropped. Callers needing the true unit must not
+    // rely on this read.
     use pocr_core::random::{SimpleUnit, Unit};
     let unit = Unit::Simple(SimpleUnit::PatientId(row.unit_hash.clone()));
-    let strata = None; // Strata stored as key string, not full object
+    let strata = None;
 
     Ok(Randomization {
         id: row.id,

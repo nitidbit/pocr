@@ -25,6 +25,11 @@ impl RedisStudyCache {
     }
 
     /// Cache a locator → study_id mapping (no TTL — persists until overwritten).
+    ///
+    /// # Errors
+    ///
+    /// Return [`RepositoryError::Connection`] if a Redis connection cannot be
+    /// acquired, or [`RepositoryError::Internal`] if the write fails.
     #[instrument(skip(self))]
     pub async fn cache_locator_mapping(
         &self,
@@ -45,6 +50,14 @@ impl RedisStudyCache {
     }
 
     /// Look up a cached study_id for a locator.
+    ///
+    /// Return `None` if the locator is not cached.
+    ///
+    /// # Errors
+    ///
+    /// Return [`RepositoryError::Connection`] if a Redis connection cannot be
+    /// acquired, or [`RepositoryError::Internal`] if the read fails or the
+    /// cached value is not a valid UUID.
     #[instrument(skip(self))]
     pub async fn get_study_id_for_locator(
         &self,
@@ -74,6 +87,12 @@ impl RedisStudyCache {
     }
 
     /// Cache a full study config with TTL.
+    ///
+    /// # Errors
+    ///
+    /// Return [`RepositoryError::Connection`] if a Redis connection cannot be
+    /// acquired, or [`RepositoryError::Internal`] if serialization or the write
+    /// fails.
     #[instrument(skip(self, study), fields(study_id = %study.id))]
     pub async fn cache_study(&self, study: &Study) -> Result<(), RepositoryError> {
         let mut conn = self
@@ -93,6 +112,14 @@ impl RedisStudyCache {
     }
 
     /// Retrieve a cached study config.
+    ///
+    /// Return `None` if the study is not cached or its entry has expired.
+    ///
+    /// # Errors
+    ///
+    /// Return [`RepositoryError::Connection`] if a Redis connection cannot be
+    /// acquired, or [`RepositoryError::Internal`] if the read or
+    /// deserialization fails.
     #[instrument(skip(self))]
     pub async fn get_cached_study(&self, study_id: &Uuid) -> Result<Option<Study>, RepositoryError> {
         let mut conn = self
@@ -118,6 +145,11 @@ impl RedisStudyCache {
     }
 
     /// Remove a study from cache (used on update/delete).
+    ///
+    /// # Errors
+    ///
+    /// Return [`RepositoryError::Connection`] if a Redis connection cannot be
+    /// acquired, or [`RepositoryError::Internal`] if the delete fails.
     #[instrument(skip(self))]
     pub async fn invalidate_study(&self, study_id: &Uuid) -> Result<(), RepositoryError> {
         let mut conn = self

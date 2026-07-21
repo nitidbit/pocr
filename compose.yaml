@@ -25,7 +25,7 @@ services:
       - backend
 
   vouch:
-    image: vouch/vouch-proxy:latest
+    image: quay.io/vouch/vouch-proxy:0.48.0@sha256:a9aafe3ab0f78f6e038f450b0bf24727fdf34774529f08234347e9e17a8c8c4d
     restart: unless-stopped
     volumes:
       - ./vouch/config.yml:/config/config.yml:ro
@@ -66,15 +66,15 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://pocr:${POSTGRES_PASSWORD}@postgres:5432/pocr
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL_FILE: /run/secrets/database_url
+      REDIS_URL_FILE: /run/secrets/redis_url
       RUST_LOG: info
       CERT_PATH: /etc/certs/ssl.pem
     volumes:
       - ./certs:/etc/certs:ro
     secrets:
-      - redis_password
-      - postgres_password
+      - database_url
+      - redis_url
     networks:
       - backend
     expose:
@@ -92,7 +92,7 @@ services:
       start_period: 10s
 
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
     restart: unless-stopped
     environment:
       POSTGRES_USER: pocr
@@ -136,7 +136,16 @@ volumes:
   pg_data:
   redis_data:
 
+# The engine reads full connection URLs (with embedded credentials) from
+# database_url / redis_url. postgres and redis read their bare passwords from
+# postgres_password / redis_password. The password in each *_url file MUST match
+# its corresponding *_password file — the operator's secret-generation step is
+# responsible for keeping them in sync.
 secrets:
+  database_url:
+    file: ./secrets/database_url
+  redis_url:
+    file: ./secrets/redis_url
   redis_password:
     file: ./secrets/redis_password
   postgres_password:

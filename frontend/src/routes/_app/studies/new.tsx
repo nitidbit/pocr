@@ -30,6 +30,10 @@ export const Route = createFileRoute("/_app/studies/new")({
 
 const VALIDATORS = [validateStep1, validateStep2, validateStep3, validateStep4];
 
+// The wizard does not yet collect a FHIR context per stratum; patient-level
+// stratification is the only supported case, so default to the Patient context.
+const DEFAULT_STRATUM_CONTEXT = "Patient";
+
 function formReducer(
 	state: CreateStudyFormData,
 	action: FormAction,
@@ -218,7 +222,10 @@ function CreateStudyPage() {
 	}
 
 	function handleCreate() {
-		const KEY_TYPE_MAP: Record<string, "patientId" | "encounterId" | "providerId"> = {
+		const KEY_TYPE_MAP: Record<
+			string,
+			"patientId" | "encounterId" | "providerId"
+		> = {
 			"patient-id": "patientId",
 			"encounter-id": "encounterId",
 			"provider-id": "providerId",
@@ -238,7 +245,7 @@ function CreateStudyPage() {
 				.filter((s) => s.name.trim())
 				.map((s) => ({
 					name: s.name,
-					context: "request.context",
+					context: DEFAULT_STRATUM_CONTEXT,
 					path: s.name.toLowerCase().replace(/\s+/g, "_"),
 				})),
 			blockSize: formData.blockSize ? Number(formData.blockSize) : undefined,

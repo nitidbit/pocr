@@ -15,7 +15,7 @@ mod key;
 
 pub use arm::Arm;
 pub use block::RandomPermutedBlock;
-pub use key::{FhirPath, Key, KeyVariant};
+pub use key::{FhirPath, KeyVariant};
 pub use randomization::Randomization;
 pub use request::RandomizationRequest;
 pub use stratum::{SimpleStratum, Strata, Stratum};

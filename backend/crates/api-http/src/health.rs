@@ -29,12 +29,8 @@ pub async fn live() -> impl IntoResponse {
 
 /// Readiness probe — verifies PG and Redis connectivity.
 pub async fn ready(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    let pg_ok = sqlx::query("SELECT 1")
-        .execute(&state.pg_pool)
-        .await
-        .is_ok();
-
-    let redis_ok = state.redis_pool.ping().await.is_ok();
+    let pg_ok = state.pg_health.ping().await.is_ok();
+    let redis_ok = state.redis_health.ping().await.is_ok();
 
     let pg_status = if pg_ok { "ok" } else { "error" };
     let redis_status = if redis_ok { "ok" } else { "error" };

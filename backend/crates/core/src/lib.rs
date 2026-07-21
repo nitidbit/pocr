@@ -6,6 +6,7 @@
 //! and contains no I/O.
 
 pub mod cds_hooks;
+pub mod demographics;
 pub mod environment;
 pub mod error;
 pub mod ports;

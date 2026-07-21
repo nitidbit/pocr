@@ -5,7 +5,7 @@ use std::sync::Arc;
 use axum::serve;
 use pocr_core::environment::{Environment, EnvironmentMap};
 use pocr_engine::error::{EngineError, EngineResult};
-use pocr_engine::health::RedisHealthCheck;
+use pocr_engine::health::{PgHealthCheck, RedisHealthCheck};
 use pocr_engine::service::Engine;
 use tokio::net::TcpListener;
 use tracing::info;
@@ -20,22 +20,9 @@ async fn main() -> EngineResult<()> {
     let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".into());
     let port = env::var("API_PORT").unwrap_or_else(|_| "3000".into());
     let _grpc_port = env::var("GRPC_PORT").unwrap_or_else(|_| "50051".into());
-    let database_url = match env::var("DATABASE_URL") {
-        Ok(url) => url,
-        Err(_) => {
-            #[cfg(debug_assertions)]
-            {
-                tracing::warn!("DATABASE_URL not set, using local dev default");
-                "postgres://pocr:pocr@localhost:5432/pocr".into()
-            }
-            #[cfg(not(debug_assertions))]
-            {
-                panic!("DATABASE_URL must be set in production");
-            }
-        }
-    };
-    let redis_url =
-        env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".into());
+    let database_url =
+        resolve_secret("DATABASE_URL", "postgres://pocr:pocr@localhost:5432/pocr")?;
+    let redis_url = resolve_secret("REDIS_URL", "redis://localhost:6379")?;
 
     let addr: SocketAddr = format!("{host}:{port}").parse().map_err(|e| {
         EngineError::Unknown(format!("invalid address {host}:{port}: {e}"))
@@ -79,8 +66,10 @@ async fn main() -> EngineResult<()> {
         Arc::new(infra_pg::PgRandomizationRepository::new(pg_pool.clone()));
     let user_study_repo = Arc::new(infra_pg::PgUserStudyRepository::new(pg_pool.clone()));
     let locator_repo = Arc::new(infra_pg::PgLocatorRepository::new(pg_pool.clone()));
+    let demographics_repo = Arc::new(infra_pg::PgDemographicsRepository::new(pg_pool.clone()));
     let block_cache = Arc::new(infra_redis::RedisBlockCache::new(redis_pool.clone()));
     let study_cache = Arc::new(infra_redis::RedisStudyCache::new(redis_pool.clone()));
+    let pg_health = Arc::new(PgHealthCheck::new(pg_pool.clone()));
     let redis_health = Arc::new(RedisHealthCheck::new(redis_pool));
 
     // Build randomization service
@@ -108,10 +97,11 @@ async fn main() -> EngineResult<()> {
         user_study_repo,
         locator_repo,
         randomization_service,
+        demographics_repo,
         study_cache,
         environment_map,
-        pg_pool,
-        redis_pool: redis_health,
+        pg_health,
+        redis_health,
         jwt_secret,
         cert_path,
         started_at: std::time::Instant::now(),
@@ -131,6 +121,42 @@ async fn main() -> EngineResult<()> {
 
     info!("server shut down");
     Ok(())
+}
+
+/// Resolve a connection URL that may be supplied directly or via a secret file.
+///
+/// Resolution order for a variable named `var`:
+/// 1. `<var>_FILE` — read the file, trim whitespace, and use its contents (the
+///    full URL including any credentials). Docker/Kubernetes mount secrets here.
+/// 2. `<var>` — use the environment value directly.
+/// 3. Fall back to `dev_default` in debug builds; panic in release builds so a
+///    misconfigured production deployment fails fast rather than using a default.
+///
+/// # Errors
+///
+/// Return [`EngineError::Unknown`] if `<var>_FILE` is set but cannot be read.
+fn resolve_secret(var: &str, dev_default: &str) -> EngineResult<String> {
+    if let Ok(path) = env::var(format!("{var}_FILE")) {
+        let contents = std::fs::read_to_string(&path).map_err(|e| {
+            EngineError::Unknown(format!("failed to read {var}_FILE at {path}: {e}"))
+        })?;
+        return Ok(contents.trim().to_owned());
+    }
+
+    if let Ok(value) = env::var(var) {
+        return Ok(value);
+    }
+
+    #[cfg(debug_assertions)]
+    {
+        tracing::warn!(var, "secret not set, using local dev default");
+        Ok(dev_default.to_owned())
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = dev_default;
+        panic!("{var} (or {var}_FILE) must be set in production");
+    }
 }
 
 /// Parse the `FHIR_ENV_MAP` variable into an [`EnvironmentMap`].

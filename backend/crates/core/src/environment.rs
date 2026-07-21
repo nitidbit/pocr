@@ -13,10 +13,12 @@
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 /// The deployment environment a randomization request originates from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum Environment {
     /// Live clinical use. Randomizations count toward the real trial.
     Production,
@@ -50,26 +52,16 @@ impl fmt::Display for Environment {
 }
 
 /// Error resolving a request's environment from its `fhirServer` URL.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[non_exhaustive]
 pub enum EnvironmentError {
     /// The request carried no `fhirServer` URL.
+    #[error("request has no fhirServer URL")]
     MissingUrl,
     /// The URL matched no configured prefix.
+    #[error("no environment configured for fhirServer URL: {0}")]
     UnknownUrl(String),
 }
-
-impl fmt::Display for EnvironmentError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            EnvironmentError::MissingUrl => write!(f, "request has no fhirServer URL"),
-            EnvironmentError::UnknownUrl(url) => {
-                write!(f, "no environment configured for fhirServer URL: {url}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for EnvironmentError {}
 
 /// An operator-supplied map from `fhirServer` URL prefixes to environments.
 ///

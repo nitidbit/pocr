@@ -10,6 +10,8 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use tracing::warn;
 
+use pocr_core::ports::HealthCheckable;
+
 use crate::AppState;
 
 /// Top-level system status response.
@@ -70,39 +72,8 @@ pub struct TlsStatus {
 pub async fn get_system_status(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let now = Utc::now();
 
-    // Check Postgres
-    let pg_start = Instant::now();
-    let pg_result = sqlx::query("SELECT 1").execute(&state.pg_pool).await;
-    let pg_latency = pg_start.elapsed().as_millis() as u64;
-    let postgres = match pg_result {
-        Ok(_) => ServiceHealth {
-            status: ServiceStatus::Up,
-            latency_ms: pg_latency,
-            error: None,
-        },
-        Err(e) => ServiceHealth {
-            status: ServiceStatus::Down,
-            latency_ms: pg_latency,
-            error: Some(e.to_string()),
-        },
-    };
-
-    // Check Redis
-    let redis_start = Instant::now();
-    let redis_result = state.redis_pool.ping().await;
-    let redis_latency = redis_start.elapsed().as_millis() as u64;
-    let redis = match redis_result {
-        Ok(()) => ServiceHealth {
-            status: ServiceStatus::Up,
-            latency_ms: redis_latency,
-            error: None,
-        },
-        Err(e) => ServiceHealth {
-            status: ServiceStatus::Down,
-            latency_ms: redis_latency,
-            error: Some(e),
-        },
-    };
+    let postgres = probe(state.pg_health.as_ref()).await;
+    let redis = probe(state.redis_health.as_ref()).await;
 
     // TLS certificate check
     let tls = read_tls_status(&state.cert_path);
@@ -127,6 +98,25 @@ pub async fn get_system_status(State(state): State<Arc<AppState>>) -> impl IntoR
         services: ServiceStatuses { postgres, redis },
         tls,
     })
+}
+
+/// Ping a service and report its status alongside the measured latency.
+async fn probe(service: &dyn HealthCheckable) -> ServiceHealth {
+    let start = Instant::now();
+    let result = service.ping().await;
+    let latency_ms = start.elapsed().as_millis() as u64;
+    match result {
+        Ok(()) => ServiceHealth {
+            status: ServiceStatus::Up,
+            latency_ms,
+            error: None,
+        },
+        Err(e) => ServiceHealth {
+            status: ServiceStatus::Down,
+            latency_ms,
+            error: Some(e),
+        },
+    }
 }
 
 fn read_tls_status(cert_path: &Option<String>) -> Option<TlsStatus> {

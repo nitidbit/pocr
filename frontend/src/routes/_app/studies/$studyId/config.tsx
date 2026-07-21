@@ -107,9 +107,7 @@ function ArmsSection({
 					<tbody>
 						{arms.map((arm) => (
 							<tr key={arm.id} className="border-b last:border-b-0">
-								<td className="px-4 py-2.5 text-foreground">
-									{arm.name}
-								</td>
+								<td className="px-4 py-2.5 text-foreground">{arm.name}</td>
 								<td className="px-4 py-2.5 text-right tabular-nums text-foreground">
 									{arm.ratio}
 								</td>

@@ -59,7 +59,7 @@ impl StudyRepository for PgStudyRepository {
         let status_str = serde_json::to_value(study.status)
             .map_err(|e| RepositoryError::Internal(e.to_string()))?
             .as_str()
-            .unwrap_or("draft")
+            .expect("StudyStatus serializes as a string")
             .to_string();
 
         let row = sqlx::query_as::<_, StudyRow>(
@@ -100,12 +100,14 @@ impl StudyRepository for PgStudyRepository {
 
     #[instrument(skip(self))]
     async fn find_by_locator(&self, locator: u64) -> Result<Option<Study>, RepositoryError> {
+        let locator = i64::try_from(locator)
+            .map_err(|_| RepositoryError::Internal(format!("locator {locator} exceeds i64")))?;
         let row = sqlx::query_as::<_, StudyRow>(
             r#"SELECT s.* FROM studies s
                JOIN locator_mappings lm ON lm.study_id = s.id
                WHERE lm.locator = $1"#,
         )
-        .bind(locator as i64)
+        .bind(locator)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| RepositoryError::Internal(e.to_string()))?;

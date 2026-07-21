@@ -10,7 +10,7 @@ use serde::Deserialize;
 use tracing::info;
 use uuid::Uuid;
 
-use pocr_core::random::{Arm, Key, Stratum};
+use pocr_core::random::{Arm, KeyVariant, Stratum};
 use pocr_core::study::{RandomizationConfig, RandomizationStrategy, Study, StudyStatus};
 
 use crate::error::ApiError;
@@ -26,7 +26,7 @@ pub struct CreateStudyRequest {
     pub strategy: RandomizationStrategy,
     pub arms: Vec<CreateArmRequest>,
     #[serde(default)]
-    pub keys: Vec<Key>,
+    pub keys: Vec<KeyVariant>,
     #[serde(default)]
     pub strata: Vec<CreateStratumRequest>,
     pub block_size: Option<u32>,

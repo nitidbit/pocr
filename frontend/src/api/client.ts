@@ -15,7 +15,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	const url = `${API_BASE}${path}`;
 	const devHeaders: Record<string, string> = {};
 	if (import.meta.env.DEV) {
-		devHeaders["X-Vouch-User"] = import.meta.env.VITE_DEV_USER ?? "dev@localhost";
+		devHeaders["X-Vouch-User"] =
+			import.meta.env.VITE_DEV_USER ?? "dev@localhost";
 	}
 	const response = await fetch(url, {
 		headers: {
@@ -37,11 +38,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	return response.json();
 }
 
-export type KeyVariant =
-	| "patientId"
-	| "encounterId"
-	| "providerId"
-	| { fhirPath: { id: string; name: string; context: string; path: string } };
+export type KeyVariant = "patientId" | "encounterId" | "providerId";
 
 export interface CreateStudyRequest {
 	name: string;
@@ -170,8 +167,6 @@ export const api = {
 			}),
 		delete: (id: string) =>
 			request<void>(`/studies/${id}`, { method: "DELETE" }),
-		share: (id: string) =>
-			request<{ token: string }>(`/studies/${id}/share`, { method: "POST" }),
 	},
 	randomizations: {
 		list: (studyId: string, params?: { limit?: number; offset?: number }) => {

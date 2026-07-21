@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -14,6 +15,10 @@ import { Route as NewStudyRoute } from "./new";
 const CreateStudyPage = NewStudyRoute.options.component!;
 
 function renderWizard(step = 1) {
+	const queryClient = new QueryClient({
+		defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+	});
+
 	const rootRoute = createRootRoute();
 
 	const wizardRoute = createRoute({
@@ -37,7 +42,11 @@ function renderWizard(step = 1) {
 		}),
 	});
 
-	return render(<RouterProvider router={router} />);
+	return render(
+		<QueryClientProvider client={queryClient}>
+			<RouterProvider router={router} />
+		</QueryClientProvider>,
+	);
 }
 
 describe("CreateStudyPage", () => {

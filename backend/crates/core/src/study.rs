@@ -6,7 +6,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::environment::Environment;
-use crate::random::{Arm, Key, Stratum};
+use crate::random::{Arm, KeyVariant, Stratum};
 
 /// The lifecycle state of a study.
 ///
@@ -15,6 +15,7 @@ use crate::random::{Arm, Key, Stratum};
 /// frozen (see [`Study::config_is_frozen`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum StudyStatus {
     /// Being configured. Editable. Non-production randomization allowed for
     /// validation; production randomization is not.
@@ -53,6 +54,7 @@ pub enum GateDecision {
 
 /// Why a randomization request was gated off.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum GateRejection {
     /// The study is not active and the environment requires an active study.
     StudyNotActive,
@@ -82,6 +84,7 @@ pub fn gate(env: Environment, status: StudyStatus) -> GateDecision {
 
 /// Errors from study lifecycle operations.
 #[derive(Debug, Error, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum StudyError {
     /// The requested status transition is not permitted from the current state.
     #[error("invalid transition from {from:?} to {to:?}")]
@@ -118,7 +121,7 @@ pub struct RandomizationConfig {
     /// Treatment arms with allocation ratios.
     pub arms: Vec<Arm>,
     /// Keys determining which request field identifies the subject.
-    pub keys: Vec<Key>,
+    pub keys: Vec<KeyVariant>,
     /// Stratification factor definitions.
     pub strata: Vec<Stratum>,
     /// Block size override (only relevant for Block strategy).
