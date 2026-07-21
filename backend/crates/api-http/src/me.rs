@@ -5,6 +5,8 @@ use axum::response::IntoResponse;
 use axum::Json;
 use serde::Serialize;
 
+use crate::extractors::AuthUser;
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct MeResponse {
@@ -16,48 +18,22 @@ struct MeResponse {
 }
 
 /// `GET /api/me` — Return the authenticated user's identity from Vouch headers.
-pub async fn get_me(headers: HeaderMap) -> Result<impl IntoResponse, (StatusCode, &'static str)> {
-    let headers = &headers;
-
-    let email = headers
-        .get("X-Vouch-User")
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_owned());
-
-    let Some(email) = email else {
-        #[cfg(debug_assertions)]
-        {
-            return Ok(Json(MeResponse {
-                email: "andrew.robinson@ucsf.edu".to_owned(),
-                name: "Andrew Robinson".to_owned(),
-                given_name: "Andrew".to_owned(),
-                picture: String::new(),
-                groups: vec!["ctsi-randomization-admins".to_owned()],
-            }));
-        }
-        #[cfg(not(debug_assertions))]
-        {
-            return Err((StatusCode::UNAUTHORIZED, "missing authentication header"));
-        }
+///
+/// The user identity comes from the `X-Vouch-User` header via [`AuthUser`],
+/// which rejects unauthenticated requests in release builds and falls back to a
+/// development identity otherwise. The remaining profile fields are read from
+/// the companion `X-Vouch-*` headers.
+pub async fn get_me(
+    user: AuthUser,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, (StatusCode, &'static str)> {
+    let header_field = |name: &str| {
+        headers
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_owned()
     };
-
-    let name = headers
-        .get("X-Vouch-Name")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("")
-        .to_owned();
-
-    let given_name = headers
-        .get("X-Vouch-Given-Name")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("")
-        .to_owned();
-
-    let picture = headers
-        .get("X-Vouch-Picture")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("")
-        .to_owned();
 
     let groups = headers
         .get("X-Vouch-Groups")
@@ -66,10 +42,10 @@ pub async fn get_me(headers: HeaderMap) -> Result<impl IntoResponse, (StatusCode
         .unwrap_or_default();
 
     Ok(Json(MeResponse {
-        email,
-        name,
-        given_name,
-        picture,
+        email: user.0,
+        name: header_field("X-Vouch-Name"),
+        given_name: header_field("X-Vouch-Given-Name"),
+        picture: header_field("X-Vouch-Picture"),
         groups,
     }))
 }

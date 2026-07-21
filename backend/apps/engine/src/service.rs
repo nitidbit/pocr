@@ -18,7 +18,7 @@ use pocr_core::environment::Environment;
 use pocr_core::error::{RandomizationError, RandomizationResult};
 use pocr_core::ports::{BlockCacheRepository, RandomizationRepository};
 use pocr_core::random::{
-    Arm, Key, KeyVariant, RandomPermutedBlock, Randomization, RandomizationRequest, Strata, Unit,
+    Arm, KeyVariant, RandomPermutedBlock, Randomization, RandomizationRequest, Strata, Unit,
 };
 use pocr_core::study::{gate, GateDecision, GateRejection, RandomizationStrategy, Study};
 
@@ -70,74 +70,59 @@ impl Engine {
     ) -> RandomizationResult<Randomization> {
         let config = &study.randomization_config;
 
-        // 0. Environment × status gate — must a request in this environment be
-        //    allowed to randomize into a study in this lifecycle state?
+        // Environment × status gate — must a request in this environment be
+        // allowed to randomize into a study in this lifecycle state?
         if let GateDecision::Reject(reason) = gate(environment, study.status) {
             return Err(match reason {
                 GateRejection::StudyNotActive => RandomizationError::StudyNotActive,
                 GateRejection::StudyClosed => RandomizationError::StudyClosed,
+                _ => RandomizationError::Unknown,
             });
         }
 
-        // 1. Extract unit from request using study keys
-        let unit = self.extract_unit(&config.keys, request)?;
-        let unit_hash = String::from(&unit);
+        let unit = extract_unit(&config.keys, request)?;
+        let unit_key = String::from(&unit);
 
-        // 2. Idempotency check — return existing if already randomized in this
-        //    environment (production and non-production dedup independently).
         if let Some(existing) = self
             .randomization_repo
-            .exists_for_unit(&study.id, environment, &unit_hash)
+            .exists_for_unit(&study.id, environment, &unit_key)
             .await
             .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?
         {
-            info!(unit = %unit_hash, "existing randomization returned");
+            info!(unit = %unit_key, "existing randomization returned");
             return Ok(existing);
         }
 
-        // 3. Deduplication — atomic check-and-set via DashMap::entry().
-        //    Keyed by environment so a test request never blocks a production one.
-        let dedup_key = format!("{}:{}:{}", environment.as_str(), study.id, unit_hash);
+        // Keyed by environment so a test request never blocks a production one.
+        let dedup_key = format!("{}:{}:{}", environment.as_str(), study.id, unit_key);
 
-        match self.inflight.entry(dedup_key.clone()) {
-            dashmap::mapref::entry::Entry::Occupied(entry) => {
-                // Another request is already in-flight for this unit
-                let notify = entry.get().clone();
-                drop(entry); // Release DashMap guard before awaiting
-                notify.notified().await;
-
-                // Re-check idempotency after wake
-                if let Some(existing) = self
-                    .randomization_repo
-                    .exists_for_unit(&study.id, environment, &unit_hash)
-                    .await
-                    .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?
-                {
-                    return Ok(existing);
+        // Acquire the in-flight slot. Waiters block on the current holder's
+        // notify; on wake they re-check idempotency and, if the holder failed
+        // without persisting, contend again for the slot.
+        let notify = loop {
+            match self.inflight.entry(dedup_key.clone()) {
+                dashmap::mapref::entry::Entry::Vacant(entry) => {
+                    let notify = Arc::new(Notify::new());
+                    entry.insert(notify.clone());
+                    break notify;
                 }
-                // If still not found, fall through to perform randomization.
-                // This handles the case where the first request failed.
-            }
-            dashmap::mapref::entry::Entry::Vacant(entry) => {
-                let notify = Arc::new(Notify::new());
-                entry.insert(notify.clone());
-                // Fall through with guard below
-            }
-        }
+                dashmap::mapref::entry::Entry::Occupied(entry) => {
+                    let notify = entry.get().clone();
+                    drop(entry);
+                    notify.notified().await;
 
-        // At this point, we either won the race (Vacant) or the previous
-        // holder failed (Occupied path fell through). Ensure we're registered.
-        let notify = self
-            .inflight
-            .get(&dedup_key)
-            .map(|r| r.value().clone())
-            .unwrap_or_else(|| {
-                let n = Arc::new(Notify::new());
-                self.inflight.insert(dedup_key.clone(), n.clone());
-                n
-            });
+                    if let Some(existing) = self
+                        .randomization_repo
+                        .exists_for_unit(&study.id, environment, &unit_key)
+                        .await
+                        .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?
+                    {
+                        return Ok(existing);
+                    }
+                }
+            }
+        };
 
-        // Guard ensures cleanup on all paths (success or error)
         let mut guard = InflightGuard {
             map: &self.inflight,
             key: dedup_key,
@@ -145,7 +130,6 @@ impl Engine {
             defused: false,
         };
 
-        // 4. Extract strata (if configured)
         let strata = if config.strata.is_empty() {
             None
         } else {
@@ -153,9 +137,8 @@ impl Engine {
         };
         let stratum_key = strata.as_ref().map(String::from).unwrap_or_default();
 
-        // 5. Perform randomization based on strategy
         let arm_index = match config.strategy {
-            RandomizationStrategy::Simple => self.simple_randomize(&config.arms)?,
+            RandomizationStrategy::Simple => Self::simple_randomize(&config.arms)?,
             RandomizationStrategy::Block => {
                 self.block_randomize(
                     &study.id,
@@ -170,11 +153,10 @@ impl Engine {
 
         let arm = config
             .arms
-            .get(arm_index as usize)
+            .get(usize::try_from(arm_index).map_err(|_| RandomizationError::Unknown)?)
             .ok_or(RandomizationError::Unknown)?
             .clone();
 
-        // 6. Create and persist the randomization record
         let epic_ids = request.extract_epic_ids();
         let mut randomization = match config.strategy {
             RandomizationStrategy::Simple => {
@@ -194,7 +176,6 @@ impl Engine {
             .await
             .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?;
 
-        // 7. Success — defuse guard, then clean up explicitly
         guard.defused = true;
         self.inflight.remove(&guard.key);
         notify.notify_waiters();
@@ -203,7 +184,7 @@ impl Engine {
             event_type = "randomization.issued",
             study_id = %study.id,
             arm_id = %saved.arm.id,
-            unit = %unit_hash,
+            unit = %unit_key,
             strategy = ?config.strategy,
             "randomization issued"
         );
@@ -211,20 +192,7 @@ impl Engine {
         Ok(saved)
     }
 
-    fn extract_unit(
-        &self,
-        keys: &[Key],
-        request: &RandomizationRequest,
-    ) -> RandomizationResult<Unit> {
-        if keys.is_empty() {
-            // Default to patient ID if no keys configured
-            let default_keys = vec![Some(KeyVariant::PatientId)];
-            return Unit::try_parse(&default_keys, request);
-        }
-        Unit::try_parse(keys, request)
-    }
-
-    fn simple_randomize(&self, arms: &[Arm]) -> RandomizationResult<u32> {
+    fn simple_randomize(arms: &[Arm]) -> RandomizationResult<u32> {
         use rand::distr::weighted::WeightedIndex;
         use rand::distr::Distribution;
 
@@ -233,7 +201,7 @@ impl Engine {
             RandomizationError::InvalidConfiguration("all arm ratios are zero".into())
         })?;
         let mut rng = rand::rng();
-        Ok(dist.sample(&mut rng) as u32)
+        u32::try_from(dist.sample(&mut rng)).map_err(|_| RandomizationError::Unknown)
     }
 
     async fn block_randomize(
@@ -244,7 +212,6 @@ impl Engine {
         block_size: Option<u32>,
         stratum_key: &str,
     ) -> RandomizationResult<u32> {
-        // Try to consume from existing cached block
         if let Some(arm_index) = self
             .block_cache
             .consume_next(environment, study_id, stratum_key)
@@ -254,8 +221,7 @@ impl Engine {
             return Ok(arm_index);
         }
 
-        // Block exhausted or not found — generate a new one.
-        // Generate block synchronously (ThreadRng is not Send).
+        // Generate synchronously: ThreadRng is not Send and cannot cross await.
         let (arm_index, block) = {
             let mut rng = rand::rng();
             let strata = if stratum_key.is_empty() {
@@ -274,7 +240,6 @@ impl Engine {
             (arm_index, block)
         };
 
-        // Save the rest of the block to cache
         self.block_cache
             .save_block(environment, &block)
             .await
@@ -282,6 +247,15 @@ impl Engine {
 
         Ok(arm_index)
     }
+}
+
+/// Extract the randomization unit from a request, defaulting to patient ID
+/// when the study configures no keys.
+fn extract_unit(keys: &[KeyVariant], request: &RandomizationRequest) -> RandomizationResult<Unit> {
+    if keys.is_empty() {
+        return Unit::try_parse(&[KeyVariant::PatientId], request);
+    }
+    Unit::try_parse(keys, request)
 }
 
 #[async_trait]
@@ -341,7 +315,7 @@ mod tests {
             &self,
             study_id: &Uuid,
             environment: Environment,
-            unit_hash: &str,
+            unit_key: &str,
         ) -> Result<Option<Randomization>, RepositoryError> {
             let records = self.records.lock().unwrap();
             let found = records
@@ -349,7 +323,7 @@ mod tests {
                 .find(|r| {
                     r.study_id == *study_id
                         && r.environment == environment
-                        && String::from(&r.unit) == unit_hash
+                        && String::from(&r.unit) == unit_key
                 })
                 .cloned();
             Ok(found)
@@ -436,7 +410,7 @@ mod tests {
                         locator: None,
                     },
                 ],
-                keys: vec![Some(KeyVariant::PatientId)],
+                keys: vec![KeyVariant::PatientId],
                 strata: vec![],
                 block_size: Some(4),
             },

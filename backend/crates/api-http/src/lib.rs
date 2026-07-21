@@ -19,8 +19,8 @@ use tower_http::trace::TraceLayer;
 
 use pocr_core::environment::EnvironmentMap;
 use pocr_core::ports::{
-    BlockCacheRepository, HealthCheckable, LocatorRepository, RandomizationRepository,
-    RandomizationService, StudyCache, StudyRepository, UserStudyRepository,
+    BlockCacheRepository, DemographicsRepository, HealthCheckable, LocatorRepository,
+    RandomizationRepository, RandomizationService, StudyCache, StudyRepository, UserStudyRepository,
 };
 
 use crate::balance::get_balance;
@@ -36,14 +36,15 @@ pub struct AppState {
     pub user_study_repo: Arc<dyn UserStudyRepository>,
     pub locator_repo: Arc<dyn LocatorRepository>,
     pub randomization_service: Arc<dyn RandomizationService>,
+    pub demographics_repo: Arc<dyn DemographicsRepository>,
     pub study_cache: Arc<dyn StudyCache>,
     /// Maps CDS Hooks `fhirServer` URL prefixes to deployment environments.
     /// Resolution fails closed on unknown/missing URLs.
     pub environment_map: EnvironmentMap,
-    /// PostgreSQL pool for health checks.
-    pub pg_pool: sqlx::PgPool,
-    /// Redis pool for health checks.
-    pub redis_pool: Arc<dyn HealthCheckable>,
+    /// PostgreSQL connectivity probe for health checks.
+    pub pg_health: Arc<dyn HealthCheckable>,
+    /// Redis connectivity probe for health checks.
+    pub redis_health: Arc<dyn HealthCheckable>,
     /// JWT secret for study sharing tokens.
     pub jwt_secret: String,
     /// Path to TLS certificate PEM file (optional).

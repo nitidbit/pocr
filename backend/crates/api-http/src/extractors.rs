@@ -46,3 +46,39 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::Request;
+
+    async fn extract(header: Option<&str>) -> Result<AuthUser, (StatusCode, &'static str)> {
+        let mut builder = Request::builder();
+        if let Some(value) = header {
+            builder = builder.header("X-Vouch-User", value);
+        }
+        let request = builder.body(()).unwrap();
+        let (mut parts, ()) = request.into_parts();
+        AuthUser::from_request_parts(&mut parts, &()).await
+    }
+
+    #[tokio::test]
+    async fn extracts_user_id_from_header() {
+        let user = extract(Some("alice@example.com")).await.unwrap();
+        assert_eq!(user.id(), "alice@example.com");
+    }
+
+    #[cfg(debug_assertions)]
+    #[tokio::test]
+    async fn falls_back_to_system_when_header_missing_in_debug() {
+        let user = extract(None).await.unwrap();
+        assert_eq!(user.id(), "system");
+    }
+
+    #[cfg(not(debug_assertions))]
+    #[tokio::test]
+    async fn rejects_missing_header_in_release() {
+        let result = extract(None).await;
+        assert_eq!(result.unwrap_err().0, StatusCode::UNAUTHORIZED);
+    }
+}
