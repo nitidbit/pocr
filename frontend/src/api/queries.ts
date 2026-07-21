@@ -72,6 +72,22 @@ export function useDeleteStudy() {
 	});
 }
 
+export function useSetArmLocator(id: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({ armId, locator }: { armId: string; locator: number }) =>
+			api.studies.setArmLocator(id, armId, locator),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: studyKeys.detail(id) });
+			queryClient.invalidateQueries({ queryKey: studyKeys.all });
+			toast.success("Locator mapped");
+		},
+		onError: () => {
+			toast.error("Failed to map locator");
+		},
+	});
+}
+
 export function useRandomizations(studyId: string) {
 	return useQuery({
 		queryKey: studyKeys.randomizations(studyId),
