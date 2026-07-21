@@ -167,6 +167,11 @@ export const api = {
 			}),
 		delete: (id: string) =>
 			request<void>(`/studies/${id}`, { method: "DELETE" }),
+		setArmLocator: (id: string, armId: string, locator: number) =>
+			request<StudyResponse>(`/studies/${id}/arms/${armId}/locator`, {
+				method: "PUT",
+				body: JSON.stringify({ locator }),
+			}),
 	},
 	randomizations: {
 		list: (studyId: string, params?: { limit?: number; offset?: number }) => {
