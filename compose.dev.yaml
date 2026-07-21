@@ -4,14 +4,16 @@ services:
       context: ./frontend
       target: development
     depends_on:
-      - backend
+      - engine
+    environment:
+      VITE_PROXY_TARGET: http://engine:3000
     volumes:
       - ./frontend:/app
       - /app/node_modules
     ports:
       - "5179:5179"
 
-  backend:
+  engine:
     build:
       context: ./backend
       target: development
@@ -34,13 +36,13 @@ services:
       - "50051:50051"
 
   postgres:
-    image: postgres:18-alpine
+    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
     environment:
       POSTGRES_USER: pocr
       POSTGRES_PASSWORD: pocr
       POSTGRES_DB: pocr
     volumes:
-      - pg_data:/var/lib/postgresql
+      - pg_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
@@ -50,7 +52,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:alpine
+    image: redis:8.2-alpine@sha256:223b183cbc49f5ff48728e1fc52ccf101f05072decad2bd9867281a3c9bf75fd
     volumes:
       - redis_data:/data
     ports:

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # --- Base stage: Rust toolchain + cargo-chef + protobuf compiler ---
-FROM rust:1.95 AS chef
+FROM rust:1.95@sha256:f49565f188ee00bc2a18dd418183f2c5f23ef7d6e691890517ed341a598f67c3 AS chef
 RUN cargo install cargo-chef
 RUN apt-get update && apt-get install -y --no-install-recommends \
     protobuf-compiler && \
@@ -29,7 +29,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --release --locked
 
 # --- Production: minimal runtime image ---
-FROM debian:bookworm-slim AS production
+FROM debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818 AS production
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
