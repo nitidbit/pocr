@@ -1630,6 +1630,7 @@ dependencies = [
  "infra-caboodle",
  "infra-pg",
  "observability",
+ "pocr-core",
  "sqlx",
  "thiserror 2.0.18",
  "tokio",
