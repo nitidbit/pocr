@@ -176,27 +176,18 @@ describe("validateStep4", () => {
 		expect(errors.keys).toBeDefined();
 	});
 
-	it("returns error when a key has no name", () => {
-		const data = emptyFormData();
-		data.keys = [{ id: "1", name: "", type: KeyType.PatientId }];
-
-		const errors = validateStep4(data);
-
-		expect(errors["keys.0.name"]).toBeDefined();
-	});
-
 	it("returns error when a key has no type", () => {
 		const data = emptyFormData();
-		data.keys = [{ id: "1", name: "Patient ID", type: "" }];
+		data.keys = [{ id: "1", type: "" }];
 
 		const errors = validateStep4(data);
 
 		expect(errors["keys.0.type"]).toBeDefined();
 	});
 
-	it("returns no errors when at least 1 key has name and type", () => {
+	it("returns no errors when at least 1 key has a type", () => {
 		const data = emptyFormData();
-		data.keys = [{ id: "1", name: "Patient ID", type: KeyType.PatientId }];
+		data.keys = [{ id: "1", type: KeyType.PatientId }];
 
 		const errors = validateStep4(data);
 
@@ -205,7 +196,7 @@ describe("validateStep4", () => {
 
 	it("does not require strata (optional)", () => {
 		const data = emptyFormData();
-		data.keys = [{ id: "1", name: "Patient ID", type: KeyType.PatientId }];
+		data.keys = [{ id: "1", type: KeyType.PatientId }];
 		data.strata = [];
 
 		const errors = validateStep4(data);
@@ -213,18 +204,41 @@ describe("validateStep4", () => {
 		expect(errors.strata).toBeUndefined();
 	});
 
-	it("validates each key independently", () => {
+	it("requires a label and FHIRPath for each stratum", () => {
 		const data = emptyFormData();
-		data.keys = [
-			{ id: "1", name: "Patient ID", type: KeyType.PatientId },
-			{ id: "2", name: "", type: "" },
+		data.keys = [{ id: "1", type: KeyType.PatientId }];
+		data.strata = [
+			{ id: "s1", name: "", type: "", context: "Patient", path: "" },
 		];
 
 		const errors = validateStep4(data);
 
-		expect(errors["keys.0.name"]).toBeUndefined();
+		expect(errors["strata.0.name"]).toBeDefined();
+		expect(errors["strata.0.path"]).toBeDefined();
+	});
+
+	it("accepts a fully specified stratum", () => {
+		const data = emptyFormData();
+		data.keys = [{ id: "1", type: KeyType.PatientId }];
+		data.strata = [
+			{ id: "s1", name: "Sex", type: "", context: "Patient", path: "gender" },
+		];
+
+		const errors = validateStep4(data);
+
+		expect(Object.keys(errors)).toHaveLength(0);
+	});
+
+	it("validates each key independently", () => {
+		const data = emptyFormData();
+		data.keys = [
+			{ id: "1", type: KeyType.PatientId },
+			{ id: "2", type: "" },
+		];
+
+		const errors = validateStep4(data);
+
 		expect(errors["keys.0.type"]).toBeUndefined();
-		expect(errors["keys.1.name"]).toBeDefined();
 		expect(errors["keys.1.type"]).toBeDefined();
 	});
 });

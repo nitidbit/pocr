@@ -9,11 +9,14 @@ export { StepTeamTimeline } from "./step-team-timeline";
 export { StratumEditor } from "./stratum-editor";
 export {
 	type CreateStudyFormData,
+	defaultArmName,
 	type FormAction,
 	INITIAL_FORM_DATA,
 	STEPS,
+	STRATUM_PRESETS,
 	type StepConfig,
 	type StepProps,
+	type StratumPreset,
 } from "./types";
 export {
 	validateStep1,

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import {
 	api,
 	type CreateStudyRequest,
+	type StudyStatus,
 	type UpdateStudyRequest,
 } from "./client";
 
@@ -68,6 +69,26 @@ export function useDeleteStudy() {
 		},
 		onError: () => {
 			toast.error("Failed to delete study");
+		},
+	});
+}
+
+export function useTransitionStudy(id: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (status: StudyStatus) => api.studies.transition(id, status),
+		onSuccess: (study) => {
+			queryClient.invalidateQueries({ queryKey: studyKeys.all });
+			queryClient.invalidateQueries({ queryKey: studyKeys.detail(id) });
+			const STATUS_MESSAGE: Record<string, string> = {
+				active: "Study activated",
+				paused: "Study paused",
+				closed: "Study closed",
+			};
+			toast.success(STATUS_MESSAGE[study.status] ?? "Study updated");
+		},
+		onError: () => {
+			toast.error("Failed to change study status");
 		},
 	});
 }
