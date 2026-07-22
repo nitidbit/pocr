@@ -1,10 +1,9 @@
 import { Plus, Trash2 } from "lucide-react";
 import { KeyType } from "#/lib/types/randomization";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 interface KeyEditorProps {
-	keys: Array<{ id: string; name: string; type: string }>;
+	keys: Array<{ id: string; type: string }>;
 	errors: Record<string, string>;
 	onAdd: () => void;
 	onRemove: (id: string) => void;
@@ -15,11 +14,11 @@ const KEY_TYPE_OPTIONS = [
 	{ value: KeyType.PatientId, label: "Patient ID" },
 	{ value: KeyType.EncounterId, label: "Encounter ID" },
 	{ value: KeyType.ProviderId, label: "Provider ID" },
-	{ value: KeyType.ClusterId, label: "Cluster ID" },
 	{ value: KeyType.FhirPath, label: "FHIR Path" },
 ];
 
-/** Dynamic list editor for randomization keys with name and type fields. */
+/** Dynamic list editor for randomization keys. The key type is the identifier;
+ * no custom name is needed. */
 export function KeyEditor({
 	keys,
 	errors,
@@ -38,21 +37,6 @@ export function KeyEditor({
 						className="flex items-start gap-2 rounded-lg border bg-muted/30 p-3"
 					>
 						<div className="flex flex-1 flex-col gap-1">
-							<Input
-								placeholder="Key name"
-								value={key.name}
-								onChange={(e) => onUpdate(key.id, "name", e.target.value)}
-								aria-label={`Key ${index + 1} name`}
-								aria-invalid={!!errors[`keys.${index}.name`]}
-							/>
-							{errors[`keys.${index}.name`] && (
-								<p className="text-xs text-destructive">
-									{errors[`keys.${index}.name`]}
-								</p>
-							)}
-						</div>
-
-						<div className="flex w-40 flex-col gap-1">
 							<select
 								className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
 								value={key.type}

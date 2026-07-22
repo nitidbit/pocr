@@ -40,6 +40,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export type KeyVariant = "patientId" | "encounterId" | "providerId";
 
+export type StudyStatus = "draft" | "active" | "paused" | "closed";
+
 export interface CreateStudyRequest {
 	name: string;
 	description: string;
@@ -53,14 +55,14 @@ export interface CreateStudyRequest {
 export interface UpdateStudyRequest {
 	name?: string;
 	description?: string;
-	status?: "draft" | "active" | "inactive";
+	// Status changes go through the transition endpoint, not update.
 }
 
 export interface StudyResponse {
 	id: string;
 	name: string;
 	description: string;
-	status: "draft" | "active" | "inactive";
+	status: StudyStatus;
 	randomizationConfig: {
 		strategy: "simple" | "block";
 		arms: Array<{ id: string; name: string; ratio: number; locator?: number }>;
@@ -167,6 +169,11 @@ export const api = {
 			}),
 		delete: (id: string) =>
 			request<void>(`/studies/${id}`, { method: "DELETE" }),
+		transition: (id: string, status: StudyStatus) =>
+			request<StudyResponse>(`/studies/${id}/transition`, {
+				method: "POST",
+				body: JSON.stringify({ status }),
+			}),
 		setArmLocator: (id: string, armId: string, locator: number) =>
 			request<StudyResponse>(`/studies/${id}/arms/${armId}/locator`, {
 				method: "PUT",

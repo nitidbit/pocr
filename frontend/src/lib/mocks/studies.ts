@@ -69,7 +69,7 @@ export const MOCK_STUDIES: StudyResponse[] = [
 		name: "Post-Stroke Rehabilitation Timing Optimization",
 		description:
 			"Completed trial evaluating early versus delayed intensive rehabilitation initiation in acute ischemic stroke patients.",
-		status: "inactive",
+		status: "closed",
 		randomizationConfig: {
 			strategy: "block",
 			arms: [
