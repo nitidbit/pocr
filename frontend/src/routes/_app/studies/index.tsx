@@ -5,7 +5,7 @@ import { useStudies } from "#/api/queries";
 import { formatDate } from "#/lib/format";
 import { STATUS_COLORS, STATUS_LABELS } from "#/lib/types/study";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/_app/studies/")({
@@ -73,10 +73,14 @@ function StudiesDashboardPage() {
 						Manage randomization studies and monitor enrollment progress.
 					</p>
 				</div>
-				<Button render={<Link to="/studies/new" search={{ step: 1 }} />}>
+				<Link
+					to="/studies/new"
+					search={{ step: 1 }}
+					className={buttonVariants()}
+				>
 					<Plus className="size-4" />
 					Create New Study
-				</Button>
+				</Link>
 			</div>
 
 			<StatsRow

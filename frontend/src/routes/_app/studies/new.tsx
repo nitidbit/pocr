@@ -20,7 +20,7 @@ import {
 	validateStep4,
 	WizardStepper,
 } from "#/components/studies/create-wizard";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_app/studies/new")({
 	validateSearch: (search: Record<string, unknown>) => ({
@@ -312,9 +312,9 @@ function CreateStudyPage() {
 				<p className="text-sm text-muted-foreground">
 					Your study configuration has been saved.
 				</p>
-				<Button variant="outline" render={<Link to="/studies" />}>
+				<Link to="/studies" className={buttonVariants({ variant: "outline" })}>
 					Back to Studies
-				</Button>
+				</Link>
 			</div>
 		);
 	}
@@ -397,9 +397,12 @@ function CreateStudyPage() {
 						</Button>
 					)}
 
-					<Button variant="outline" render={<Link to="/studies" />}>
+					<Link
+						to="/studies"
+						className={buttonVariants({ variant: "outline" })}
+					>
 						Cancel
-					</Button>
+					</Link>
 				</div>
 			</form>
 		</div>
