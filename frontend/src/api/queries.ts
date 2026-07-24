@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import {
 	api,
 	type CreateStudyRequest,
+	type Environment,
 	type StudyStatus,
 	type UpdateStudyRequest,
 } from "./client";
@@ -11,9 +12,10 @@ import {
 export const studyKeys = {
 	all: ["studies"] as const,
 	detail: (id: string) => ["studies", id] as const,
-	randomizations: (studyId: string) =>
-		["studies", studyId, "randomizations"] as const,
-	balance: (studyId: string) => ["studies", studyId, "balance"] as const,
+	randomizations: (studyId: string, environment: Environment) =>
+		["studies", studyId, "randomizations", environment] as const,
+	balance: (studyId: string, environment: Environment) =>
+		["studies", studyId, "balance", environment] as const,
 };
 
 export function useStudies() {
@@ -109,17 +111,36 @@ export function useSetArmLocator(id: string) {
 	});
 }
 
-export function useRandomizations(studyId: string) {
+export function useRandomizations(studyId: string, environment: Environment) {
 	return useQuery({
-		queryKey: studyKeys.randomizations(studyId),
-		queryFn: () => api.randomizations.list(studyId),
+		queryKey: studyKeys.randomizations(studyId, environment),
+		queryFn: () => api.randomizations.list(studyId, { environment }),
 	});
 }
 
-export function useBalance(studyId: string) {
+export function useBalance(studyId: string, environment: Environment) {
 	return useQuery({
-		queryKey: studyKeys.balance(studyId),
-		queryFn: () => api.balance.get(studyId),
+		queryKey: studyKeys.balance(studyId, environment),
+		queryFn: () => api.balance.get(studyId, environment),
+	});
+}
+
+export function usePurgeNonProduction(studyId: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: () => api.studies.purgeNonProduction(studyId),
+		onSuccess: (data) => {
+			queryClient.invalidateQueries({
+				queryKey: ["studies", studyId, "randomizations"],
+			});
+			queryClient.invalidateQueries({
+				queryKey: ["studies", studyId, "balance"],
+			});
+			toast.success(`Purged ${data.recordsRemoved} test randomizations`);
+		},
+		onError: () => {
+			toast.error("Failed to purge test data");
+		},
 	});
 }
 

@@ -1,11 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Activity, BarChart3, Scale, TrendingUp } from "lucide-react";
+import { Activity, BarChart3, Scale, Trash2, TrendingUp } from "lucide-react";
+import { useState } from "react";
 import type {
 	BalanceResponse,
 	BalanceVariable,
 	RandomizationResponse,
 } from "#/api/client";
-import { useBalance, useRandomizations, useStudy } from "#/api/queries";
+import {
+	useBalance,
+	usePurgeNonProduction,
+	useRandomizations,
+	useStudy,
+} from "#/api/queries";
+import { ENVIRONMENTS, useEnvironment } from "#/lib/environment";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_app/studies/$studyId/monitor")({
 	component: StudyMonitorPage,
@@ -13,19 +21,92 @@ export const Route = createFileRoute("/_app/studies/$studyId/monitor")({
 
 function StudyMonitorPage() {
 	const { studyId } = Route.useParams();
+	const { environment } = useEnvironment();
 	const { data: study } = useStudy(studyId);
-	const { data: randomizations, isLoading } = useRandomizations(studyId);
-	const { data: balance, isLoading: balanceLoading } = useBalance(studyId);
+	const { data: randomizations, isLoading } = useRandomizations(
+		studyId,
+		environment,
+	);
+	const { data: balance, isLoading: balanceLoading } = useBalance(
+		studyId,
+		environment,
+	);
 
 	return (
 		<div className="flex flex-col gap-6">
+			<p className="text-xs text-muted-foreground">
+				Showing {ENVIRONMENTS[environment].label} data
+			</p>
 			<BalanceSummary study={study} randomizations={randomizations} />
-			<DemographicBalance balance={balance} isLoading={balanceLoading} />
+			{environment === "nonproduction" ? (
+				<DemographicBalanceUnavailable />
+			) : (
+				<DemographicBalance balance={balance} isLoading={balanceLoading} />
+			)}
 			<RecentRandomizations
 				randomizations={randomizations}
 				isLoading={isLoading}
 			/>
+			{environment === "nonproduction" && <PurgeTestData studyId={studyId} />}
 		</div>
+	);
+}
+
+function PurgeTestData({ studyId }: { studyId: string }) {
+	const purge = usePurgeNonProduction(studyId);
+	const [showConfirm, setShowConfirm] = useState(false);
+
+	return (
+		<section className="rounded-lg border border-destructive/30 bg-destructive/5 p-5">
+			<h2 className="mb-2 text-sm font-semibold text-destructive">
+				Reset Test Data
+			</h2>
+			{!showConfirm ? (
+				<div className="flex items-center justify-between">
+					<p className="text-sm text-muted-foreground">
+						Purge all non-production randomizations for this study.
+					</p>
+					<Button
+						variant="destructive"
+						size="sm"
+						onClick={() => setShowConfirm(true)}
+					>
+						<Trash2 className="size-4" />
+						Purge Non-Production Data
+					</Button>
+				</div>
+			) : (
+				<div className="flex flex-col gap-3">
+					<p className="text-sm text-foreground">
+						This permanently deletes all non-production randomizations and
+						cached allocation blocks for this study. This action cannot be
+						undone.
+					</p>
+					<div className="flex items-center gap-2">
+						<Button
+							variant="destructive"
+							size="sm"
+							onClick={() =>
+								purge.mutate(undefined, {
+									onSuccess: () => setShowConfirm(false),
+								})
+							}
+							disabled={purge.isPending}
+						>
+							{purge.isPending ? "Purging..." : "Confirm Purge"}
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setShowConfirm(false)}
+							disabled={purge.isPending}
+						>
+							Cancel
+						</Button>
+					</div>
+				</div>
+			)}
+		</section>
 	);
 }
 
@@ -182,6 +263,26 @@ function DemographicBalance({
 						))}
 					</tbody>
 				</table>
+			</div>
+		</section>
+	);
+}
+
+// The backend /balance endpoint does not yet partition by environment, so it
+// would return production demographics even in the non-production view. Rather
+// than mislabel production data as test data, show a placeholder until the
+// backend honors the environment param.
+function DemographicBalanceUnavailable() {
+	return (
+		<section className="rounded-lg border bg-card p-5">
+			<h2 className="mb-4 flex items-center gap-2 text-sm font-medium text-muted-foreground">
+				<TrendingUp className="size-4" />
+				Demographic Balance
+			</h2>
+			<div className="flex h-32 items-center justify-center rounded-md border border-dashed bg-muted/30">
+				<p className="max-w-md text-center text-sm text-muted-foreground">
+					Demographic balance is not yet partitioned by environment.
+				</p>
 			</div>
 		</section>
 	);

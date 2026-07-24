@@ -1,3 +1,7 @@
+import type { Environment } from "#/lib/environment";
+
+export type { Environment };
+
 const API_BASE = import.meta.env.VITE_API_URL ?? "/api/v1";
 
 export class ApiError extends Error {
@@ -77,6 +81,7 @@ export interface StudyResponse {
 export interface RandomizationResponse {
 	id: string;
 	studyId: string;
+	environment: Environment;
 	unit: { kind: string; data: unknown };
 	strata: { kind: string; data: unknown } | null;
 	arm: { id: string; ratio: number; locator?: number };
@@ -179,10 +184,19 @@ export const api = {
 				method: "PUT",
 				body: JSON.stringify({ locator }),
 			}),
+		purgeNonProduction: (id: string) =>
+			request<{ recordsRemoved: number; blocksRemoved: number }>(
+				`/studies/${id}/nonproduction`,
+				{ method: "DELETE" },
+			),
 	},
 	randomizations: {
-		list: (studyId: string, params?: { limit?: number; offset?: number }) => {
+		list: (
+			studyId: string,
+			params?: { environment?: Environment; limit?: number; offset?: number },
+		) => {
 			const search = new URLSearchParams();
+			if (params?.environment) search.set("environment", params.environment);
 			if (params?.limit) search.set("limit", String(params.limit));
 			if (params?.offset) search.set("offset", String(params.offset));
 			const qs = search.toString();
@@ -192,8 +206,16 @@ export const api = {
 		},
 	},
 	balance: {
-		get: (studyId: string) =>
-			request<BalanceResponse>(`/studies/${studyId}/balance`),
+		// The backend balance endpoint currently ignores the environment param;
+		// we thread it through defensively so it works once the backend adds it.
+		get: (studyId: string, environment?: Environment) => {
+			const search = new URLSearchParams();
+			if (environment) search.set("environment", environment);
+			const qs = search.toString();
+			return request<BalanceResponse>(
+				`/studies/${studyId}/balance${qs ? `?${qs}` : ""}`,
+			);
+		},
 	},
 	system: {
 		status: () => request<SystemStatus>("/system/status"),

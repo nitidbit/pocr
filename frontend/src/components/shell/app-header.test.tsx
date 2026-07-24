@@ -1,17 +1,20 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { EnvironmentProvider } from "#/lib/environment";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppHeader } from "./app-header";
 
 function renderHeader() {
 	return render(
-		<TooltipProvider>
-			<SidebarProvider>
-				<AppHeader />
-			</SidebarProvider>
-		</TooltipProvider>,
+		<EnvironmentProvider>
+			<TooltipProvider>
+				<SidebarProvider>
+					<AppHeader />
+				</SidebarProvider>
+			</TooltipProvider>
+		</EnvironmentProvider>,
 	);
 }
 
