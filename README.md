@@ -11,7 +11,7 @@ console or in response to Epic CDS Hooks requests.
 | **engine** | Rust backend (axum HTTP + tonic gRPC), PostgreSQL storage, Redis block cache | 3000 (HTTP), 50051 (gRPC) |
 | **app** | Vite/React SPA console, served by nginx | 8080 |
 | **postgres** | Primary storage (studies, randomizations) | 5432 |
-| **redis** | Randomization block cache | 6379 |
+| **redis** | Randomization block cache | 6379 (dev host: 6380) |
 | **nginx** | TLS termination and reverse proxy | 443, 1443 (gRPC) |
 | **vouch** | OAuth/OIDC authentication proxy | 9090 |
 
