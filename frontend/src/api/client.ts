@@ -140,7 +140,7 @@ export interface SystemStatus {
 		postgres: ServiceHealth;
 		redis: ServiceHealth;
 	};
-	tls?: TlsStatus;
+	tls: TlsStatus;
 }
 
 export interface ServiceHealth {
@@ -149,13 +149,22 @@ export interface ServiceHealth {
 	error?: string;
 }
 
-export interface TlsStatus {
+// TLS status is a discriminated union on `state`, mirroring the backend enum:
+// no cert configured, a read/parse error, or a successfully-parsed chain.
+export type TlsStatus =
+	| { state: "notConfigured" }
+	| { state: "error"; message: string }
+	| ({ state: "ok" } & TlsInfo);
+
+export interface TlsInfo {
 	subject: string;
 	issuer: string;
 	notBefore: string;
 	notAfter: string;
 	daysRemaining: number;
 	valid: boolean;
+	// Soonest expiry reflects this many certs in the chain.
+	chainLength: number;
 }
 
 export const api = {
