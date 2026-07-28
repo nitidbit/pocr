@@ -77,6 +77,10 @@ services:
       REDIS_URL_FILE: /run/secrets/redis_url
       RUST_LOG: info
       CERT_PATH: /etc/certs/ssl.pem
+      # Maps CDS Hooks fhirServer URL prefixes → environments. Not a secret (just
+      # URL→env-name pairs), but site-specific, so sourced from .env rather than
+      # committed here. Unset/empty fails closed (all randomization rejected).
+      FHIR_ENV_MAP: ${FHIR_ENV_MAP:?set FHIR_ENV_MAP in .env}
       # The engine reads JWT_SECRET as a plain env var (no _FILE variant). Source
       # it from the host secret file so it is not committed or shown on the CLI.
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env from secrets/jwt_secret}

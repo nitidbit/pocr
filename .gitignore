@@ -5,6 +5,7 @@
 
 CLAUDE.md
 AGENTS.md
+.env
 **/plans/*.md
 # macOS Finder metadata
 .DS_Store
