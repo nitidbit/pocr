@@ -2,9 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import {
+	ApiError,
 	api,
 	type CreateStudyRequest,
 	type Environment,
+	type StudyRole,
 	type StudyStatus,
 	type UpdateStudyRequest,
 } from "./client";
@@ -16,6 +18,7 @@ export const studyKeys = {
 		["studies", studyId, "randomizations", environment] as const,
 	balance: (studyId: string, environment: Environment) =>
 		["studies", studyId, "balance", environment] as const,
+	members: (id: string) => ["studies", id, "members"] as const,
 };
 
 export function useStudies() {
@@ -149,5 +152,70 @@ export function useSystemStatus() {
 		queryKey: ["system", "status"],
 		queryFn: api.system.status,
 		refetchInterval: 30_000,
+	});
+}
+
+/**
+ * Map a membership-mutation failure to a user-facing message.
+ *
+ * 403 means the caller is not an owner; 409 means the action would leave the
+ * study without an owner. Anything else falls back to a generic message.
+ */
+function memberErrorMessage(error: unknown): string {
+	if (error instanceof ApiError) {
+		if (error.status === 403) return "Only owners can manage access";
+		if (error.status === 409) return "A study must keep at least one owner";
+	}
+	return "Failed to update access";
+}
+
+export function useStudyMembers(id: string) {
+	return useQuery({
+		queryKey: studyKeys.members(id),
+		queryFn: () => api.studies.members.list(id),
+	});
+}
+
+export function useAddMember(id: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({ email, role }: { email: string; role: StudyRole }) =>
+			api.studies.members.add(id, email, role),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: studyKeys.members(id) });
+			toast.success("Access granted");
+		},
+		onError: (error) => {
+			toast.error(memberErrorMessage(error));
+		},
+	});
+}
+
+export function useUpdateMemberRole(id: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({ email, role }: { email: string; role: StudyRole }) =>
+			api.studies.members.updateRole(id, email, role),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: studyKeys.members(id) });
+			toast.success("Role updated");
+		},
+		onError: (error) => {
+			toast.error(memberErrorMessage(error));
+		},
+	});
+}
+
+export function useRemoveMember(id: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (email: string) => api.studies.members.remove(id, email),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: studyKeys.members(id) });
+			toast.success("Access revoked");
+		},
+		onError: (error) => {
+			toast.error(memberErrorMessage(error));
+		},
 	});
 }

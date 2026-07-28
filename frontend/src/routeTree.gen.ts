@@ -22,6 +22,7 @@ import { Route as AppStudiesStudyIdRouteImport } from './routes/_app/studies/$st
 import { Route as AppStudiesStudyIdIndexRouteImport } from './routes/_app/studies/$studyId/index'
 import { Route as AppStudiesStudyIdMonitorRouteImport } from './routes/_app/studies/$studyId/monitor'
 import { Route as AppStudiesStudyIdConfigRouteImport } from './routes/_app/studies/$studyId/config'
+import { Route as AppStudiesStudyIdAccessRouteImport } from './routes/_app/studies/$studyId/access'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -88,6 +89,11 @@ const AppStudiesStudyIdConfigRoute = AppStudiesStudyIdConfigRouteImport.update({
   path: '/config',
   getParentRoute: () => AppStudiesStudyIdRoute,
 } as any)
+const AppStudiesStudyIdAccessRoute = AppStudiesStudyIdAccessRouteImport.update({
+  id: '/access',
+  path: '/access',
+  getParentRoute: () => AppStudiesStudyIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -99,6 +105,7 @@ export interface FileRoutesByFullPath {
   '/studies/': typeof AppStudiesIndexRoute
   '/system/': typeof AppSystemIndexRoute
   '/users/': typeof AppUsersIndexRoute
+  '/studies/$studyId/access': typeof AppStudiesStudyIdAccessRoute
   '/studies/$studyId/config': typeof AppStudiesStudyIdConfigRoute
   '/studies/$studyId/monitor': typeof AppStudiesStudyIdMonitorRoute
   '/studies/$studyId/': typeof AppStudiesStudyIdIndexRoute
@@ -112,6 +119,7 @@ export interface FileRoutesByTo {
   '/studies': typeof AppStudiesIndexRoute
   '/system': typeof AppSystemIndexRoute
   '/users': typeof AppUsersIndexRoute
+  '/studies/$studyId/access': typeof AppStudiesStudyIdAccessRoute
   '/studies/$studyId/config': typeof AppStudiesStudyIdConfigRoute
   '/studies/$studyId/monitor': typeof AppStudiesStudyIdMonitorRoute
   '/studies/$studyId': typeof AppStudiesStudyIdIndexRoute
@@ -128,6 +136,7 @@ export interface FileRoutesById {
   '/_app/studies/': typeof AppStudiesIndexRoute
   '/_app/system/': typeof AppSystemIndexRoute
   '/_app/users/': typeof AppUsersIndexRoute
+  '/_app/studies/$studyId/access': typeof AppStudiesStudyIdAccessRoute
   '/_app/studies/$studyId/config': typeof AppStudiesStudyIdConfigRoute
   '/_app/studies/$studyId/monitor': typeof AppStudiesStudyIdMonitorRoute
   '/_app/studies/$studyId/': typeof AppStudiesStudyIdIndexRoute
@@ -144,6 +153,7 @@ export interface FileRouteTypes {
     | '/studies/'
     | '/system/'
     | '/users/'
+    | '/studies/$studyId/access'
     | '/studies/$studyId/config'
     | '/studies/$studyId/monitor'
     | '/studies/$studyId/'
@@ -157,6 +167,7 @@ export interface FileRouteTypes {
     | '/studies'
     | '/system'
     | '/users'
+    | '/studies/$studyId/access'
     | '/studies/$studyId/config'
     | '/studies/$studyId/monitor'
     | '/studies/$studyId'
@@ -172,6 +183,7 @@ export interface FileRouteTypes {
     | '/_app/studies/'
     | '/_app/system/'
     | '/_app/users/'
+    | '/_app/studies/$studyId/access'
     | '/_app/studies/$studyId/config'
     | '/_app/studies/$studyId/monitor'
     | '/_app/studies/$studyId/'
@@ -274,16 +286,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStudiesStudyIdConfigRouteImport
       parentRoute: typeof AppStudiesStudyIdRoute
     }
+    '/_app/studies/$studyId/access': {
+      id: '/_app/studies/$studyId/access'
+      path: '/access'
+      fullPath: '/studies/$studyId/access'
+      preLoaderRoute: typeof AppStudiesStudyIdAccessRouteImport
+      parentRoute: typeof AppStudiesStudyIdRoute
+    }
   }
 }
 
 interface AppStudiesStudyIdRouteChildren {
+  AppStudiesStudyIdAccessRoute: typeof AppStudiesStudyIdAccessRoute
   AppStudiesStudyIdConfigRoute: typeof AppStudiesStudyIdConfigRoute
   AppStudiesStudyIdMonitorRoute: typeof AppStudiesStudyIdMonitorRoute
   AppStudiesStudyIdIndexRoute: typeof AppStudiesStudyIdIndexRoute
 }
 
 const AppStudiesStudyIdRouteChildren: AppStudiesStudyIdRouteChildren = {
+  AppStudiesStudyIdAccessRoute: AppStudiesStudyIdAccessRoute,
   AppStudiesStudyIdConfigRoute: AppStudiesStudyIdConfigRoute,
   AppStudiesStudyIdMonitorRoute: AppStudiesStudyIdMonitorRoute,
   AppStudiesStudyIdIndexRoute: AppStudiesStudyIdIndexRoute,

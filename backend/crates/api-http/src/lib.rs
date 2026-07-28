@@ -5,6 +5,7 @@ pub mod cds_hooks;
 pub mod error;
 pub mod extractors;
 mod health;
+pub mod members;
 pub mod randomizations;
 pub mod sharing;
 pub mod smd;
@@ -75,6 +76,14 @@ pub fn app(state: Arc<AppState>) -> Router {
         .route(
             "/studies/{id}/arms/{arm_id}/locator",
             axum::routing::put(studies::set_arm_locator),
+        )
+        .route(
+            "/studies/{id}/members",
+            get(members::list).post(members::add),
+        )
+        .route(
+            "/studies/{id}/members/{email}",
+            axum::routing::put(members::update_role).delete(members::remove),
         )
         .route("/studies/{id}/share", post(sharing::share_study))
         .route("/studies/join", post(sharing::join_study))

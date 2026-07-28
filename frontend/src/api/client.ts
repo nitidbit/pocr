@@ -78,6 +78,14 @@ export interface StudyResponse {
 	updatedAt: string;
 }
 
+export type StudyRole = "owner" | "member";
+
+export interface StudyMember {
+	userId: string;
+	role: StudyRole;
+	joinedAt: string;
+}
+
 export interface RandomizationResponse {
 	id: string;
 	studyId: string;
@@ -198,6 +206,23 @@ export const api = {
 				`/studies/${id}/nonproduction`,
 				{ method: "DELETE" },
 			),
+		members: {
+			list: (id: string) => request<StudyMember[]>(`/studies/${id}/members`),
+			add: (id: string, email: string, role: StudyRole) =>
+				request<StudyMember>(`/studies/${id}/members`, {
+					method: "POST",
+					body: JSON.stringify({ email, role }),
+				}),
+			updateRole: (id: string, email: string, role: StudyRole) =>
+				request<StudyMember>(
+					`/studies/${id}/members/${encodeURIComponent(email)}`,
+					{ method: "PUT", body: JSON.stringify({ role }) },
+				),
+			remove: (id: string, email: string) =>
+				request<void>(`/studies/${id}/members/${encodeURIComponent(email)}`, {
+					method: "DELETE",
+				}),
+		},
 	},
 	randomizations: {
 		list: (

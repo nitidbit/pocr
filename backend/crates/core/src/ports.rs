@@ -4,6 +4,8 @@
 //! Implementations live in `infra-pg` and `infra-redis`.
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -117,10 +119,23 @@ pub trait LocatorRepository: Send + Sync {
     async fn find_study_id(&self, locator: u64) -> Result<Option<Uuid>, RepositoryError>;
 }
 
+/// A user's membership in a study.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StudyMember {
+    /// Canonical user identifier (Google email from `X-Vouch-User`).
+    pub user_id: String,
+    /// Membership role: `"owner"` or `"member"`.
+    pub role: String,
+    /// When the user was granted access.
+    pub joined_at: DateTime<Utc>,
+}
+
 /// Persistence for user ↔ study associations.
 #[async_trait]
 pub trait UserStudyRepository: Send + Sync {
-    /// Associate a user with a study in the given role.
+    /// Associate a user with a study in the given role, upserting the role if
+    /// the association already exists.
     async fn add_user(
         &self,
         user_id: &str,
@@ -129,6 +144,14 @@ pub trait UserStudyRepository: Send + Sync {
     ) -> Result<(), RepositoryError>;
     /// Remove a user's association with a study.
     async fn remove_user(&self, user_id: &str, study_id: &Uuid) -> Result<(), RepositoryError>;
+    /// Return the user's role in the study, or `None` if they have no access.
+    async fn get_role(
+        &self,
+        user_id: &str,
+        study_id: &Uuid,
+    ) -> Result<Option<String>, RepositoryError>;
+    /// List all members of a study, ordered by when they joined.
+    async fn list_members(&self, study_id: &Uuid) -> Result<Vec<StudyMember>, RepositoryError>;
 }
 
 /// Persistence for patient demographics used by balance assessment.
