@@ -3,6 +3,7 @@
 //! Implements the repository port traits defined in `core::ports` against
 //! PostgreSQL via sqlx.
 
+pub mod audit_repo;
 pub mod error;
 pub mod locator_repo;
 pub mod pool;
@@ -11,6 +12,7 @@ pub mod study_repo;
 pub mod user_study_repo;
 pub mod demographics;
 
+pub use audit_repo::PgAuditRepository;
 pub use locator_repo::PgLocatorRepository;
 pub use pool::{create_pool, run_migrations};
 pub use randomization_repo::PgRandomizationRepository;

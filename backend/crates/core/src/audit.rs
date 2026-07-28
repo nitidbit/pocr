@@ -69,6 +69,29 @@ impl AuditEvent {
             created_at: Utc::now(),
         }
     }
+
+    /// Reconstruct an event from its stored fields.
+    ///
+    /// For persistence adapters rehydrating a row; unlike [`AuditEvent::record`]
+    /// it preserves the original `id` and `created_at` rather than stamping new
+    /// ones.
+    pub fn from_stored(
+        id: Uuid,
+        study_id: Uuid,
+        event_type: String,
+        actor: String,
+        detail: Value,
+        created_at: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            id,
+            study_id,
+            event_type,
+            actor,
+            detail,
+            created_at,
+        }
+    }
 }
 
 #[cfg(test)]
