@@ -92,7 +92,7 @@ export interface RandomizationResponse {
 	environment: Environment;
 	unit: { kind: string; data: unknown };
 	strata: { kind: string; data: unknown } | null;
-	arm: { id: string; ratio: number; locator?: number };
+	arm: { id: string; name?: string; ratio: number; locator?: number };
 	issuedAt: string;
 }
 
