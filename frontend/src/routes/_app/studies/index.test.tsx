@@ -80,6 +80,15 @@ describe("StudiesDashboardPage", () => {
 		}
 	});
 
+	it("renders the full study ID as the row subtitle", async () => {
+		renderStudiesDashboard();
+
+		expect(await screen.findByText(MOCK_STUDIES[0].name)).toBeInTheDocument();
+		for (const study of MOCK_STUDIES) {
+			expect(screen.getByText(study.id)).toBeInTheDocument();
+		}
+	});
+
 	it("renders the study table column headers", async () => {
 		renderStudiesDashboard();
 

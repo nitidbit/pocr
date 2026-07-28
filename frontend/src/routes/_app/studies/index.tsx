@@ -193,9 +193,7 @@ function StudyRow({ study }: { study: StudyResponse }) {
 				>
 					{study.name}
 				</Link>
-				<p className="mt-0.5 text-xs text-muted-foreground">
-					{study.id.slice(0, 8)}...
-				</p>
+				<p className="mt-0.5 text-xs text-muted-foreground">{study.id}</p>
 			</td>
 			<td className="px-4 py-3 text-muted-foreground">
 				{study.randomizationConfig.strategy}
