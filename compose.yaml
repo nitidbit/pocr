@@ -1,8 +1,9 @@
 services:
   nginx:
-    build:
-      context: ./nginx
-    image: andrewdrobinson/ucsf:pocr-nginx
+    # Stock nginx; all config is bind-mounted from the host (see volumes below),
+    # so no custom image/build is needed. The base entrypoint runs envsubst on
+    # /etc/nginx/templates/*.template at startup.
+    image: nginx:1.31-alpine
     restart: unless-stopped
     depends_on:
       app:
@@ -17,6 +18,12 @@ services:
       NGINX_GRPC_PORT: ${NGINX_GRPC_PORT:-1443}
     volumes:
       - ./certs:/etc/nginx/certs:ro
+      # Config is host-local (like certs/vouch/secrets): edit on the host and
+      # `docker compose restart nginx` — no image rebuild. Templates are
+      # processed by envsubst at container start into /etc/nginx/conf.d/.
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
     ports:
       - "443:443"
       - "1443:1443"
@@ -70,6 +77,9 @@ services:
       REDIS_URL_FILE: /run/secrets/redis_url
       RUST_LOG: info
       CERT_PATH: /etc/certs/ssl.pem
+      # The engine reads JWT_SECRET as a plain env var (no _FILE variant). Source
+      # it from the host secret file so it is not committed or shown on the CLI.
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env from secrets/jwt_secret}
     volumes:
       - ./certs:/etc/certs:ro
     secrets:
@@ -90,6 +100,35 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  # One-shot tools (pocr-migrate / pocr-sync). Never started by `up` or pulled
+  # by `pull` — guarded behind the "tools" profile. Uses the engine image, which
+  # ships all three binaries. Attached to BOTH networks: `backend` for POCR
+  # postgres/redis (internal), `frontend` + host-gateway for egress to the
+  # legacy Redis running on the host.
+  migrate:
+    image: andrewdrobinson/ucsf:pocr-engine
+    profiles: ["tools"]
+    entrypoint: ["pocr-migrate"]
+    restart: "no"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      RUST_LOG: info
+    # DATABASE_URL, POCR_REDIS_URL, LEGACY_REDIS_URL (and CABOODLE_* for sync) are
+    # supplied at runtime via `docker compose run -e ...` — pocr-migrate/pocr-sync
+    # read these directly (not the *_FILE secrets the engine uses).
+    #
+    # Joined to satellite_backend (the legacy stack's network) so it can reach the
+    # legacy Redis, which publishes no host port. NOTE: both networks expose a
+    # service aliased `redis`; address every endpoint by container name
+    # (pocr-redis-1 / pocr-postgres-1 / satellite-redis-1), never the bare alias.
+    networks:
+      - backend
+      - satellite_backend
 
   postgres:
     image: postgres:18-alpine
@@ -131,6 +170,11 @@ networks:
   frontend:
   backend:
     internal: true
+  # Legacy satellite stack's network, used only by the profiled `migrate` service
+  # to reach the legacy Redis during migration. Declared external so compose joins
+  # the existing network rather than creating one.
+  satellite_backend:
+    external: true
 
 volumes:
   pg_data:
