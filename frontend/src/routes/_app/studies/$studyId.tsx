@@ -20,6 +20,7 @@ const TABS: TabItem[] = [
 	{ to: "/studies/$studyId/config", label: "Configuration", exact: true },
 	{ to: "/studies/$studyId/monitor", label: "Monitoring", exact: true },
 	{ to: "/studies/$studyId/access", label: "Access", exact: true },
+	{ to: "/studies/$studyId/audit", label: "History", exact: true },
 ];
 
 function StudyDetailLayout() {

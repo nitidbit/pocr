@@ -19,6 +19,7 @@ export const studyKeys = {
 	balance: (studyId: string, environment: Environment) =>
 		["studies", studyId, "balance", environment] as const,
 	members: (id: string) => ["studies", id, "members"] as const,
+	audit: (id: string) => ["studies", id, "audit"] as const,
 };
 
 export function useStudies() {
@@ -144,6 +145,13 @@ export function usePurgeNonProduction(studyId: string) {
 		onError: () => {
 			toast.error("Failed to purge test data");
 		},
+	});
+}
+
+export function useAudit(studyId: string) {
+	return useQuery({
+		queryKey: studyKeys.audit(studyId),
+		queryFn: () => api.studies.audit(studyId),
 	});
 }
 

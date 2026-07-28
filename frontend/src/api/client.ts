@@ -78,6 +78,15 @@ export interface StudyResponse {
 	updatedAt: string;
 }
 
+export interface AuditEvent {
+	id: string;
+	studyId: string;
+	eventType: string;
+	actor: string;
+	detail: Record<string, unknown>;
+	createdAt: string;
+}
+
 export type StudyRole = "owner" | "member";
 
 export interface StudyMember {
@@ -206,6 +215,7 @@ export const api = {
 				`/studies/${id}/nonproduction`,
 				{ method: "DELETE" },
 			),
+		audit: (id: string) => request<AuditEvent[]>(`/studies/${id}/audit`),
 		members: {
 			list: (id: string) => request<StudyMember[]>(`/studies/${id}/members`),
 			add: (id: string, email: string, role: StudyRole) =>
