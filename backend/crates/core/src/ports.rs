@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::audit::AuditEvent;
 use crate::demographics::{PatientDemographics, PatientDemographicsWithArm};
 use crate::environment::Environment;
 use crate::error::RandomizationError;
@@ -152,6 +153,18 @@ pub trait UserStudyRepository: Send + Sync {
     ) -> Result<Option<String>, RepositoryError>;
     /// List all members of a study, ordered by when they joined.
     async fn list_members(&self, study_id: &Uuid) -> Result<Vec<StudyMember>, RepositoryError>;
+}
+
+/// Append-only persistence for study audit events.
+///
+/// Events are written once and never mutated. Reads return the study's history
+/// newest-first so the history view can render most-recent activity at the top.
+#[async_trait]
+pub trait AuditRepository: Send + Sync {
+    /// Append a new audit event.
+    async fn append(&self, event: &AuditEvent) -> Result<(), RepositoryError>;
+    /// List a study's audit events, ordered newest-first.
+    async fn list_by_study(&self, study_id: &Uuid) -> Result<Vec<AuditEvent>, RepositoryError>;
 }
 
 /// Persistence for patient demographics used by balance assessment.
