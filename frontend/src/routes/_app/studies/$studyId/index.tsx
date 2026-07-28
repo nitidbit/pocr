@@ -224,15 +224,14 @@ function ArmsOverviewSection({ study }: { study: StudyResponse }) {
 							<th className="px-4 py-2.5 text-right font-medium text-muted-foreground">
 								Allocation %
 							</th>
-							<th className="px-4 py-2.5 text-right font-medium text-muted-foreground">
-								Locator
-							</th>
 						</tr>
 					</thead>
 					<tbody>
 						{arms.map((arm) => (
 							<tr key={arm.id} className="border-b last:border-b-0">
-								<td className="px-4 py-2.5 text-foreground">{arm.name}</td>
+								<td className="px-4 py-2.5 text-foreground">
+									{arm.name || arm.id}
+								</td>
 								<td className="px-4 py-2.5 text-right tabular-nums text-foreground">
 									{arm.ratio}
 								</td>
@@ -241,9 +240,6 @@ function ArmsOverviewSection({ study }: { study: StudyResponse }) {
 										? Math.round((arm.ratio / totalRatio) * 100)
 										: 0}
 									%
-								</td>
-								<td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
-									{arm.locator ?? "—"}
 								</td>
 							</tr>
 						))}
