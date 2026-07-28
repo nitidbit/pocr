@@ -7,15 +7,42 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::Deserialize;
-use tracing::info;
+use serde_json::Value;
+use tracing::{info, warn};
 use uuid::Uuid;
 
+use pocr_core::audit::{event_type, AuditEvent};
+use pocr_core::ports::AuditRepository;
 use pocr_core::random::{Arm, KeyVariant, Stratum};
 use pocr_core::study::{RandomizationConfig, RandomizationStrategy, Study, StudyStatus};
 
 use crate::error::ApiError;
 use crate::extractors::AuthUser;
 use crate::AppState;
+
+/// Append an audit event for a study mutation, best-effort.
+///
+/// A failed audit write is logged at WARN and swallowed so a transient audit
+/// store outage never fails an otherwise-successful mutation. `event_type`
+/// should be one of the [`event_type`] constants; `detail` carries any
+/// event-specific fields (pass [`Value::Null`] when there are none).
+pub(crate) async fn record_audit(
+    audit_repo: &dyn AuditRepository,
+    study_id: &Uuid,
+    event_type: &str,
+    actor: &str,
+    detail: Value,
+) {
+    let event = AuditEvent::record(study_id, event_type, actor, detail);
+    if let Err(error) = audit_repo.append(&event).await {
+        warn!(
+            study_id = %study_id,
+            event_type,
+            error = %error,
+            "audit event append failed"
+        );
+    }
+}
 
 /// Request body for creating a study.
 #[derive(Debug, Deserialize)]
@@ -85,6 +112,15 @@ pub async fn get_study(
         .await?
         .ok_or(ApiError::NotFound)?;
     Ok(Json(study))
+}
+
+/// List a study's audit history, newest-first.
+pub async fn list_audit(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<Uuid>,
+) -> Result<impl IntoResponse, ApiError> {
+    let events = state.audit_repo.list_by_study(&id).await?;
+    Ok(Json(events))
 }
 
 /// Validate a create study request, returning a list of errors.
@@ -260,6 +296,15 @@ pub async fn transition_study(
         "study transitioned"
     );
 
+    record_audit(
+        state.audit_repo.as_ref(),
+        &saved.id,
+        event_type::STUDY_TRANSITIONED,
+        user.id(),
+        serde_json::json!({ "from": from.as_str(), "to": saved.status.as_str() }),
+    )
+    .await;
+
     Ok(Json(saved))
 }
 
@@ -290,6 +335,15 @@ pub async fn purge_nonproduction(
         blocks_removed = blocks,
         "non-production data purged"
     );
+
+    record_audit(
+        state.audit_repo.as_ref(),
+        &id,
+        event_type::NONPRODUCTION_PURGED,
+        user.id(),
+        serde_json::json!({ "recordsRemoved": records, "blocksRemoved": blocks }),
+    )
+    .await;
 
     Ok(Json(serde_json::json!({
         "recordsRemoved": records,
@@ -360,5 +414,85 @@ pub async fn set_arm_locator(
         "arm locator set"
     );
 
+    record_audit(
+        state.audit_repo.as_ref(),
+        &id,
+        event_type::LOCATOR_SET,
+        user.id(),
+        serde_json::json!({ "armId": arm_id, "locator": req.locator }),
+    )
+    .await;
+
     Ok(Json(saved))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    use async_trait::async_trait;
+    use pocr_core::ports::RepositoryError;
+
+    #[derive(Default)]
+    struct RecordingAuditRepo {
+        appended: Mutex<Vec<AuditEvent>>,
+        fail: bool,
+    }
+
+    #[async_trait]
+    impl AuditRepository for RecordingAuditRepo {
+        async fn append(&self, event: &AuditEvent) -> Result<(), RepositoryError> {
+            if self.fail {
+                return Err(RepositoryError::Internal("boom".into()));
+            }
+            self.appended.lock().unwrap().push(event.clone());
+            Ok(())
+        }
+
+        async fn list_by_study(
+            &self,
+            _study_id: &Uuid,
+        ) -> Result<Vec<AuditEvent>, RepositoryError> {
+            Ok(self.appended.lock().unwrap().clone())
+        }
+    }
+
+    #[tokio::test]
+    async fn record_audit_appends_event_with_supplied_fields() {
+        let repo = RecordingAuditRepo::default();
+        let study_id = Uuid::now_v7();
+
+        record_audit(
+            &repo,
+            &study_id,
+            event_type::STUDY_TRANSITIONED,
+            "alice@ucsf.edu",
+            serde_json::json!({ "to": "active" }),
+        )
+        .await;
+
+        let appended = repo.appended.lock().unwrap();
+        assert_eq!(appended.len(), 1);
+        assert_eq!(appended[0].study_id, study_id);
+        assert_eq!(appended[0].event_type, event_type::STUDY_TRANSITIONED);
+        assert_eq!(appended[0].actor, "alice@ucsf.edu");
+    }
+
+    #[tokio::test]
+    async fn record_audit_swallows_append_failure() {
+        let repo = RecordingAuditRepo {
+            fail: true,
+            ..Default::default()
+        };
+
+        record_audit(
+            &repo,
+            &Uuid::now_v7(),
+            event_type::STUDY_DELETED,
+            "bob@ucsf.edu",
+            Value::Null,
+        )
+        .await;
+    }
 }

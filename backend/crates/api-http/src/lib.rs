@@ -20,8 +20,9 @@ use tower_http::trace::TraceLayer;
 
 use pocr_core::environment::EnvironmentMap;
 use pocr_core::ports::{
-    BlockCacheRepository, DemographicsRepository, HealthCheckable, LocatorRepository,
-    RandomizationRepository, RandomizationService, StudyCache, StudyRepository, UserStudyRepository,
+    AuditRepository, BlockCacheRepository, DemographicsRepository, HealthCheckable,
+    LocatorRepository, RandomizationRepository, RandomizationService, StudyCache, StudyRepository,
+    UserStudyRepository,
 };
 
 use crate::balance::get_balance;
@@ -35,6 +36,7 @@ pub struct AppState {
     pub randomization_repo: Arc<dyn RandomizationRepository>,
     pub block_cache: Arc<dyn BlockCacheRepository>,
     pub user_study_repo: Arc<dyn UserStudyRepository>,
+    pub audit_repo: Arc<dyn AuditRepository>,
     pub locator_repo: Arc<dyn LocatorRepository>,
     pub randomization_service: Arc<dyn RandomizationService>,
     pub demographics_repo: Arc<dyn DemographicsRepository>,
@@ -87,6 +89,7 @@ pub fn app(state: Arc<AppState>) -> Router {
         )
         .route("/studies/{id}/share", post(sharing::share_study))
         .route("/studies/join", post(sharing::join_study))
+        .route("/studies/{id}/audit", get(studies::list_audit))
         .route("/studies/{study_id}/randomizations", get(list_randomizations))
         .route("/studies/{study_id}/balance", get(get_balance))
         .route("/system/status", get(system::get_system_status));
