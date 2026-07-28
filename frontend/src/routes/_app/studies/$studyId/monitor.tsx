@@ -19,6 +19,12 @@ export const Route = createFileRoute("/_app/studies/$studyId/monitor")({
 	component: StudyMonitorPage,
 });
 
+// Prefer the human-readable arm label; fall back to the full arm id when the
+// name is empty or absent so a row never renders a blank arm.
+export function armDisplayName(arm: { id: string; name?: string }): string {
+	return arm.name?.trim() ? arm.name : arm.id;
+}
+
 function StudyMonitorPage() {
 	const { studyId } = Route.useParams();
 	const { environment } = useEnvironment();
@@ -115,7 +121,11 @@ function BalanceSummary({
 	randomizations,
 }: {
 	study:
-		| { randomizationConfig: { arms: Array<{ id: string; ratio: number }> } }
+		| {
+				randomizationConfig: {
+					arms: Array<{ id: string; name: string; ratio: number }>;
+				};
+		  }
 		| undefined;
 	randomizations: RandomizationResponse[] | undefined;
 }) {
@@ -133,6 +143,7 @@ function BalanceSummary({
 
 	const armCounts = study.randomizationConfig.arms.map((arm) => ({
 		id: arm.id,
+		name: armDisplayName(arm),
 		ratio: arm.ratio,
 		count: randomizations.filter((r) => r.arm.id === arm.id).length,
 	}));
@@ -154,9 +165,7 @@ function BalanceSummary({
 						return (
 							<div key={arm.id} className="flex flex-col gap-1">
 								<div className="flex items-center justify-between text-sm">
-									<span className="font-mono text-xs text-foreground">
-										{arm.id.slice(0, 8)}...
-									</span>
+									<span className="text-foreground">{arm.name}</span>
 									<span className="tabular-nums text-muted-foreground">
 										{arm.count} ({percent}%)
 									</span>
@@ -450,10 +459,10 @@ function RecentRandomizations({
 						{recent.map((r) => (
 							<tr key={r.id} className="border-b last:border-b-0">
 								<td className="px-4 py-2 font-mono text-xs text-foreground">
-									{r.id.slice(0, 8)}...
+									{r.id}
 								</td>
-								<td className="px-4 py-2 font-mono text-xs text-foreground">
-									{r.arm.id.slice(0, 8)}...
+								<td className="px-4 py-2 text-xs text-foreground">
+									{armDisplayName(r.arm)}
 								</td>
 								<td className="px-4 py-2 text-right text-muted-foreground">
 									{new Date(r.issuedAt).toLocaleString()}
