@@ -118,7 +118,7 @@ export function describeEvent(
 function armLabel(armId: unknown, study: StudyResponse | undefined): string {
 	if (typeof armId !== "string") return "an arm";
 	const arm = study?.randomizationConfig.arms.find((a) => a.id === armId);
-	return arm?.name ?? `arm ${armId.slice(0, 8)}`;
+	return arm?.name?.trim() ? arm.name : `arm ${armId}`;
 }
 
 function asText(value: unknown): string {

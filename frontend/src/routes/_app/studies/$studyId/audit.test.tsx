@@ -144,4 +144,48 @@ describe("StudyAuditPage", () => {
 
 		expect(await screen.findByText("study.something_new")).toBeInTheDocument();
 	});
+
+	it("describes a non-production purge event", async () => {
+		vi.mocked(api.studies.audit).mockResolvedValue([
+			auditEvent({
+				eventType: "study.nonproduction_purged",
+				detail: { recordsRemoved: 12, blocksRemoved: 3 },
+			}),
+		]);
+		renderAudit();
+
+		expect(
+			await screen.findByText(/purged 12 non-production randomizations/i),
+		).toBeInTheDocument();
+	});
+
+	it("describes a study deletion event", async () => {
+		vi.mocked(api.studies.audit).mockResolvedValue([
+			auditEvent({ eventType: "study.deleted", detail: {} }),
+		]);
+		renderAudit();
+
+		expect(await screen.findByText("Study deleted")).toBeInTheDocument();
+	});
+
+	it("falls back to the full arm id when the arm name is empty", async () => {
+		vi.mocked(api.studies.get).mockResolvedValue({
+			...STUDY,
+			randomizationConfig: {
+				...STUDY.randomizationConfig,
+				arms: [{ id: "arm-blank", name: "", ratio: 1 }],
+			},
+		});
+		vi.mocked(api.studies.audit).mockResolvedValue([
+			auditEvent({
+				eventType: "study.locator_set",
+				detail: { armId: "arm-blank", locator: 7 },
+			}),
+		]);
+		renderAudit();
+
+		expect(
+			await screen.findByText(/mapped arm arm-blank to epic locator 7/i),
+		).toBeInTheDocument();
+	});
 });
