@@ -163,9 +163,10 @@ fn validate_create_request(req: &CreateStudyRequest) -> Vec<String> {
 /// Returns the collected human-readable errors; an empty vec means the update
 /// is valid. The updates are applied to a copy of the current ratios so that
 /// cross-arm invariants are checked on the resulting state. An update is
-/// rejected when it is empty, references an unknown arm, would leave every arm
-/// with a ratio of zero (no arm could be allocated), or would make a fixed
-/// block size no longer a multiple of the ratio sum.
+/// rejected when it is empty, references an unknown arm, names the same arm
+/// twice, would leave every arm with a ratio of zero (no arm could be
+/// allocated), or would make a fixed block size no longer a multiple of the
+/// ratio sum.
 fn validate_ratio_updates(config: &RandomizationConfig, updates: &[ArmRatioUpdate]) -> Vec<String> {
     let mut errors = Vec::new();
 
@@ -177,7 +178,12 @@ fn validate_ratio_updates(config: &RandomizationConfig, updates: &[ArmRatioUpdat
     let mut ratios: std::collections::HashMap<Uuid, u32> =
         config.arms.iter().map(|a| (a.id, a.ratio)).collect();
 
+    let mut seen = std::collections::HashSet::new();
     for update in updates {
+        if !seen.insert(update.arm_id) {
+            errors.push(format!("duplicate arm {}", update.arm_id));
+            continue;
+        }
         match ratios.get_mut(&update.arm_id) {
             Some(ratio) => *ratio = update.ratio,
             None => errors.push(format!("unknown arm {}", update.arm_id)),
@@ -509,8 +515,19 @@ pub struct UpdateRatiosRequest {
 /// next block is generated honoring the new ratio. Existing cached blocks are
 /// deliberately neither regenerated nor invalidated.
 ///
-/// The change is recorded as a [`event_type::RATIO_CHANGED`] audit event
-/// carrying the per-arm old→new ratios.
+/// Unlike other study mutations, the audit write here is **not** best-effort:
+/// the change is a regulated allocation edit that must be auditable, so the
+/// [`event_type::RATIO_CHANGED`] event (carrying the per-arm old→new ratios) is
+/// appended *before* the study is saved. If the append fails the mutation is
+/// abandoned and the caller receives an error — a ratio change can never
+/// persist without its audit record.
+///
+/// # Errors
+///
+/// Return [`ApiError::NotFound`] if the study does not exist.
+/// Return [`ApiError::ValidationFailed`] if the updates are invalid
+/// (see [`validate_ratio_updates`]).
+/// Return [`ApiError::Internal`] if the audit event or study cannot be saved.
 pub async fn update_ratios(
     State(state): State<Arc<AppState>>,
     user: AuthUser,
@@ -528,25 +545,54 @@ pub async fn update_ratios(
         return Err(ApiError::ValidationFailed(errors));
     }
 
-    let mut changes = Vec::with_capacity(req.arms.len());
+    // Compute the effective changes without mutating, so an all-unchanged
+    // request is a no-op (no save, no audit event) and the audit detail is
+    // ready before anything persists.
+    let current: std::collections::HashMap<Uuid, u32> = study
+        .randomization_config
+        .arms
+        .iter()
+        .map(|a| (a.id, a.ratio))
+        .collect();
+    let changes: Vec<Value> = req
+        .arms
+        .iter()
+        .filter(|update| current.get(&update.arm_id) != Some(&update.ratio))
+        .map(|update| {
+            serde_json::json!({
+                "armId": update.arm_id,
+                "from": current[&update.arm_id],
+                "to": update.ratio,
+            })
+        })
+        .collect();
+
+    if changes.is_empty() {
+        return Ok(Json(study));
+    }
+
+    // Audit-first: append the record before persisting the change. A failed
+    // append aborts the mutation so the study is never saved without its trail.
+    let event = AuditEvent::record(
+        &id,
+        event_type::RATIO_CHANGED,
+        user.id(),
+        serde_json::json!({ "changes": changes }),
+    );
+    state.audit_repo.append(&event).await?;
+
     for update in &req.arms {
-        let arm = study
+        if let Some(arm) = study
             .randomization_config
             .arms
             .iter_mut()
             .find(|a| a.id == update.arm_id)
-            .ok_or(ApiError::NotFound)?;
-        if arm.ratio != update.ratio {
-            changes.push(serde_json::json!({
-                "armId": arm.id,
-                "from": arm.ratio,
-                "to": update.ratio,
-            }));
+        {
             arm.ratio = update.ratio;
         }
     }
-
     study.updated_at = chrono::Utc::now();
+
     let saved = state.study_repo.save(&study).await?;
     let _ = state.study_cache.invalidate_study(&saved.id).await;
 
@@ -557,15 +603,6 @@ pub async fn update_ratios(
         arms_changed = changes.len(),
         "arm ratios updated"
     );
-
-    record_audit(
-        state.audit_repo.as_ref(),
-        &saved.id,
-        event_type::RATIO_CHANGED,
-        user.id(),
-        serde_json::json!({ "changes": changes }),
-    )
-    .await;
 
     Ok(Json(saved))
 }
@@ -697,6 +734,20 @@ mod tests {
 
         assert_eq!(errors.len(), 1);
         assert!(errors[0].starts_with("unknown arm"));
+    }
+
+    #[test]
+    fn validate_ratio_updates_rejects_duplicate_arm() {
+        let config = config(vec![arm(1), arm(1)], None);
+        let updates = vec![
+            ArmRatioUpdate { arm_id: config.arms[0].id, ratio: 2 },
+            ArmRatioUpdate { arm_id: config.arms[0].id, ratio: 3 },
+        ];
+
+        let errors = validate_ratio_updates(&config, &updates);
+
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].starts_with("duplicate arm"));
     }
 
     #[test]
