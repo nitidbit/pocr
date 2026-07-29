@@ -158,6 +158,53 @@ fn validate_create_request(req: &CreateStudyRequest) -> Vec<String> {
     errors
 }
 
+/// Validate a batch of arm-ratio updates against a study's current config.
+///
+/// Returns the collected human-readable errors; an empty vec means the update
+/// is valid. The updates are applied to a copy of the current ratios so that
+/// cross-arm invariants are checked on the resulting state. An update is
+/// rejected when it is empty, references an unknown arm, would leave every arm
+/// with a ratio of zero (no arm could be allocated), or would make a fixed
+/// block size no longer a multiple of the ratio sum.
+fn validate_ratio_updates(config: &RandomizationConfig, updates: &[ArmRatioUpdate]) -> Vec<String> {
+    let mut errors = Vec::new();
+
+    if updates.is_empty() {
+        errors.push("at least one arm ratio is required".to_string());
+        return errors;
+    }
+
+    let mut ratios: std::collections::HashMap<Uuid, u32> =
+        config.arms.iter().map(|a| (a.id, a.ratio)).collect();
+
+    for update in updates {
+        match ratios.get_mut(&update.arm_id) {
+            Some(ratio) => *ratio = update.ratio,
+            None => errors.push(format!("unknown arm {}", update.arm_id)),
+        }
+    }
+
+    if !errors.is_empty() {
+        return errors;
+    }
+
+    let ratio_sum: u32 = ratios.values().sum();
+    if ratio_sum == 0 {
+        errors.push("at least one arm must have a positive ratio".to_string());
+        return errors;
+    }
+
+    if let Some(block_size) = config.block_size
+        && block_size % ratio_sum != 0
+    {
+        errors.push(format!(
+            "block_size ({block_size}) must be a multiple of the sum of arm ratios ({ratio_sum})"
+        ));
+    }
+
+    errors
+}
+
 /// Create a new study.
 pub async fn create_study(
     State(state): State<Arc<AppState>>,
@@ -437,6 +484,92 @@ pub async fn set_arm_locator(
     Ok(Json(saved))
 }
 
+/// A single arm's new allocation ratio.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArmRatioUpdate {
+    pub arm_id: Uuid,
+    pub ratio: u32,
+}
+
+/// Request body for updating arm allocation ratios.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateRatiosRequest {
+    pub arms: Vec<ArmRatioUpdate>,
+}
+
+/// Update the allocation ratios of one or more arms in a study.
+///
+/// Ratios are editable in both draft and active studies. The change takes
+/// effect only for permuted blocks generated *after* it is saved: block
+/// contents are frozen in the cache at generation time
+/// ([`pocr_core::random::RandomPermutedBlock`]), so any partially-consumed
+/// cached block keeps its original ratio until exhausted, at which point the
+/// next block is generated honoring the new ratio. Existing cached blocks are
+/// deliberately neither regenerated nor invalidated.
+///
+/// The change is recorded as a [`event_type::RATIO_CHANGED`] audit event
+/// carrying the per-arm old→new ratios.
+pub async fn update_ratios(
+    State(state): State<Arc<AppState>>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(req): Json<UpdateRatiosRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    let mut study = state
+        .study_repo
+        .find_by_id(&id)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+
+    let errors = validate_ratio_updates(&study.randomization_config, &req.arms);
+    if !errors.is_empty() {
+        return Err(ApiError::ValidationFailed(errors));
+    }
+
+    let mut changes = Vec::with_capacity(req.arms.len());
+    for update in &req.arms {
+        let arm = study
+            .randomization_config
+            .arms
+            .iter_mut()
+            .find(|a| a.id == update.arm_id)
+            .ok_or(ApiError::NotFound)?;
+        if arm.ratio != update.ratio {
+            changes.push(serde_json::json!({
+                "armId": arm.id,
+                "from": arm.ratio,
+                "to": update.ratio,
+            }));
+            arm.ratio = update.ratio;
+        }
+    }
+
+    study.updated_at = chrono::Utc::now();
+    let saved = state.study_repo.save(&study).await?;
+    let _ = state.study_cache.invalidate_study(&saved.id).await;
+
+    info!(
+        event_type = "study.ratio_changed",
+        study_id = %saved.id,
+        user_id = user.id(),
+        arms_changed = changes.len(),
+        "arm ratios updated"
+    );
+
+    record_audit(
+        state.audit_repo.as_ref(),
+        &saved.id,
+        event_type::RATIO_CHANGED,
+        user.id(),
+        serde_json::json!({ "changes": changes }),
+    )
+    .await;
+
+    Ok(Json(saved))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -505,5 +638,97 @@ mod tests {
             Value::Null,
         )
         .await;
+    }
+
+    fn arm(ratio: u32) -> Arm {
+        Arm {
+            id: Uuid::now_v7(),
+            name: String::new(),
+            ratio,
+            locator: None,
+        }
+    }
+
+    fn config(arms: Vec<Arm>, block_size: Option<u32>) -> RandomizationConfig {
+        RandomizationConfig {
+            strategy: RandomizationStrategy::Block,
+            arms,
+            keys: Vec::new(),
+            strata: Vec::new(),
+            block_size,
+        }
+    }
+
+    #[test]
+    fn validate_ratio_updates_accepts_positive_ratios() {
+        let config = config(vec![arm(1), arm(1)], None);
+        let updates = vec![
+            ArmRatioUpdate { arm_id: config.arms[0].id, ratio: 3 },
+            ArmRatioUpdate { arm_id: config.arms[1].id, ratio: 1 },
+        ];
+
+        assert!(validate_ratio_updates(&config, &updates).is_empty());
+    }
+
+    #[test]
+    fn validate_ratio_updates_allows_a_single_zero_ratio_when_another_is_positive() {
+        let config = config(vec![arm(1), arm(1)], None);
+        let updates = vec![ArmRatioUpdate { arm_id: config.arms[0].id, ratio: 0 }];
+
+        assert!(validate_ratio_updates(&config, &updates).is_empty());
+    }
+
+    #[test]
+    fn validate_ratio_updates_rejects_empty_update() {
+        let config = config(vec![arm(1), arm(1)], None);
+
+        let errors = validate_ratio_updates(&config, &[]);
+
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("at least one arm ratio"));
+    }
+
+    #[test]
+    fn validate_ratio_updates_rejects_unknown_arm() {
+        let config = config(vec![arm(1), arm(1)], None);
+        let updates = vec![ArmRatioUpdate { arm_id: Uuid::now_v7(), ratio: 2 }];
+
+        let errors = validate_ratio_updates(&config, &updates);
+
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].starts_with("unknown arm"));
+    }
+
+    #[test]
+    fn validate_ratio_updates_rejects_all_arms_zero() {
+        let config = config(vec![arm(1), arm(1)], None);
+        let updates = vec![
+            ArmRatioUpdate { arm_id: config.arms[0].id, ratio: 0 },
+            ArmRatioUpdate { arm_id: config.arms[1].id, ratio: 0 },
+        ];
+
+        let errors = validate_ratio_updates(&config, &updates);
+
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("positive ratio"));
+    }
+
+    #[test]
+    fn validate_ratio_updates_rejects_ratio_sum_incompatible_with_block_size() {
+        let config = config(vec![arm(1), arm(1)], Some(6));
+        let updates = vec![ArmRatioUpdate { arm_id: config.arms[0].id, ratio: 3 }];
+
+        let errors = validate_ratio_updates(&config, &updates);
+
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("block_size"));
+    }
+
+    #[test]
+    fn validate_ratio_updates_accepts_ratio_sum_that_divides_block_size() {
+        let config = config(vec![arm(1), arm(1)], Some(6));
+        let updates = vec![ArmRatioUpdate { arm_id: config.arms[0].id, ratio: 2 }];
+
+        assert!(validate_ratio_updates(&config, &updates).is_empty());
     }
 }

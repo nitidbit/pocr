@@ -80,6 +80,10 @@ pub fn app(state: Arc<AppState>) -> Router {
             axum::routing::put(studies::set_arm_locator),
         )
         .route(
+            "/studies/{id}/arms/ratios",
+            axum::routing::put(studies::update_ratios),
+        )
+        .route(
             "/studies/{id}/members",
             get(members::list).post(members::add),
         )
