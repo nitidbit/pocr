@@ -144,6 +144,34 @@ pub async fn randomize(
             ))
         }
         Ok(randomization) => {
+            // Locator gate: the patient is only "randomized" for this request
+            // when the assigned arm maps to the locator that triggered it.
+            // An arm with no locator, or one bound to a different locator,
+            // yields no card — the clinician sees nothing, matching the POC.
+            let Some(arm_locator) = randomization.arm.locator else {
+                info!(
+                    study_id = %study.id,
+                    arm_id = %randomization.arm.id,
+                    "Assigned arm has no locator — no card"
+                );
+                return Err(ApiError::PreconditionFailed(
+                    "Assigned arm has no locator".to_string(),
+                ));
+            };
+
+            if arm_locator != locator {
+                info!(
+                    study_id = %study.id,
+                    arm_id = %randomization.arm.id,
+                    arm_locator,
+                    request_locator = locator,
+                    "Assigned arm is for a different locator — no card"
+                );
+                return Err(ApiError::PreconditionFailed(
+                    "Assigned arm is for a different locator".to_string(),
+                ));
+            }
+
             info!(
                 study_id = %study.id,
                 arm_id = %randomization.arm.id,
