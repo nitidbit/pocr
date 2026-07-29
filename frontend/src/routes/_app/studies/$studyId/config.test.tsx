@@ -148,4 +148,29 @@ describe("StudyConfigPage — editable ratios", () => {
 		expect(screen.getByText("75%")).toBeInTheDocument();
 		expect(screen.getByText("25%")).toBeInTheDocument();
 	});
+
+	it("re-enters through Review changes after edits revert to unchanged", async () => {
+		renderConfig();
+
+		await screen.findByText("Treatment Arms");
+		const armA = screen.getByLabelText(/ratio for arm Arm A/i);
+		fireEvent.change(armA, { target: { value: "3" } });
+		fireEvent.click(screen.getByRole("button", { name: /review changes/i }));
+		expect(screen.getByText(/future allocations only/i)).toBeInTheDocument();
+
+		// Revert to the original ratio: the confirm panel collapses.
+		fireEvent.change(armA, { target: { value: "1" } });
+		expect(
+			screen.queryByText(/future allocations only/i),
+		).not.toBeInTheDocument();
+
+		// A fresh edit returns to "Review changes", not straight to confirm.
+		fireEvent.change(armA, { target: { value: "2" } });
+		expect(
+			screen.getByRole("button", { name: /review changes/i }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByText(/future allocations only/i),
+		).not.toBeInTheDocument();
+	});
 });

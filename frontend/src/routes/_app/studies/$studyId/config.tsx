@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AlertCircle, Check, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { StudyResponse } from "#/api/client";
 import { useSetArmLocator, useStudy, useUpdateRatios } from "#/api/queries";
 import { Button } from "@/components/ui/button";
@@ -105,6 +105,12 @@ function ArmsSection({
 	const previewTotal = arms.reduce((sum, arm) => sum + ratioFor(arm).value, 0);
 	const isDirty = changes.length > 0;
 	const canSave = isDirty && !hasInvalidEntry && previewTotal > 0;
+
+	// Collapse the confirm panel whenever edits revert to unchanged, so a fresh
+	// edit always re-enters through "Review changes".
+	useEffect(() => {
+		if (!isDirty) setShowConfirm(false);
+	}, [isDirty]);
 
 	const resetDraft = () => {
 		setDraft({});
