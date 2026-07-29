@@ -367,6 +367,17 @@ pub async fn delete_study(
         "study deleted"
     );
 
+    // audit_events has no FK to studies, so this deletion record survives the
+    // delete — the retained "who/when" trail a regulated study requires.
+    record_audit(
+        state.audit_repo.as_ref(),
+        &id,
+        event_type::STUDY_DELETED,
+        user.id(),
+        Value::Null,
+    )
+    .await;
+
     Ok(StatusCode::NO_CONTENT)
 }
 
