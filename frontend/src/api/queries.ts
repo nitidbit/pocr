@@ -3,6 +3,7 @@ import { toast } from "sonner";
 
 import {
 	ApiError,
+	type ArmRatioUpdate,
 	api,
 	type CreateStudyRequest,
 	type Environment,
@@ -111,6 +112,21 @@ export function useSetArmLocator(id: string) {
 		},
 		onError: () => {
 			toast.error("Failed to map locator");
+		},
+	});
+}
+
+export function useUpdateRatios(id: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (arms: ArmRatioUpdate[]) => api.studies.updateRatios(id, arms),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: studyKeys.detail(id) });
+			queryClient.invalidateQueries({ queryKey: studyKeys.audit(id) });
+			toast.success("Allocation ratios updated");
+		},
+		onError: () => {
+			toast.error("Failed to update ratios");
 		},
 	});
 }

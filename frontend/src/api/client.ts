@@ -62,6 +62,11 @@ export interface UpdateStudyRequest {
 	// Status changes go through the transition endpoint, not update.
 }
 
+export interface ArmRatioUpdate {
+	armId: string;
+	ratio: number;
+}
+
 export interface StudyResponse {
 	id: string;
 	name: string;
@@ -209,6 +214,11 @@ export const api = {
 			request<StudyResponse>(`/studies/${id}/arms/${armId}/locator`, {
 				method: "PUT",
 				body: JSON.stringify({ locator }),
+			}),
+		updateRatios: (id: string, arms: ArmRatioUpdate[]) =>
+			request<StudyResponse>(`/studies/${id}/arms/ratios`, {
+				method: "PUT",
+				body: JSON.stringify({ arms }),
 			}),
 		purgeNonProduction: (id: string) =>
 			request<{ recordsRemoved: number; blocksRemoved: number }>(
