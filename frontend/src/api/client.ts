@@ -110,6 +110,16 @@ export interface RandomizationResponse {
 	issuedAt: string;
 }
 
+export interface ArmCount {
+	armId: string;
+	count: number;
+}
+
+export interface RandomizationCounts {
+	total: number;
+	arms: ArmCount[];
+}
+
 export interface BalanceArmSummary {
 	id: string;
 	count: number;
@@ -256,6 +266,16 @@ export const api = {
 			const qs = search.toString();
 			return request<RandomizationResponse[]>(
 				`/studies/${studyId}/randomizations${qs ? `?${qs}` : ""}`,
+			);
+		},
+		// Whole-study per-arm tallies and total, aggregated server-side so they
+		// are independent of the paginated `list` endpoint's row cap.
+		counts: (studyId: string, environment?: Environment) => {
+			const search = new URLSearchParams();
+			if (environment) search.set("environment", environment);
+			const qs = search.toString();
+			return request<RandomizationCounts>(
+				`/studies/${studyId}/randomizations/counts${qs ? `?${qs}` : ""}`,
 			);
 		},
 	},

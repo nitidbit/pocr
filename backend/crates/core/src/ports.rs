@@ -45,6 +45,16 @@ pub trait StudyRepository: Send + Sync {
     async fn delete(&self, id: &Uuid) -> Result<(), RepositoryError>;
 }
 
+/// Per-arm randomization tally for a study within one environment.
+///
+/// Computed by the store (`GROUP BY` arm) so balance figures reflect every
+/// record, not just a paginated page of the newest rows.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArmTally {
+    pub arm_id: Uuid,
+    pub count: u64,
+}
+
 /// Persistence for randomization assignment records.
 ///
 /// All reads and the uniqueness check are partitioned by [`Environment`] so
@@ -61,6 +71,15 @@ pub trait RandomizationRepository: Send + Sync {
         limit: u32,
         offset: u32,
     ) -> Result<Vec<Randomization>, RepositoryError>;
+    /// Tally randomizations per arm for a study within one environment.
+    ///
+    /// Aggregated in the store so callers get whole-study counts without
+    /// paging through every record.
+    async fn count_by_arm(
+        &self,
+        study_id: &Uuid,
+        environment: Environment,
+    ) -> Result<Vec<ArmTally>, RepositoryError>;
     /// Check if a randomization already exists for this study + environment +
     /// unit combination. Returns the existing record if found.
     ///

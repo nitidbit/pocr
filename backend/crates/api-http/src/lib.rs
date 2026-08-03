@@ -26,7 +26,7 @@ use pocr_core::ports::{
 };
 
 use crate::balance::get_balance;
-use crate::randomizations::list_randomizations;
+use crate::randomizations::{count_randomizations, list_randomizations};
 use crate::studies::{create_study, get_study, list_studies};
 pub mod me;
 
@@ -95,6 +95,10 @@ pub fn app(state: Arc<AppState>) -> Router {
         .route("/studies/join", post(sharing::join_study))
         .route("/studies/{id}/audit", get(studies::list_audit))
         .route("/studies/{study_id}/randomizations", get(list_randomizations))
+        .route(
+            "/studies/{study_id}/randomizations/counts",
+            get(count_randomizations),
+        )
         .route("/studies/{study_id}/balance", get(get_balance))
         .route("/system/status", get(system::get_system_status));
 

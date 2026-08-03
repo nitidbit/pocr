@@ -283,7 +283,7 @@ mod tests {
     use std::sync::Mutex;
 
     use async_trait::async_trait;
-    use pocr_core::ports::{BlockCacheRepository, RandomizationRepository, RepositoryError};
+    use pocr_core::ports::{ArmTally, BlockCacheRepository, RandomizationRepository, RepositoryError};
     use pocr_core::random::{Arm, RandomPermutedBlock, Randomization};
     use pocr_core::study::{RandomizationConfig, RandomizationStrategy, Study, StudyStatus};
 
@@ -314,6 +314,26 @@ mod tests {
                 .iter()
                 .filter(|r| r.study_id == *study_id && r.environment == environment)
                 .cloned()
+                .collect())
+        }
+
+        async fn count_by_arm(
+            &self,
+            study_id: &Uuid,
+            environment: Environment,
+        ) -> Result<Vec<ArmTally>, RepositoryError> {
+            let records = self.records.lock().unwrap();
+            let mut counts: std::collections::HashMap<Uuid, u64> =
+                std::collections::HashMap::new();
+            for r in records
+                .iter()
+                .filter(|r| r.study_id == *study_id && r.environment == environment)
+            {
+                *counts.entry(r.arm.id).or_default() += 1;
+            }
+            Ok(counts
+                .into_iter()
+                .map(|(arm_id, count)| ArmTally { arm_id, count })
                 .collect())
         }
 

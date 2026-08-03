@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use pocr_core::environment::Environment;
+use pocr_core::ports::ArmTally;
 use pocr_core::random::{Arm, Randomization, Strata, Unit};
 
 use crate::error::ApiError;
@@ -92,6 +93,59 @@ pub async fn list_randomizations(
     let response: Vec<RandomizationResponse> =
         randomizations.into_iter().map(Into::into).collect();
     Ok(Json(response))
+}
+
+/// Query params for environment-scoped reads that don't paginate.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnvironmentParams {
+    /// Which environment's records to count. Defaults to production.
+    #[serde(default)]
+    pub environment: Option<Environment>,
+}
+
+/// Per-arm tally plus the study-wide total, both spanning every record in the
+/// environment (not just a paginated page).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArmCountResponse {
+    pub arm_id: Uuid,
+    pub count: u64,
+}
+
+impl From<ArmTally> for ArmCountResponse {
+    fn from(t: ArmTally) -> Self {
+        Self {
+            arm_id: t.arm_id,
+            count: t.count,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RandomizationCountsResponse {
+    pub total: u64,
+    pub arms: Vec<ArmCountResponse>,
+}
+
+/// Whole-study randomization counts for a study within one environment.
+///
+/// Aggregated in the store so the monitor view's balance summary and total
+/// reflect every record, independent of the paginated list endpoint.
+pub async fn count_randomizations(
+    State(state): State<Arc<AppState>>,
+    Path(study_id): Path<Uuid>,
+    Query(params): Query<EnvironmentParams>,
+) -> Result<impl IntoResponse, ApiError> {
+    let environment = params.environment.unwrap_or(Environment::Production);
+    let tallies = state
+        .randomization_repo
+        .count_by_arm(&study_id, environment)
+        .await?;
+    let total = tallies.iter().map(|t| t.count).sum();
+    let arms: Vec<ArmCountResponse> = tallies.into_iter().map(Into::into).collect();
+    Ok(Json(RandomizationCountsResponse { total, arms }))
 }
 
 #[cfg(test)]

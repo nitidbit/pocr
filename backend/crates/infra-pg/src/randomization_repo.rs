@@ -4,7 +4,7 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use pocr_core::environment::Environment;
-use pocr_core::ports::{RandomizationRepository, RepositoryError};
+use pocr_core::ports::{ArmTally, RandomizationRepository, RepositoryError};
 use pocr_core::random::Randomization;
 
 /// PostgreSQL-backed randomization record repository.
@@ -92,6 +92,36 @@ impl RandomizationRepository for PgRandomizationRepository {
             .map_err(|e| RepositoryError::Internal(e.to_string()))?;
 
         rows.into_iter().map(row_to_randomization).collect()
+    }
+
+    #[instrument(skip(self))]
+    async fn count_by_arm(
+        &self,
+        study_id: &Uuid,
+        environment: Environment,
+    ) -> Result<Vec<ArmTally>, RepositoryError> {
+        // Group on the arm's `id` field inside the JSONB column rather than the
+        // whole blob: an arm's name/ratio/locator can change over time, so two
+        // records for the same arm may carry different JSON.
+        let rows: Vec<(Uuid, i64)> = sqlx::query_as(
+            "SELECT (arm->>'id')::uuid AS arm_id, COUNT(*) AS count \
+             FROM randomizations \
+             WHERE study_id = $1 AND environment = $2 \
+             GROUP BY arm->>'id'",
+        )
+        .bind(study_id)
+        .bind(environment.as_str())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+
+        Ok(rows
+            .into_iter()
+            .map(|(arm_id, count)| ArmTally {
+                arm_id,
+                count: count.max(0) as u64,
+            })
+            .collect())
     }
 
     #[instrument(skip(self))]

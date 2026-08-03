@@ -4,11 +4,13 @@ import { useState } from "react";
 import type {
 	BalanceResponse,
 	BalanceVariable,
+	RandomizationCounts,
 	RandomizationResponse,
 } from "#/api/client";
 import {
 	useBalance,
 	usePurgeNonProduction,
+	useRandomizationCounts,
 	useRandomizations,
 	useStudy,
 } from "#/api/queries";
@@ -33,6 +35,7 @@ function StudyMonitorPage() {
 		studyId,
 		environment,
 	);
+	const { data: counts } = useRandomizationCounts(studyId, environment);
 	const { data: balance, isLoading: balanceLoading } = useBalance(
 		studyId,
 		environment,
@@ -43,7 +46,7 @@ function StudyMonitorPage() {
 			<p className="text-xs text-muted-foreground">
 				Showing {ENVIRONMENTS[environment].label} data
 			</p>
-			<BalanceSummary study={study} randomizations={randomizations} />
+			<BalanceSummary study={study} counts={counts} />
 			{environment === "nonproduction" ? (
 				<DemographicBalanceUnavailable />
 			) : (
@@ -51,6 +54,7 @@ function StudyMonitorPage() {
 			)}
 			<RecentRandomizations
 				randomizations={randomizations}
+				total={counts?.total}
 				isLoading={isLoading}
 			/>
 			{environment === "nonproduction" && <PurgeTestData studyId={studyId} />}
@@ -118,7 +122,7 @@ function PurgeTestData({ studyId }: { studyId: string }) {
 
 function BalanceSummary({
 	study,
-	randomizations,
+	counts,
 }: {
 	study:
 		| {
@@ -127,9 +131,9 @@ function BalanceSummary({
 				};
 		  }
 		| undefined;
-	randomizations: RandomizationResponse[] | undefined;
+	counts: RandomizationCounts | undefined;
 }) {
-	if (!study || !randomizations) {
+	if (!study || !counts) {
 		return (
 			<section className="rounded-lg border bg-card p-5">
 				<h2 className="mb-4 flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -141,13 +145,16 @@ function BalanceSummary({
 		);
 	}
 
+	// Counts are aggregated server-side over the whole study, so the summary is
+	// accurate regardless of how many records the list endpoint returns.
+	const countByArm = new Map(counts.arms.map((a) => [a.armId, a.count]));
 	const armCounts = study.randomizationConfig.arms.map((arm) => ({
 		id: arm.id,
 		name: armDisplayName(arm),
 		ratio: arm.ratio,
-		count: randomizations.filter((r) => r.arm.id === arm.id).length,
+		count: countByArm.get(arm.id) ?? 0,
 	}));
-	const total = randomizations.length;
+	const total = counts.total;
 
 	return (
 		<section className="rounded-lg border bg-card p-5">
@@ -399,9 +406,13 @@ function VariableRows({
 
 function RecentRandomizations({
 	randomizations,
+	total,
 	isLoading,
 }: {
 	randomizations: RandomizationResponse[] | undefined;
+	// Whole-study total from the counts endpoint; the table itself only renders
+	// the newest few rows, so its length is not the study total.
+	total: number | undefined;
 	isLoading: boolean;
 }) {
 	if (isLoading) {
@@ -433,12 +444,13 @@ function RecentRandomizations({
 	}
 
 	const recent = randomizations.slice(0, 10);
+	const totalLabel = total ?? randomizations.length;
 
 	return (
 		<section className="rounded-lg border bg-card p-5">
 			<h2 className="mb-4 flex items-center gap-2 text-sm font-medium text-muted-foreground">
 				<Activity className="size-4" />
-				Recent Randomizations ({randomizations.length} total)
+				Recent Randomizations ({totalLabel} total)
 			</h2>
 			<div className="overflow-hidden rounded-md border">
 				<table className="w-full text-sm">

@@ -17,6 +17,8 @@ export const studyKeys = {
 	detail: (id: string) => ["studies", id] as const,
 	randomizations: (studyId: string, environment: Environment) =>
 		["studies", studyId, "randomizations", environment] as const,
+	randomizationCounts: (studyId: string, environment: Environment) =>
+		["studies", studyId, "randomizationCounts", environment] as const,
 	balance: (studyId: string, environment: Environment) =>
 		["studies", studyId, "balance", environment] as const,
 	members: (id: string) => ["studies", id, "members"] as const,
@@ -134,7 +136,19 @@ export function useUpdateRatios(id: string) {
 export function useRandomizations(studyId: string, environment: Environment) {
 	return useQuery({
 		queryKey: studyKeys.randomizations(studyId, environment),
-		queryFn: () => api.randomizations.list(studyId, { environment }),
+		// The monitor view only renders the newest few rows; whole-study totals
+		// and balance come from the counts endpoint, so cap the list at 10.
+		queryFn: () => api.randomizations.list(studyId, { environment, limit: 10 }),
+	});
+}
+
+export function useRandomizationCounts(
+	studyId: string,
+	environment: Environment,
+) {
+	return useQuery({
+		queryKey: studyKeys.randomizationCounts(studyId, environment),
+		queryFn: () => api.randomizations.counts(studyId, environment),
 	});
 }
 
@@ -152,6 +166,9 @@ export function usePurgeNonProduction(studyId: string) {
 		onSuccess: (data) => {
 			queryClient.invalidateQueries({
 				queryKey: ["studies", studyId, "randomizations"],
+			});
+			queryClient.invalidateQueries({
+				queryKey: ["studies", studyId, "randomizationCounts"],
 			});
 			queryClient.invalidateQueries({
 				queryKey: ["studies", studyId, "balance"],

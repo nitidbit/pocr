@@ -16,6 +16,7 @@ import { armDisplayName, Route as MonitorRoute } from "./monitor";
 vi.mock("#/api/queries", () => ({
 	useStudy: vi.fn(),
 	useRandomizations: vi.fn(),
+	useRandomizationCounts: vi.fn(),
 	useBalance: vi.fn(),
 	usePurgeNonProduction: vi.fn(),
 }));
@@ -34,7 +35,12 @@ vi.mock("#/lib/environment", async () => {
 	};
 });
 
-import { useBalance, useRandomizations, useStudy } from "#/api/queries";
+import {
+	useBalance,
+	useRandomizationCounts,
+	useRandomizations,
+	useStudy,
+} from "#/api/queries";
 
 // biome-ignore lint/style/noNonNullAssertion: component is always defined on file routes
 const StudyMonitorPage = MonitorRoute.options.component!;
@@ -64,6 +70,18 @@ function stubQuery(data: unknown, isLoading = false): any {
 function renderMonitor(randomizations: RandomizationResponse[]) {
 	vi.mocked(useStudy).mockReturnValue(stubQuery(TEST_STUDY));
 	vi.mocked(useRandomizations).mockReturnValue(stubQuery(randomizations));
+	// Derive whole-study counts from the fixtures so the balance summary renders
+	// the same arms the list carries.
+	const armTotals = new Map<string, number>();
+	for (const r of randomizations) {
+		armTotals.set(r.arm.id, (armTotals.get(r.arm.id) ?? 0) + 1);
+	}
+	vi.mocked(useRandomizationCounts).mockReturnValue(
+		stubQuery({
+			total: randomizations.length,
+			arms: [...armTotals].map(([armId, count]) => ({ armId, count })),
+		}),
+	);
 	vi.mocked(useBalance).mockReturnValue(stubQuery(undefined));
 
 	const queryClient = new QueryClient({
