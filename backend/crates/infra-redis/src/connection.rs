@@ -1,5 +1,5 @@
-use redis::aio::MultiplexedConnection;
 use redis::Client;
+use redis::aio::MultiplexedConnection;
 use tokio::sync::OnceCell;
 
 /// A thin wrapper around a Redis client providing a shared async connection.
@@ -21,9 +21,7 @@ impl RedisPool {
     /// Get or lazily initialize the multiplexed connection.
     pub async fn connection(&self) -> Result<MultiplexedConnection, redis::RedisError> {
         self.connection
-            .get_or_try_init(|| async {
-                self.client.get_multiplexed_async_connection().await
-            })
+            .get_or_try_init(|| async { self.client.get_multiplexed_async_connection().await })
             .await
             .cloned()
     }

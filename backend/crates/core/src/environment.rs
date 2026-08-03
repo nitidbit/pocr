@@ -161,18 +161,23 @@ mod tests {
     fn longest_prefix_wins() {
         // A production sub-path nested under a broader non-production host.
         let map = EnvironmentMap::new([
-            ("https://epic.ucsf.edu/".to_string(), Environment::NonProduction),
+            (
+                "https://epic.ucsf.edu/".to_string(),
+                Environment::NonProduction,
+            ),
             (
                 "https://epic.ucsf.edu/prd/".to_string(),
                 Environment::Production,
             ),
         ]);
         assert_eq!(
-            map.resolve(Some("https://epic.ucsf.edu/prd/FHIR/")).unwrap(),
+            map.resolve(Some("https://epic.ucsf.edu/prd/FHIR/"))
+                .unwrap(),
             Environment::Production
         );
         assert_eq!(
-            map.resolve(Some("https://epic.ucsf.edu/tst/FHIR/")).unwrap(),
+            map.resolve(Some("https://epic.ucsf.edu/tst/FHIR/"))
+                .unwrap(),
             Environment::NonProduction
         );
     }

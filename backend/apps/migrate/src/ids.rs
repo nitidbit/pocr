@@ -51,7 +51,12 @@ impl Manifest {
 
     /// Look up (or mint) the v7 for a legacy arm id, timestamped by its owning
     /// study's `created_at`.
-    pub fn arm_id(&mut self, legacy: &str, study_created_at_millis: u64, rng: &mut impl Rng) -> Uuid {
+    pub fn arm_id(
+        &mut self,
+        legacy: &str,
+        study_created_at_millis: u64,
+        rng: &mut impl Rng,
+    ) -> Uuid {
         upsert(&mut self.arms, legacy, study_created_at_millis, rng)
     }
 
@@ -80,8 +85,8 @@ fn upsert(map: &mut HashMap<String, Uuid>, legacy: &str, millis: u64, rng: &mut 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::rngs::SmallRng;
     use rand::SeedableRng;
+    use rand::rngs::SmallRng;
 
     fn rng() -> SmallRng {
         SmallRng::seed_from_u64(7)

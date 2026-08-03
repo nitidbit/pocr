@@ -5,13 +5,13 @@
 //! entry point is [`RandomPermutedBlock`] for block generation and
 //! [`Randomization`] for recording issued assignments.
 
+mod arm;
 mod block;
+mod key;
 mod randomization;
 mod request;
 mod stratum;
 mod unit;
-mod arm;
-mod key;
 
 pub use arm::Arm;
 pub use block::RandomPermutedBlock;

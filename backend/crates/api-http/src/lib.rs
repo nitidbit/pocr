@@ -14,8 +14,8 @@ pub mod system;
 
 use std::sync::Arc;
 
-use axum::routing::{get, post};
 use axum::Router;
+use axum::routing::{get, post};
 use tower_http::trace::TraceLayer;
 
 use pocr_core::environment::EnvironmentMap;
@@ -56,7 +56,6 @@ pub struct AppState {
     pub started_at: std::time::Instant,
 }
 
-
 /// Build the full application router with shared state.
 pub fn app(state: Arc<AppState>) -> Router {
     let api_v1 = Router::new()
@@ -67,10 +66,7 @@ pub fn app(state: Arc<AppState>) -> Router {
                 .put(studies::update_study)
                 .delete(studies::delete_study),
         )
-        .route(
-            "/studies/{id}/transition",
-            post(studies::transition_study),
-        )
+        .route("/studies/{id}/transition", post(studies::transition_study))
         .route(
             "/studies/{id}/nonproduction",
             axum::routing::delete(studies::purge_nonproduction),
@@ -94,7 +90,10 @@ pub fn app(state: Arc<AppState>) -> Router {
         .route("/studies/{id}/share", post(sharing::share_study))
         .route("/studies/join", post(sharing::join_study))
         .route("/studies/{id}/audit", get(studies::list_audit))
-        .route("/studies/{study_id}/randomizations", get(list_randomizations))
+        .route(
+            "/studies/{study_id}/randomizations",
+            get(list_randomizations),
+        )
         .route(
             "/studies/{study_id}/randomizations/counts",
             get(count_randomizations),
@@ -104,10 +103,7 @@ pub fn app(state: Arc<AppState>) -> Router {
 
     let cds = Router::new()
         .route("/cds-services", get(cds_hooks::discover_services))
-        .route(
-            "/cds-services/randomization",
-            post(cds_hooks::randomize),
-        );
+        .route("/cds-services/randomization", post(cds_hooks::randomize));
 
     Router::new()
         .route("/health/live", get(health::live))

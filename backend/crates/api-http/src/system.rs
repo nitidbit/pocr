@@ -3,9 +3,9 @@
 use std::sync::Arc;
 use std::time::Instant;
 
+use axum::Json;
 use axum::extract::State;
 use axum::response::IntoResponse;
-use axum::Json;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use tracing::warn;
@@ -183,10 +183,7 @@ fn read_tls_status(cert_path: &Option<String>) -> TlsStatus {
     };
 
     // Consider only CERTIFICATE blocks; a fullchain PEM may also carry keys.
-    let cert_blocks: Vec<_> = blocks
-        .iter()
-        .filter(|b| b.tag() == "CERTIFICATE")
-        .collect();
+    let cert_blocks: Vec<_> = blocks.iter().filter(|b| b.tag() == "CERTIFICATE").collect();
 
     if cert_blocks.is_empty() {
         warn!(path, "PEM contained no CERTIFICATE blocks");
@@ -214,7 +211,9 @@ fn read_tls_status(cert_path: &Option<String>) -> TlsStatus {
             DateTime::from_timestamp(cert.validity().not_after.to_datetime().unix_timestamp(), 0),
         ) else {
             return TlsStatus::Error {
-                message: format!("certificate at position {index} has an out-of-range validity date"),
+                message: format!(
+                    "certificate at position {index} has an out-of-range validity date"
+                ),
             };
         };
 

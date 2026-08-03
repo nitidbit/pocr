@@ -2,9 +2,9 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -12,8 +12,8 @@ use pocr_core::environment::Environment;
 use pocr_core::ports::ArmTally;
 use pocr_core::random::{Arm, Randomization, Strata, Unit};
 
-use crate::error::ApiError;
 use crate::AppState;
+use crate::error::ApiError;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -90,8 +90,7 @@ pub async fn list_randomizations(
         .randomization_repo
         .find_by_study(&study_id, environment, params.limit, params.offset)
         .await?;
-    let response: Vec<RandomizationResponse> =
-        randomizations.into_iter().map(Into::into).collect();
+    let response: Vec<RandomizationResponse> = randomizations.into_iter().map(Into::into).collect();
     Ok(Json(response))
 }
 

@@ -19,7 +19,7 @@ use crate::legacy::LegacyStudy;
 use crate::sink::{PocrSink, SinkError};
 use crate::source::{LegacySource, SourceError};
 use crate::transform::{
-    self, transform_block, transform_randomization, transform_study, TransformError,
+    self, TransformError, transform_block, transform_randomization, transform_study,
 };
 
 /// Errors from the migration run.
@@ -241,8 +241,8 @@ pub async fn migrate(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::rngs::SmallRng;
     use rand::SeedableRng;
+    use rand::rngs::SmallRng;
     use uuid::Uuid;
 
     fn rng() -> SmallRng {

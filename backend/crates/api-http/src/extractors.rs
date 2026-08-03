@@ -1,8 +1,8 @@
 //! Axum extractors for common request context.
 
 use axum::extract::FromRequestParts;
-use axum::http::request::Parts;
 use axum::http::StatusCode;
+use axum::http::request::Parts;
 
 /// Normalize an email-form identity: trim surrounding whitespace and lowercase.
 ///
@@ -48,7 +48,9 @@ where
             None => {
                 #[cfg(debug_assertions)]
                 {
-                    tracing::warn!("X-Vouch-User header missing, falling back to \"system\" (dev mode)");
+                    tracing::warn!(
+                        "X-Vouch-User header missing, falling back to \"system\" (dev mode)"
+                    );
                     Ok(AuthUser("system".to_owned()))
                 }
                 #[cfg(not(debug_assertions))]

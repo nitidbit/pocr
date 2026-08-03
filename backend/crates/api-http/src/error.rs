@@ -1,8 +1,8 @@
 //! API error types and HTTP response mapping.
 
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde_json::json;
 
 use pocr_core::ports::RepositoryError;

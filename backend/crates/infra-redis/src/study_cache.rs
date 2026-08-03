@@ -121,7 +121,10 @@ impl RedisStudyCache {
     /// acquired, or [`RepositoryError::Internal`] if the read or
     /// deserialization fails.
     #[instrument(skip(self))]
-    pub async fn get_cached_study(&self, study_id: &Uuid) -> Result<Option<Study>, RepositoryError> {
+    pub async fn get_cached_study(
+        &self,
+        study_id: &Uuid,
+    ) -> Result<Option<Study>, RepositoryError> {
         let mut conn = self
             .pool
             .connection()
@@ -168,11 +171,18 @@ impl RedisStudyCache {
 
 #[async_trait]
 impl StudyCache for RedisStudyCache {
-    async fn get_study_id_for_locator(&self, locator: u64) -> Result<Option<Uuid>, RepositoryError> {
+    async fn get_study_id_for_locator(
+        &self,
+        locator: u64,
+    ) -> Result<Option<Uuid>, RepositoryError> {
         RedisStudyCache::get_study_id_for_locator(self, locator).await
     }
 
-    async fn cache_locator_mapping(&self, locator: u64, study_id: &Uuid) -> Result<(), RepositoryError> {
+    async fn cache_locator_mapping(
+        &self,
+        locator: u64,
+        study_id: &Uuid,
+    ) -> Result<(), RepositoryError> {
         RedisStudyCache::cache_locator_mapping(self, locator, study_id).await
     }
 

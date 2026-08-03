@@ -2,10 +2,10 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde_json::json;
 use tracing::{info, warn};
 
@@ -14,8 +14,8 @@ use pocr_core::cds_hooks::{
     Source,
 };
 
-use crate::error::ApiError;
 use crate::AppState;
+use crate::error::ApiError;
 
 /// `GET /cds-services` — CDS Hooks service discovery.
 pub async fn discover_services() -> impl IntoResponse {
@@ -99,7 +99,10 @@ pub async fn randomize(
             // Cache miss on locator — fallback to PG
             let study = state.study_repo.find_by_locator(locator).await?;
             if let Some(ref s) = study {
-                let _ = state.study_cache.cache_locator_mapping(locator, &s.id).await;
+                let _ = state
+                    .study_cache
+                    .cache_locator_mapping(locator, &s.id)
+                    .await;
                 let _ = state.study_cache.cache_study(s).await;
             }
             study

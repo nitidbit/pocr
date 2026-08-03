@@ -6,19 +6,19 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 use tracing::info;
 use uuid::Uuid;
 
 use pocr_core::ports::StudyMember;
 
-use crate::error::ApiError;
-use crate::extractors::{normalize_email, AuthUser};
 use crate::AppState;
+use crate::error::ApiError;
+use crate::extractors::{AuthUser, normalize_email};
 
 /// A study access role, ordered so that `Owner >= Member`.
 ///
@@ -56,9 +56,7 @@ fn validate_email(email: &str) -> Result<(), ApiError> {
         return Err(ApiError::BadRequest("email is required".to_string()));
     }
     if !email.contains('@') {
-        return Err(ApiError::BadRequest(
-            "email must contain '@'".to_string(),
-        ));
+        return Err(ApiError::BadRequest("email must contain '@'".to_string()));
     }
     Ok(())
 }

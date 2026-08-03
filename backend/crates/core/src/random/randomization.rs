@@ -118,8 +118,13 @@ mod tests {
             value: "adult".to_string(),
         });
 
-        let result =
-            Randomization::block(&study_id, Environment::Production, Some(&strata), &unit, &arm);
+        let result = Randomization::block(
+            &study_id,
+            Environment::Production,
+            Some(&strata),
+            &unit,
+            &arm,
+        );
 
         assert_eq!(result.study_id, study_id);
         assert!(result.strata.is_some());

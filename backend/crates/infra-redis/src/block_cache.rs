@@ -95,8 +95,8 @@ impl BlockCacheRepository for RedisBlockCache {
 
         let stratum_key = block.stratification.as_deref().unwrap_or("");
         let key = Self::block_key(environment, &block.study_id, stratum_key);
-        let json = serde_json::to_string(block)
-            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        let json =
+            serde_json::to_string(block).map_err(|e| RepositoryError::Internal(e.to_string()))?;
 
         conn.set::<_, _, ()>(&key, &json)
             .await

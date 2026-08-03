@@ -20,29 +20,29 @@ async fn main() -> EngineResult<()> {
     let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".into());
     let port = env::var("API_PORT").unwrap_or_else(|_| "3000".into());
     let _grpc_port = env::var("GRPC_PORT").unwrap_or_else(|_| "50051".into());
-    let database_url =
-        resolve_secret("DATABASE_URL", "postgres://pocr:pocr@localhost:5432/pocr")?;
+    let database_url = resolve_secret("DATABASE_URL", "postgres://pocr:pocr@localhost:5432/pocr")?;
     let redis_url = resolve_secret("REDIS_URL", "redis://localhost:6379")?;
 
-    let addr: SocketAddr = format!("{host}:{port}").parse().map_err(|e| {
-        EngineError::Unknown(format!("invalid address {host}:{port}: {e}"))
-    })?;
+    let addr: SocketAddr = format!("{host}:{port}")
+        .parse()
+        .map_err(|e| EngineError::Unknown(format!("invalid address {host}:{port}: {e}")))?;
 
     // Initialize PostgreSQL
-    let pg_pool = infra_pg::create_pool(&database_url).await.map_err(|e| {
-        EngineError::Unknown(format!("failed to connect to database: {e}"))
-    })?;
+    let pg_pool = infra_pg::create_pool(&database_url)
+        .await
+        .map_err(|e| EngineError::Unknown(format!("failed to connect to database: {e}")))?;
 
-    infra_pg::run_migrations(&pg_pool).await.map_err(|e| {
-        EngineError::Unknown(format!("failed to run migrations: {e}"))
-    })?;
+    infra_pg::run_migrations(&pg_pool)
+        .await
+        .map_err(|e| EngineError::Unknown(format!("failed to run migrations: {e}")))?;
 
     info!(event_type = "database.ready", "database ready");
 
     // Initialize Redis
-    let redis_pool = Arc::new(infra_redis::RedisPool::new(&redis_url).map_err(|e| {
-        EngineError::Unknown(format!("failed to connect to redis: {e}"))
-    })?);
+    let redis_pool = Arc::new(
+        infra_redis::RedisPool::new(&redis_url)
+            .map_err(|e| EngineError::Unknown(format!("failed to connect to redis: {e}")))?,
+    );
 
     // JWT secret for study sharing
     let jwt_secret = match env::var("JWT_SECRET") {
@@ -62,8 +62,7 @@ async fn main() -> EngineResult<()> {
 
     // Build repositories
     let study_repo = Arc::new(infra_pg::PgStudyRepository::new(pg_pool.clone()));
-    let randomization_repo =
-        Arc::new(infra_pg::PgRandomizationRepository::new(pg_pool.clone()));
+    let randomization_repo = Arc::new(infra_pg::PgRandomizationRepository::new(pg_pool.clone()));
     let user_study_repo = Arc::new(infra_pg::PgUserStudyRepository::new(pg_pool.clone()));
     let audit_repo = Arc::new(infra_pg::PgAuditRepository::new(pg_pool.clone()));
     let locator_repo = Arc::new(infra_pg::PgLocatorRepository::new(pg_pool.clone()));
@@ -74,10 +73,8 @@ async fn main() -> EngineResult<()> {
     let redis_health = Arc::new(RedisHealthCheck::new(redis_pool));
 
     // Build randomization service
-    let randomization_service = Arc::new(Engine::new(
-        randomization_repo.clone(),
-        block_cache.clone(),
-    ));
+    let randomization_service =
+        Arc::new(Engine::new(randomization_repo.clone(), block_cache.clone()));
 
     // Parse the fhirServer URL → environment map (fails closed on unknown URLs).
     let environment_map = parse_environment_map(env::var("FHIR_ENV_MAP").ok().as_deref());
@@ -110,9 +107,9 @@ async fn main() -> EngineResult<()> {
     });
 
     let app = api_http::app(state);
-    let listener = TcpListener::bind(addr).await.map_err(|e| {
-        EngineError::Unknown(format!("failed to bind {addr}: {e}"))
-    })?;
+    let listener = TcpListener::bind(addr)
+        .await
+        .map_err(|e| EngineError::Unknown(format!("failed to bind {addr}: {e}")))?;
 
     info!(event_type = "server.started", %addr, "server listening");
 
@@ -196,9 +193,8 @@ async fn shutdown_signal() {
     let ctrl_c = tokio::signal::ctrl_c();
 
     #[cfg(unix)]
-    let mut sigterm =
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("failed to register SIGTERM handler");
+    let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .expect("failed to register SIGTERM handler");
 
     #[cfg(unix)]
     tokio::select! {

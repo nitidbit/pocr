@@ -262,7 +262,10 @@ mod tests {
     fn deserializes_snake_case_fhir_authorization() {
         let req: CdsHookRequest = serde_json::from_value(epic_request_json()).unwrap();
         let auth = req.fhir_authorization.expect("fhirAuthorization present");
-        assert_eq!(auth.access_token.as_deref(), Some("eyJraWQiOiJlLXAtb2F1dGgtY2VydA"));
+        assert_eq!(
+            auth.access_token.as_deref(),
+            Some("eyJraWQiOiJlLXAtb2F1dGgtY2VydA")
+        );
         assert_eq!(auth.token_type.as_deref(), Some("Bearer"));
         assert_eq!(auth.expires_in, Some(3600));
         assert_eq!(auth.scope.as_deref(), Some("patient/*.read"));

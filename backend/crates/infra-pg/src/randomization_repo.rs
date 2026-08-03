@@ -148,14 +148,13 @@ impl RandomizationRepository for PgRandomizationRepository {
 
     #[instrument(skip(self))]
     async fn purge_nonproduction(&self, study_id: &Uuid) -> Result<u64, RepositoryError> {
-        let result = sqlx::query(
-            "DELETE FROM randomizations WHERE study_id = $1 AND environment = $2",
-        )
-        .bind(study_id)
-        .bind(Environment::NonProduction.as_str())
-        .execute(&self.pool)
-        .await
-        .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        let result =
+            sqlx::query("DELETE FROM randomizations WHERE study_id = $1 AND environment = $2")
+                .bind(study_id)
+                .bind(Environment::NonProduction.as_str())
+                .execute(&self.pool)
+                .await
+                .map_err(|e| RepositoryError::Internal(e.to_string()))?;
 
         Ok(result.rows_affected())
     }

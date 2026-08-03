@@ -13,7 +13,7 @@ use crate::audit::AuditEvent;
 use crate::demographics::{PatientDemographics, PatientDemographicsWithArm};
 use crate::environment::Environment;
 use crate::error::RandomizationError;
-use crate::random::{Randomization, RandomPermutedBlock, RandomizationRequest};
+use crate::random::{RandomPermutedBlock, Randomization, RandomizationRequest};
 use crate::study::Study;
 
 /// Errors that can occur in repository operations.
@@ -193,10 +193,7 @@ pub trait AuditRepository: Send + Sync {
 #[async_trait]
 pub trait DemographicsRepository: Send + Sync {
     /// Bulk upsert a batch of demographic records, refreshing existing rows.
-    async fn upsert_batch(
-        &self,
-        batch: &[PatientDemographics],
-    ) -> Result<(), RepositoryError>;
+    async fn upsert_batch(&self, batch: &[PatientDemographics]) -> Result<(), RepositoryError>;
     /// Fetch demographics for a set of patient IDs.
     async fn find_by_patient_ids(
         &self,
@@ -214,9 +211,14 @@ pub trait DemographicsRepository: Send + Sync {
 #[async_trait]
 pub trait StudyCache: Send + Sync {
     /// Look up cached study_id for a locator.
-    async fn get_study_id_for_locator(&self, locator: u64) -> Result<Option<Uuid>, RepositoryError>;
+    async fn get_study_id_for_locator(&self, locator: u64)
+    -> Result<Option<Uuid>, RepositoryError>;
     /// Cache a locator → study_id mapping.
-    async fn cache_locator_mapping(&self, locator: u64, study_id: &Uuid) -> Result<(), RepositoryError>;
+    async fn cache_locator_mapping(
+        &self,
+        locator: u64,
+        study_id: &Uuid,
+    ) -> Result<(), RepositoryError>;
     /// Retrieve a cached study config.
     async fn get_cached_study(&self, study_id: &Uuid) -> Result<Option<Study>, RepositoryError>;
     /// Cache a full study config with TTL.

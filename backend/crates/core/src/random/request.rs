@@ -61,16 +61,28 @@ const CSN_OID_SUFFIX: &str = ".7.3.698084.8";
 /// equals `type_text`.
 fn identifier_by_type(resource: Option<&serde_json::Value>, type_text: &str) -> Option<String> {
     identifiers(resource)
-        .find(|id| id.get("type").and_then(|t| t.get("text")).and_then(|t| t.as_str()) == Some(type_text))
+        .find(|id| {
+            id.get("type")
+                .and_then(|t| t.get("text"))
+                .and_then(|t| t.as_str())
+                == Some(type_text)
+        })
         .and_then(|id| id.get("value").and_then(|v| v.as_str()))
         .map(String::from)
 }
 
 /// Return the value of the first identifier on `resource` whose `system`
 /// ends with `suffix`.
-fn identifier_by_system_suffix(resource: Option<&serde_json::Value>, suffix: &str) -> Option<String> {
+fn identifier_by_system_suffix(
+    resource: Option<&serde_json::Value>,
+    suffix: &str,
+) -> Option<String> {
     identifiers(resource)
-        .find(|id| id.get("system").and_then(|s| s.as_str()).is_some_and(|s| s.ends_with(suffix)))
+        .find(|id| {
+            id.get("system")
+                .and_then(|s| s.as_str())
+                .is_some_and(|s| s.ends_with(suffix))
+        })
         .and_then(|id| id.get("value").and_then(|v| v.as_str()))
         .map(String::from)
 }

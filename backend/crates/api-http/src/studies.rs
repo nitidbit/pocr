@@ -2,23 +2,23 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 use serde_json::Value;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use pocr_core::audit::{event_type, AuditEvent};
+use pocr_core::audit::{AuditEvent, event_type};
 use pocr_core::ports::AuditRepository;
 use pocr_core::random::{Arm, KeyVariant, Stratum};
 use pocr_core::study::{RandomizationConfig, RandomizationStrategy, Study, StudyStatus};
 
+use crate::AppState;
 use crate::error::ApiError;
 use crate::extractors::AuthUser;
-use crate::AppState;
 
 /// Append an audit event for a study mutation, best-effort.
 ///
@@ -700,8 +700,14 @@ mod tests {
     fn validate_ratio_updates_accepts_positive_ratios() {
         let config = config(vec![arm(1), arm(1)], None);
         let updates = vec![
-            ArmRatioUpdate { arm_id: config.arms[0].id, ratio: 3 },
-            ArmRatioUpdate { arm_id: config.arms[1].id, ratio: 1 },
+            ArmRatioUpdate {
+                arm_id: config.arms[0].id,
+                ratio: 3,
+            },
+            ArmRatioUpdate {
+                arm_id: config.arms[1].id,
+                ratio: 1,
+            },
         ];
 
         assert!(validate_ratio_updates(&config, &updates).is_empty());
@@ -710,7 +716,10 @@ mod tests {
     #[test]
     fn validate_ratio_updates_allows_a_single_zero_ratio_when_another_is_positive() {
         let config = config(vec![arm(1), arm(1)], None);
-        let updates = vec![ArmRatioUpdate { arm_id: config.arms[0].id, ratio: 0 }];
+        let updates = vec![ArmRatioUpdate {
+            arm_id: config.arms[0].id,
+            ratio: 0,
+        }];
 
         assert!(validate_ratio_updates(&config, &updates).is_empty());
     }
@@ -728,7 +737,10 @@ mod tests {
     #[test]
     fn validate_ratio_updates_rejects_unknown_arm() {
         let config = config(vec![arm(1), arm(1)], None);
-        let updates = vec![ArmRatioUpdate { arm_id: Uuid::now_v7(), ratio: 2 }];
+        let updates = vec![ArmRatioUpdate {
+            arm_id: Uuid::now_v7(),
+            ratio: 2,
+        }];
 
         let errors = validate_ratio_updates(&config, &updates);
 
@@ -740,8 +752,14 @@ mod tests {
     fn validate_ratio_updates_rejects_duplicate_arm() {
         let config = config(vec![arm(1), arm(1)], None);
         let updates = vec![
-            ArmRatioUpdate { arm_id: config.arms[0].id, ratio: 2 },
-            ArmRatioUpdate { arm_id: config.arms[0].id, ratio: 3 },
+            ArmRatioUpdate {
+                arm_id: config.arms[0].id,
+                ratio: 2,
+            },
+            ArmRatioUpdate {
+                arm_id: config.arms[0].id,
+                ratio: 3,
+            },
         ];
 
         let errors = validate_ratio_updates(&config, &updates);
@@ -754,8 +772,14 @@ mod tests {
     fn validate_ratio_updates_rejects_all_arms_zero() {
         let config = config(vec![arm(1), arm(1)], None);
         let updates = vec![
-            ArmRatioUpdate { arm_id: config.arms[0].id, ratio: 0 },
-            ArmRatioUpdate { arm_id: config.arms[1].id, ratio: 0 },
+            ArmRatioUpdate {
+                arm_id: config.arms[0].id,
+                ratio: 0,
+            },
+            ArmRatioUpdate {
+                arm_id: config.arms[1].id,
+                ratio: 0,
+            },
         ];
 
         let errors = validate_ratio_updates(&config, &updates);
@@ -767,7 +791,10 @@ mod tests {
     #[test]
     fn validate_ratio_updates_rejects_ratio_sum_incompatible_with_block_size() {
         let config = config(vec![arm(1), arm(1)], Some(6));
-        let updates = vec![ArmRatioUpdate { arm_id: config.arms[0].id, ratio: 3 }];
+        let updates = vec![ArmRatioUpdate {
+            arm_id: config.arms[0].id,
+            ratio: 3,
+        }];
 
         let errors = validate_ratio_updates(&config, &updates);
 
@@ -778,7 +805,10 @@ mod tests {
     #[test]
     fn validate_ratio_updates_accepts_ratio_sum_that_divides_block_size() {
         let config = config(vec![arm(1), arm(1)], Some(6));
-        let updates = vec![ArmRatioUpdate { arm_id: config.arms[0].id, ratio: 2 }];
+        let updates = vec![ArmRatioUpdate {
+            arm_id: config.arms[0].id,
+            ratio: 2,
+        }];
 
         assert!(validate_ratio_updates(&config, &updates).is_empty());
     }
