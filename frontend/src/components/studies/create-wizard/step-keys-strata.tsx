@@ -2,17 +2,16 @@ import { Separator } from "@/components/ui/separator";
 
 import { KeyEditor } from "./key-editor";
 import { StratumEditor } from "./stratum-editor";
-import type { StepProps } from "./types";
+import type { StepProps, StratumPreset } from "./types";
 
 interface StepKeysStrataProps extends StepProps {
 	onAddKey: () => void;
 	onRemoveKey: (id: string) => void;
 	onUpdateKey: (id: string, field: string, value: string) => void;
 	onAddStratum: () => void;
+	onAddStratumPreset: (preset: StratumPreset) => void;
 	onRemoveStratum: (id: string) => void;
 	onUpdateStratum: (id: string, field: string, value: string) => void;
-	onAddStratumValue: (id: string, value: string) => void;
-	onRemoveStratumValue: (id: string, index: number) => void;
 }
 
 /** Step 4: Keys & Strata — randomization unit keys and stratification factors. */
@@ -23,10 +22,9 @@ export function StepKeysStrata({
 	onRemoveKey,
 	onUpdateKey,
 	onAddStratum,
+	onAddStratumPreset,
 	onRemoveStratum,
 	onUpdateStratum,
-	onAddStratumValue,
-	onRemoveStratumValue,
 }: StepKeysStrataProps) {
 	return (
 		<div className="flex flex-col gap-6">
@@ -74,10 +72,9 @@ export function StepKeysStrata({
 					strata={data.strata}
 					errors={errors}
 					onAdd={onAddStratum}
+					onAddPreset={onAddStratumPreset}
 					onRemove={onRemoveStratum}
 					onUpdate={onUpdateStratum}
-					onAddValue={onAddStratumValue}
-					onRemoveValue={onRemoveStratumValue}
 				/>
 			</div>
 		</div>

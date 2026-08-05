@@ -14,11 +14,6 @@ interface StepRandomizationDesignProps extends StepProps {
 const STRATEGY_OPTIONS = [
 	{ value: RandomizationStrategy.Simple, label: "Simple Randomization" },
 	{ value: RandomizationStrategy.Block, label: "Block Randomization" },
-	{
-		value: RandomizationStrategy.StratifiedBlock,
-		label: "Stratified Block Randomization",
-	},
-	{ value: RandomizationStrategy.Minimization, label: "Minimization" },
 ];
 
 /** Step 3: Randomization Design — strategy, block size, treatment arms. */
@@ -30,9 +25,7 @@ export function StepRandomizationDesign({
 	onRemoveArm,
 	onUpdateArm,
 }: StepRandomizationDesignProps) {
-	const showBlockSize =
-		data.strategy === RandomizationStrategy.Block ||
-		data.strategy === RandomizationStrategy.StratifiedBlock;
+	const showBlockSize = data.strategy === RandomizationStrategy.Block;
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -41,7 +34,9 @@ export function StepRandomizationDesign({
 					Randomization Design
 				</h2>
 				<p className="text-sm text-muted-foreground">
-					Configure the randomization strategy and treatment arms.
+					Configure the randomization strategy and treatment arms. Block
+					randomization becomes stratified automatically when you add
+					stratification factors.
 				</p>
 			</div>
 

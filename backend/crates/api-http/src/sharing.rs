@@ -2,18 +2,18 @@
 
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 use uuid::Uuid;
 
+use crate::AppState;
 use crate::error::ApiError;
 use crate::extractors::AuthUser;
-use crate::AppState;
 
 /// JWT claims for a study sharing token.
 #[derive(Debug, Serialize, Deserialize)]

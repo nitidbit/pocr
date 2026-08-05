@@ -1,44 +1,139 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Activity, BarChart3, Scale, TrendingUp } from "lucide-react";
+import { Activity, BarChart3, Scale, Trash2, TrendingUp } from "lucide-react";
+import { useState } from "react";
 import type {
 	BalanceResponse,
 	BalanceVariable,
+	RandomizationCounts,
 	RandomizationResponse,
 } from "#/api/client";
-import { useBalance, useRandomizations, useStudy } from "#/api/queries";
+import {
+	useBalance,
+	usePurgeNonProduction,
+	useRandomizationCounts,
+	useRandomizations,
+	useStudy,
+} from "#/api/queries";
+import { ENVIRONMENTS, useEnvironment } from "#/lib/environment";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_app/studies/$studyId/monitor")({
 	component: StudyMonitorPage,
 });
 
+// Prefer the human-readable arm label; fall back to the full arm id when the
+// name is empty or absent so a row never renders a blank arm.
+export function armDisplayName(arm: { id: string; name?: string }): string {
+	return arm.name?.trim() ? arm.name : arm.id;
+}
+
 function StudyMonitorPage() {
 	const { studyId } = Route.useParams();
+	const { environment } = useEnvironment();
 	const { data: study } = useStudy(studyId);
-	const { data: randomizations, isLoading } = useRandomizations(studyId);
-	const { data: balance, isLoading: balanceLoading } = useBalance(studyId);
+	const { data: randomizations, isLoading } = useRandomizations(
+		studyId,
+		environment,
+	);
+	const { data: counts } = useRandomizationCounts(studyId, environment);
+	const { data: balance, isLoading: balanceLoading } = useBalance(
+		studyId,
+		environment,
+	);
 
 	return (
 		<div className="flex flex-col gap-6">
-			<BalanceSummary study={study} randomizations={randomizations} />
-			<DemographicBalance balance={balance} isLoading={balanceLoading} />
+			<p className="text-xs text-muted-foreground">
+				Showing {ENVIRONMENTS[environment].label} data
+			</p>
+			<BalanceSummary study={study} counts={counts} />
+			{environment === "nonproduction" ? (
+				<DemographicBalanceUnavailable />
+			) : (
+				<DemographicBalance balance={balance} isLoading={balanceLoading} />
+			)}
 			<RecentRandomizations
 				randomizations={randomizations}
+				total={counts?.total}
 				isLoading={isLoading}
 			/>
+			{environment === "nonproduction" && <PurgeTestData studyId={studyId} />}
 		</div>
+	);
+}
+
+function PurgeTestData({ studyId }: { studyId: string }) {
+	const purge = usePurgeNonProduction(studyId);
+	const [showConfirm, setShowConfirm] = useState(false);
+
+	return (
+		<section className="rounded-lg border border-destructive/30 bg-destructive/5 p-5">
+			<h2 className="mb-2 text-sm font-semibold text-destructive">
+				Reset Test Data
+			</h2>
+			{!showConfirm ? (
+				<div className="flex items-center justify-between">
+					<p className="text-sm text-muted-foreground">
+						Purge all non-production randomizations for this study.
+					</p>
+					<Button
+						variant="destructive"
+						size="sm"
+						onClick={() => setShowConfirm(true)}
+					>
+						<Trash2 className="size-4" />
+						Purge Non-Production Data
+					</Button>
+				</div>
+			) : (
+				<div className="flex flex-col gap-3">
+					<p className="text-sm text-foreground">
+						This permanently deletes all non-production randomizations and
+						cached allocation blocks for this study. This action cannot be
+						undone.
+					</p>
+					<div className="flex items-center gap-2">
+						<Button
+							variant="destructive"
+							size="sm"
+							onClick={() =>
+								purge.mutate(undefined, {
+									onSuccess: () => setShowConfirm(false),
+								})
+							}
+							disabled={purge.isPending}
+						>
+							{purge.isPending ? "Purging..." : "Confirm Purge"}
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setShowConfirm(false)}
+							disabled={purge.isPending}
+						>
+							Cancel
+						</Button>
+					</div>
+				</div>
+			)}
+		</section>
 	);
 }
 
 function BalanceSummary({
 	study,
-	randomizations,
+	counts,
 }: {
 	study:
-		| { randomizationConfig: { arms: Array<{ id: string; ratio: number }> } }
+		| {
+				randomizationConfig: {
+					arms: Array<{ id: string; name: string; ratio: number }>;
+				};
+		  }
 		| undefined;
-	randomizations: RandomizationResponse[] | undefined;
+	counts: RandomizationCounts | undefined;
 }) {
-	if (!study || !randomizations) {
+	if (!study || !counts) {
 		return (
 			<section className="rounded-lg border bg-card p-5">
 				<h2 className="mb-4 flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -50,12 +145,16 @@ function BalanceSummary({
 		);
 	}
 
+	// Counts are aggregated server-side over the whole study, so the summary is
+	// accurate regardless of how many records the list endpoint returns.
+	const countByArm = new Map(counts.arms.map((a) => [a.armId, a.count]));
 	const armCounts = study.randomizationConfig.arms.map((arm) => ({
 		id: arm.id,
+		name: armDisplayName(arm),
 		ratio: arm.ratio,
-		count: randomizations.filter((r) => r.arm.id === arm.id).length,
+		count: countByArm.get(arm.id) ?? 0,
 	}));
-	const total = randomizations.length;
+	const total = counts.total;
 
 	return (
 		<section className="rounded-lg border bg-card p-5">
@@ -73,9 +172,7 @@ function BalanceSummary({
 						return (
 							<div key={arm.id} className="flex flex-col gap-1">
 								<div className="flex items-center justify-between text-sm">
-									<span className="font-mono text-xs text-foreground">
-										{arm.id.slice(0, 8)}...
-									</span>
+									<span className="text-foreground">{arm.name}</span>
 									<span className="tabular-nums text-muted-foreground">
 										{arm.count} ({percent}%)
 									</span>
@@ -187,6 +284,26 @@ function DemographicBalance({
 	);
 }
 
+// The backend /balance endpoint does not yet partition by environment, so it
+// would return production demographics even in the non-production view. Rather
+// than mislabel production data as test data, show a placeholder until the
+// backend honors the environment param.
+function DemographicBalanceUnavailable() {
+	return (
+		<section className="rounded-lg border bg-card p-5">
+			<h2 className="mb-4 flex items-center gap-2 text-sm font-medium text-muted-foreground">
+				<TrendingUp className="size-4" />
+				Demographic Balance
+			</h2>
+			<div className="flex h-32 items-center justify-center rounded-md border border-dashed bg-muted/30">
+				<p className="max-w-md text-center text-sm text-muted-foreground">
+					Demographic balance is not yet partitioned by environment.
+				</p>
+			</div>
+		</section>
+	);
+}
+
 function SmdBadge({ value }: { value: number }) {
 	const formatted = value.toFixed(2);
 	if (value > 0.25) {
@@ -289,9 +406,13 @@ function VariableRows({
 
 function RecentRandomizations({
 	randomizations,
+	total,
 	isLoading,
 }: {
 	randomizations: RandomizationResponse[] | undefined;
+	// Whole-study total from the counts endpoint; the table itself only renders
+	// the newest few rows, so its length is not the study total.
+	total: number | undefined;
 	isLoading: boolean;
 }) {
 	if (isLoading) {
@@ -323,12 +444,13 @@ function RecentRandomizations({
 	}
 
 	const recent = randomizations.slice(0, 10);
+	const totalLabel = total ?? randomizations.length;
 
 	return (
 		<section className="rounded-lg border bg-card p-5">
 			<h2 className="mb-4 flex items-center gap-2 text-sm font-medium text-muted-foreground">
 				<Activity className="size-4" />
-				Recent Randomizations ({randomizations.length} total)
+				Recent Randomizations ({totalLabel} total)
 			</h2>
 			<div className="overflow-hidden rounded-md border">
 				<table className="w-full text-sm">
@@ -349,10 +471,10 @@ function RecentRandomizations({
 						{recent.map((r) => (
 							<tr key={r.id} className="border-b last:border-b-0">
 								<td className="px-4 py-2 font-mono text-xs text-foreground">
-									{r.id.slice(0, 8)}...
+									{r.id}
 								</td>
-								<td className="px-4 py-2 font-mono text-xs text-foreground">
-									{r.arm.id.slice(0, 8)}...
+								<td className="px-4 py-2 text-xs text-foreground">
+									{armDisplayName(r.arm)}
 								</td>
 								<td className="px-4 py-2 text-right text-muted-foreground">
 									{new Date(r.issuedAt).toLocaleString()}

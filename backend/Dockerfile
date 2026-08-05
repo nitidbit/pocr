@@ -41,6 +41,8 @@ RUN groupadd --system --gid 1001 pocr && \
     useradd --system --uid 1001 --gid pocr --no-create-home pocr
 
 COPY --from=builder --chown=1001:1001 /app/target/release/pocr-engine /usr/local/bin/pocr-engine
+COPY --from=builder --chown=1001:1001 /app/target/release/pocr-migrate /usr/local/bin/pocr-migrate
+COPY --from=builder --chown=1001:1001 /app/target/release/pocr-sync /usr/local/bin/pocr-sync
 
 USER 1001
 

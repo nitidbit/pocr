@@ -5,6 +5,7 @@
 //! identification, and error handling. It is infrastructure-agnostic
 //! and contains no I/O.
 
+pub mod audit;
 pub mod cds_hooks;
 pub mod demographics;
 pub mod environment;

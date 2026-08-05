@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
 use crate::error::{RandomizationError, RandomizationResult};
 use crate::random::KeyVariant;
 use crate::random::RandomizationRequest;
+use serde::{Deserialize, Serialize};
 
 /// A name-value pair extracted from a FHIR resource path.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -45,24 +45,34 @@ impl SimpleUnit {
     /// Return [`RandomizationError::MissingField`] if the key's corresponding
     /// request field is absent. Return [`RandomizationError::NotImplemented`]
     /// for a [`KeyVariant::FhirPath`] key.
-    pub fn try_parse(key: &KeyVariant, request: &RandomizationRequest) -> RandomizationResult<Self> {
+    pub fn try_parse(
+        key: &KeyVariant,
+        request: &RandomizationRequest,
+    ) -> RandomizationResult<Self> {
         match key {
             KeyVariant::PatientId => {
-                let id = request.patient_id.clone().ok_or(
-                    RandomizationError::MissingField { field: "patient_id" },
-                )?;
+                let id = request
+                    .patient_id
+                    .clone()
+                    .ok_or(RandomizationError::MissingField {
+                        field: "patient_id",
+                    })?;
                 Ok(SimpleUnit::PatientId(id))
             }
             KeyVariant::EncounterId => {
-                let id = request.encounter_id.clone().ok_or(
-                    RandomizationError::MissingField { field: "encounter_id" },
-                )?;
+                let id = request
+                    .encounter_id
+                    .clone()
+                    .ok_or(RandomizationError::MissingField {
+                        field: "encounter_id",
+                    })?;
                 Ok(SimpleUnit::EncounterId(id))
             }
             KeyVariant::ProviderId => {
-                let id = request.user_id.clone().ok_or(
-                    RandomizationError::MissingField { field: "user_id" },
-                )?;
+                let id = request
+                    .user_id
+                    .clone()
+                    .ok_or(RandomizationError::MissingField { field: "user_id" })?;
                 Ok(SimpleUnit::ProviderId(id))
             }
             KeyVariant::FhirPath(_fp) => Err(RandomizationError::NotImplemented(
@@ -82,7 +92,10 @@ impl Unit {
     ///
     /// Return [`RandomizationError::NotFound`] if `keys` is empty.
     /// Propagate errors from [`SimpleUnit::try_parse`] for each key.
-    pub fn try_parse(keys: &[KeyVariant], request: &RandomizationRequest) -> RandomizationResult<Self> {
+    pub fn try_parse(
+        keys: &[KeyVariant],
+        request: &RandomizationRequest,
+    ) -> RandomizationResult<Self> {
         match keys.len() {
             0 => Err(RandomizationError::NotFound),
             1 => {
@@ -148,7 +161,9 @@ mod tests {
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
-            RandomizationError::MissingField { field: "patient_id" }
+            RandomizationError::MissingField {
+                field: "patient_id"
+            }
         ));
     }
 
@@ -162,7 +177,9 @@ mod tests {
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
-            RandomizationError::MissingField { field: "encounter_id" }
+            RandomizationError::MissingField {
+                field: "encounter_id"
+            }
         ));
     }
 
@@ -201,10 +218,7 @@ mod tests {
 
         let result = Unit::try_parse(keys, &request);
 
-        assert!(matches!(
-            result.unwrap_err(),
-            RandomizationError::NotFound
-        ));
+        assert!(matches!(result.unwrap_err(), RandomizationError::NotFound));
     }
 
     #[test]
@@ -242,10 +256,7 @@ mod tests {
 
     #[test]
     fn unit_try_parse_returns_composite_for_multiple_keys() {
-        let keys: Vec<KeyVariant> = vec![
-            KeyVariant::PatientId,
-            KeyVariant::EncounterId,
-        ];
+        let keys: Vec<KeyVariant> = vec![KeyVariant::PatientId, KeyVariant::EncounterId];
         let request = RandomizationRequest {
             patient_id: Some("P-001".to_string()),
             encounter_id: Some("E-001".to_string()),

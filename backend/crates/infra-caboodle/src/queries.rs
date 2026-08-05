@@ -80,7 +80,11 @@ pub async fn fetch_demographics(
             });
         }
 
-        debug!(chunk_size = chunk.len(), results = all_results.len(), "fetched demographics chunk");
+        debug!(
+            chunk_size = chunk.len(),
+            results = all_results.len(),
+            "fetched demographics chunk"
+        );
     }
 
     Ok(all_results)
@@ -226,12 +230,9 @@ pub async fn fetch_bmi(
             .await
             .map_err(|e| CaboodleError::Query(format!("fetch_bmi for {patient_id}: {e}")))?;
 
-        let rows: Vec<Row> = stream
-            .into_first_result()
-            .await
-            .map_err(|e| {
-                CaboodleError::Query(format!("fetch_bmi results for {patient_id}: {e}"))
-            })?;
+        let rows: Vec<Row> = stream.into_first_result().await.map_err(|e| {
+            CaboodleError::Query(format!("fetch_bmi results for {patient_id}: {e}"))
+        })?;
 
         if let Some(row) = rows.first()
             && let Some(value_str) = row.get::<&str, _>("Value")

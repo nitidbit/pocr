@@ -7,9 +7,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::Json;
 use chrono::{NaiveDate, Utc};
 use serde::Serialize;
 use tracing::instrument;
@@ -17,8 +17,8 @@ use uuid::Uuid;
 
 use pocr_core::demographics::PatientDemographicsWithArm;
 
-use crate::smd::{smd_max_pairwise, ArmStats};
 use crate::AppState;
+use crate::smd::{ArmStats, smd_max_pairwise};
 
 /// Minimum count threshold for cell reporting. Counts below this are redacted.
 const SMALL_CELL_THRESHOLD: usize = 5;
@@ -183,9 +183,7 @@ fn build_balance_response(
     }
 
     // Race is multi-valued: each patient can have multiple race entries
-    if let Some(var) = build_categorical_variable("race", records, &arm_ids, |r| {
-        r.races.clone()
-    }) {
+    if let Some(var) = build_categorical_variable("race", records, &arm_ids, |r| r.races.clone()) {
         variables.push(var);
     }
 
@@ -308,12 +306,10 @@ fn build_categorical_variable(
         let mut level_smd_stats = Vec::with_capacity(arm_ids.len());
 
         // Check small-cell suppression for this category value
-        let needs_suppression = arm_ids
-            .iter()
-            .any(|arm_id| {
-                let count = counts.get(arm_id).copied().unwrap_or(0);
-                count > 0 && count < SMALL_CELL_THRESHOLD
-            });
+        let needs_suppression = arm_ids.iter().any(|arm_id| {
+            let count = counts.get(arm_id).copied().unwrap_or(0);
+            count > 0 && count < SMALL_CELL_THRESHOLD
+        });
 
         for &arm_id in arm_ids {
             let count = counts.get(&arm_id).copied().unwrap_or(0);
@@ -508,7 +504,10 @@ mod tests {
             .find(|v| matches!(v, BalanceVariable::Categorical { name, .. } if name == "sex"))
             .expect("sex variable should exist");
 
-        if let BalanceVariable::Categorical { categories, smd, .. } = sex_var {
+        if let BalanceVariable::Categorical {
+            categories, smd, ..
+        } = sex_var
+        {
             let female = categories.iter().find(|c| c.value == "Female").unwrap();
             let arm_a_female = female.arms.iter().find(|a| a.arm_id == arm_a).unwrap();
             // 6 out of 10 = 60%

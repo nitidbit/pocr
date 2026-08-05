@@ -15,15 +15,12 @@ interface StepReviewProps {
 const STRATEGY_LABELS: Record<string, string> = {
 	[RandomizationStrategy.Simple]: "Simple Randomization",
 	[RandomizationStrategy.Block]: "Block Randomization",
-	[RandomizationStrategy.StratifiedBlock]: "Stratified Block Randomization",
-	[RandomizationStrategy.Minimization]: "Minimization",
 };
 
 const KEY_TYPE_LABELS: Record<string, string> = {
 	[KeyType.PatientId]: "Patient ID",
 	[KeyType.EncounterId]: "Encounter ID",
 	[KeyType.ProviderId]: "Provider ID",
-	[KeyType.ClusterId]: "Cluster ID",
 	[KeyType.FhirPath]: "FHIR Path",
 };
 
@@ -137,11 +134,9 @@ export function StepReview({ data, onEditStep }: StepReviewProps) {
 							<div className="flex flex-wrap gap-1">
 								{data.keys.map((key) => (
 									<Badge key={key.id} variant="outline">
-										{key.name || "Unnamed"} (
 										{key.type
 											? (KEY_TYPE_LABELS[key.type] ?? key.type)
 											: "unset"}
-										)
 									</Badge>
 								))}
 							</div>
@@ -157,8 +152,8 @@ export function StepReview({ data, onEditStep }: StepReviewProps) {
 								<div className="flex flex-wrap gap-1">
 									{data.strata.map((s) => (
 										<Badge key={s.id} variant="secondary">
-											{s.name || "Unnamed"} ({s.type || "unset"})
-											{s.values.length > 0 && `: ${s.values.join(", ")}`}
+											{s.name || "Unnamed"}
+											{s.path && `: ${s.context || "Patient"}.${s.path}`}
 										</Badge>
 									))}
 								</div>

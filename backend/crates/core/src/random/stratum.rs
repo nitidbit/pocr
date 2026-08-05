@@ -1,8 +1,8 @@
+use crate::error::{RandomizationError, RandomizationResult};
+use crate::random::RandomizationRequest;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::error::{RandomizationError, RandomizationResult};
-use crate::random::RandomizationRequest;
 
 /// Definition of a single stratification factor for a study.
 ///
@@ -52,13 +52,21 @@ impl SimpleStratum {
     ///
     /// Return [`RandomizationError::NotFound`] if the request has no context,
     /// the context lacks the specified resource, or the path does not resolve.
-    pub fn try_parse(stratum: &Stratum, request: &RandomizationRequest) -> RandomizationResult<Self> {
-        let request_context = request.context.as_ref().ok_or(RandomizationError::NotFound)?;
+    pub fn try_parse(
+        stratum: &Stratum,
+        request: &RandomizationRequest,
+    ) -> RandomizationResult<Self> {
+        let request_context = request
+            .context
+            .as_ref()
+            .ok_or(RandomizationError::NotFound)?;
 
         let context = stratum.context.as_str();
         let path = stratum.path.as_str();
 
-        let resource = request_context.get(context).ok_or(RandomizationError::NotFound)?;
+        let resource = request_context
+            .get(context)
+            .ok_or(RandomizationError::NotFound)?;
         let value = get_by_pointer(resource, path).ok_or(RandomizationError::NotFound)?;
 
         Ok(SimpleStratum::FhirPath {
@@ -75,7 +83,10 @@ impl Strata {
     ///
     /// Return [`RandomizationError::NotFound`] if the slice is empty or
     /// any individual stratum cannot be resolved from the request.
-    pub fn try_parse(strata: &[Stratum], request: &RandomizationRequest) -> RandomizationResult<Self> {
+    pub fn try_parse(
+        strata: &[Stratum],
+        request: &RandomizationRequest,
+    ) -> RandomizationResult<Self> {
         match strata.len() {
             0 => Err(RandomizationError::NotFound),
             1 => Ok(Strata::Simple(SimpleStratum::try_parse(

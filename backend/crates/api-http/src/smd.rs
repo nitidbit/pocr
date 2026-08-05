@@ -131,7 +131,10 @@ mod tests {
 
     #[test]
     fn max_pairwise_fewer_than_two_arms_returns_zero() {
-        let arms = vec![ArmStats { value: 50.0, sd: 10.0 }];
+        let arms = vec![ArmStats {
+            value: 50.0,
+            sd: 10.0,
+        }];
         let result = smd_max_pairwise(&arms, true);
 
         assert_eq!(result, 0.0);
@@ -140,8 +143,14 @@ mod tests {
     #[test]
     fn max_pairwise_two_arms_continuous() {
         let arms = vec![
-            ArmStats { value: 60.0, sd: 10.0 },
-            ArmStats { value: 50.0, sd: 10.0 },
+            ArmStats {
+                value: 60.0,
+                sd: 10.0,
+            },
+            ArmStats {
+                value: 50.0,
+                sd: 10.0,
+            },
         ];
         let result = smd_max_pairwise(&arms, true);
 
@@ -151,9 +160,18 @@ mod tests {
     #[test]
     fn max_pairwise_three_arms_returns_largest() {
         let arms = vec![
-            ArmStats { value: 50.0, sd: 10.0 },
-            ArmStats { value: 55.0, sd: 10.0 },
-            ArmStats { value: 70.0, sd: 10.0 },
+            ArmStats {
+                value: 50.0,
+                sd: 10.0,
+            },
+            ArmStats {
+                value: 55.0,
+                sd: 10.0,
+            },
+            ArmStats {
+                value: 70.0,
+                sd: 10.0,
+            },
         ];
         // Pairs: (50,55) -> 0.5, (50,70) -> 2.0, (55,70) -> 1.5
         // Max = 2.0
@@ -165,8 +183,14 @@ mod tests {
     #[test]
     fn max_pairwise_categorical() {
         let arms = vec![
-            ArmStats { value: 0.5, sd: 0.0 },
-            ArmStats { value: 0.7, sd: 0.0 },
+            ArmStats {
+                value: 0.5,
+                sd: 0.0,
+            },
+            ArmStats {
+                value: 0.7,
+                sd: 0.0,
+            },
         ];
         // |0.5 - 0.7| / sqrt((0.5*0.5 + 0.7*0.3) / 2) = 0.2 / sqrt((0.25 + 0.21) / 2)
         // = 0.2 / sqrt(0.23)

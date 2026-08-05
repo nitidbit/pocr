@@ -12,7 +12,8 @@
     "test": "vitest run",
     "format": "biome format --write",
     "lint": "biome lint --write",
-    "check": "biome check --write"
+    "check": "biome check --write",
+    "check:ci": "biome check"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

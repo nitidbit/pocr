@@ -123,13 +123,28 @@ mod tests {
     #[test]
     fn generate_block_with_specified_size() {
         let arms = vec![
-            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
-            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
+            Arm {
+                id: Uuid::nil(),
+                name: String::new(),
+                ratio: 1,
+                locator: None,
+            },
+            Arm {
+                id: Uuid::nil(),
+                name: String::new(),
+                ratio: 1,
+                locator: None,
+            },
         ];
 
         let block = RandomPermutedBlock::try_generate(
-            &Default::default(), &arms, Some(6), None, &mut seeded_rng(),
-        ).expect("should generate block with valid size");
+            &Default::default(),
+            &arms,
+            Some(6),
+            None,
+            &mut seeded_rng(),
+        )
+        .expect("should generate block with valid size");
 
         assert_eq!(block.values.len(), 6);
     }
@@ -137,13 +152,28 @@ mod tests {
     #[test]
     fn generate_block_respects_arm_ratios() {
         let arms = vec![
-            Arm { id: Uuid::nil(), name: String::new(), ratio: 3, locator: None },
-            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
+            Arm {
+                id: Uuid::nil(),
+                name: String::new(),
+                ratio: 3,
+                locator: None,
+            },
+            Arm {
+                id: Uuid::nil(),
+                name: String::new(),
+                ratio: 1,
+                locator: None,
+            },
         ];
 
         let block = RandomPermutedBlock::try_generate(
-            &Default::default(), &arms, Some(8), None, &mut seeded_rng(),
-        ).expect("should generate block with valid size");
+            &Default::default(),
+            &arms,
+            Some(8),
+            None,
+            &mut seeded_rng(),
+        )
+        .expect("should generate block with valid size");
 
         assert_eq!(block.values.len(), 8);
         assert_eq!(block.values.iter().filter(|&&x| x == 0).count(), 6);
@@ -153,17 +183,33 @@ mod tests {
     #[test]
     fn generate_dynamic_block_is_multiple_of_ratio_sum() {
         let arms = vec![
-            Arm { id: Uuid::nil(), name: String::new(), ratio: 3, locator: None },
-            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
+            Arm {
+                id: Uuid::nil(),
+                name: String::new(),
+                ratio: 3,
+                locator: None,
+            },
+            Arm {
+                id: Uuid::nil(),
+                name: String::new(),
+                ratio: 1,
+                locator: None,
+            },
         ];
 
         let block = RandomPermutedBlock::try_generate(
-            &Default::default(), &arms, None, None, &mut seeded_rng(),
-        ).expect("should generate block with dynamic size");
+            &Default::default(),
+            &arms,
+            None,
+            None,
+            &mut seeded_rng(),
+        )
+        .expect("should generate block with dynamic size");
 
         let ratio_sum: usize = arms.iter().map(|a| a.ratio as usize).sum();
         assert_eq!(
-            block.values.len() % ratio_sum, 0,
+            block.values.len() % ratio_sum,
+            0,
             "block size must be a multiple of ratio_sum"
         );
 
@@ -204,12 +250,26 @@ mod tests {
     #[test]
     fn try_generate_returns_invalid_block_size_when_not_multiple_of_ratio_sum() {
         let arms = vec![
-            Arm { id: Uuid::nil(), name: String::new(), ratio: 2, locator: None },
-            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
+            Arm {
+                id: Uuid::nil(),
+                name: String::new(),
+                ratio: 2,
+                locator: None,
+            },
+            Arm {
+                id: Uuid::nil(),
+                name: String::new(),
+                ratio: 1,
+                locator: None,
+            },
         ];
 
         let result = RandomPermutedBlock::try_generate(
-            &Default::default(), &arms, Some(5), None, &mut seeded_rng(),
+            &Default::default(),
+            &arms,
+            Some(5),
+            None,
+            &mut seeded_rng(),
         );
 
         let err = result.unwrap_err();
@@ -222,32 +282,65 @@ mod tests {
     #[test]
     fn block_generation_is_deterministic_with_seeded_rng() {
         let arms = vec![
-            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
-            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
+            Arm {
+                id: Uuid::nil(),
+                name: String::new(),
+                ratio: 1,
+                locator: None,
+            },
+            Arm {
+                id: Uuid::nil(),
+                name: String::new(),
+                ratio: 1,
+                locator: None,
+            },
         ];
 
         let block_a = RandomPermutedBlock::try_generate(
-            &Default::default(), &arms, Some(6), None, &mut seeded_rng(),
-        ).unwrap();
+            &Default::default(),
+            &arms,
+            Some(6),
+            None,
+            &mut seeded_rng(),
+        )
+        .unwrap();
 
         let block_b = RandomPermutedBlock::try_generate(
-            &Default::default(), &arms, Some(6), None, &mut seeded_rng(),
-        ).unwrap();
+            &Default::default(),
+            &arms,
+            Some(6),
+            None,
+            &mut seeded_rng(),
+        )
+        .unwrap();
 
-        assert_eq!(block_a.values, block_b.values, "same seed must produce same sequence");
+        assert_eq!(
+            block_a.values, block_b.values,
+            "same seed must produce same sequence"
+        );
     }
 
     #[test]
     fn block_shuffles_assignments_with_rng() {
         let arms = vec![
-            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
-            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
+            Arm {
+                id: Uuid::nil(),
+                name: String::new(),
+                ratio: 1,
+                locator: None,
+            },
+            Arm {
+                id: Uuid::nil(),
+                name: String::new(),
+                ratio: 1,
+                locator: None,
+            },
         ];
 
         let mut rng = seeded_rng();
-        let block = RandomPermutedBlock::try_generate(
-            &Default::default(), &arms, Some(6), None, &mut rng,
-        ).unwrap();
+        let block =
+            RandomPermutedBlock::try_generate(&Default::default(), &arms, Some(6), None, &mut rng)
+                .unwrap();
 
         // With equal 1:1 ratios and size 6: 3 zeros, 3 ones
         assert_eq!(block.values.iter().filter(|&&x| x == 0).count(), 3);
@@ -265,17 +358,33 @@ mod tests {
     #[test]
     fn dynamic_block_size_is_deterministic_with_seeded_rng() {
         let arms = vec![
-            Arm { id: Uuid::nil(), name: String::new(), ratio: 2, locator: None },
-            Arm { id: Uuid::nil(), name: String::new(), ratio: 1, locator: None },
+            Arm {
+                id: Uuid::nil(),
+                name: String::new(),
+                ratio: 2,
+                locator: None,
+            },
+            Arm {
+                id: Uuid::nil(),
+                name: String::new(),
+                ratio: 1,
+                locator: None,
+            },
         ];
 
         let block = RandomPermutedBlock::try_generate(
-            &Default::default(), &arms, None, None, &mut seeded_rng(),
-        ).unwrap();
+            &Default::default(),
+            &arms,
+            None,
+            None,
+            &mut seeded_rng(),
+        )
+        .unwrap();
 
         // ratio_sum = 3, multiplier from rng in 2..=4
         assert_eq!(
-            block.values.len() % 3, 0,
+            block.values.len() % 3,
+            0,
             "block size must be multiple of ratio_sum"
         );
         assert!(

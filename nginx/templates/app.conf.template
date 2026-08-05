@@ -26,7 +26,6 @@ server {
     # Vouch public endpoints
     location ~ ^/(auth|login|logout|static) {
         include /etc/nginx/snippets/proxy-common.conf;
-        proxy_set_header Host $host;
         proxy_pass http://vouch;
     }
 
@@ -61,9 +60,20 @@ server {
         proxy_pass http://api_backend;
     }
 
-    # API routes — unauthenticated; vouch cookie is forwarded to backend
+    # App API routes — authenticated. The backend identifies the user from the
+    # X-Vouch-User header (see AuthUser extractor), which is only populated when
+    # we run auth_request /validate and include vouch-proxy-headers.conf. CDS
+    # Hooks are unauthenticated and live under /cds-services, not /api/, so they
+    # are unaffected by this.
     location /api/ {
+        auth_request /validate;
+
+        # An unauthenticated XHR must get a 401, not a 302 to the login page.
+        error_page 401 = @api_unauthorized;
+
+        include /etc/nginx/snippets/vouch-proxy-headers.conf;
         include /etc/nginx/snippets/proxy-common.conf;
+
         proxy_pass http://api_backend;
     }
 

@@ -23,7 +23,10 @@ FROM nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e591939
 
 RUN addgroup -S -g 1001 app && adduser -S -u 1001 -G app -H app \
     && mkdir -p /app/www /var/cache/nginx /var/log/nginx \
-    && chown -R 1001:1001 /var/cache/nginx /var/log/nginx
+    && chown -R 1001:1001 /var/cache/nginx /var/log/nginx \
+    # Run as non-root (UID 1001): move the pidfile to a writable path and drop
+    # the ineffective `user` directive so the master process starts cleanly.
+    && sed -i 's,/run/nginx.pid,/tmp/nginx.pid,; /^user /d' /etc/nginx/nginx.conf
 
 COPY --chown=1001:1001 --from=builder /app/dist /app/www
 COPY --chown=1001:1001 --from=builder /app/nginx.conf /etc/nginx/conf.d/default.conf

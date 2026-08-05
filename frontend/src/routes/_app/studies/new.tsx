@@ -5,6 +5,7 @@ import type { CreateStudyRequest } from "#/api/client";
 import { useCreateStudy } from "#/api/queries";
 import {
 	type CreateStudyFormData,
+	defaultArmName,
 	type FormAction,
 	INITIAL_FORM_DATA,
 	STEPS,
@@ -19,7 +20,7 @@ import {
 	validateStep4,
 	WizardStepper,
 } from "#/components/studies/create-wizard";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_app/studies/new")({
 	validateSearch: (search: Record<string, unknown>) => ({
@@ -50,7 +51,11 @@ function formReducer(
 				...state,
 				arms: [
 					...state.arms,
-					{ id: `arm-${Date.now()}`, name: "", ratio: "1" },
+					{
+						id: `arm-${Date.now()}`,
+						name: defaultArmName(state.arms.length),
+						ratio: "1",
+					},
 				],
 			};
 		case "REMOVE_ARM":
@@ -69,7 +74,7 @@ function formReducer(
 		case "ADD_KEY":
 			return {
 				...state,
-				keys: [...state.keys, { id: `key-${Date.now()}`, name: "", type: "" }],
+				keys: [...state.keys, { id: `key-${Date.now()}`, type: "" }],
 			};
 		case "REMOVE_KEY":
 			return {
@@ -93,8 +98,17 @@ function formReducer(
 						id: `stratum-${Date.now()}`,
 						name: "",
 						type: "",
-						values: [],
+						context: "",
+						path: "",
 					},
+				],
+			};
+		case "ADD_STRATUM_PRESET":
+			return {
+				...state,
+				strata: [
+					...state.strata,
+					{ id: `stratum-${Date.now()}`, ...action.preset },
 				],
 			};
 		case "REMOVE_STRATUM":
@@ -107,27 +121,6 @@ function formReducer(
 				...state,
 				strata: state.strata.map((s) =>
 					s.id === action.id ? { ...s, [action.field]: action.value } : s,
-				),
-			};
-		case "ADD_STRATUM_VALUE":
-			return {
-				...state,
-				strata: state.strata.map((s) =>
-					s.id === action.id
-						? { ...s, values: [...s.values, action.value] }
-						: s,
-				),
-			};
-		case "REMOVE_STRATUM_VALUE":
-			return {
-				...state,
-				strata: state.strata.map((s) =>
-					s.id === action.id
-						? {
-								...s,
-								values: s.values.filter((_, i) => i !== action.index),
-							}
-						: s,
 				),
 			};
 
@@ -208,11 +201,42 @@ function CreateStudyPage() {
 
 	function handleStepClick(targetStep: number) {
 		if (targetStep === currentStep) return;
-		if (targetStep > maxReachedStep + 1) return;
+
+		// Moving backward (or to an already-reached step) is always allowed.
+		// Moving forward must go through Continue so each step is validated —
+		// clicking the stepper cannot skip validation.
+		if (targetStep > currentStep) {
+			const stepErrors = validateThrough(currentStep, targetStep - 1);
+			if (stepErrors) {
+				setErrors(stepErrors.errors);
+				setDirection("forward");
+				setMaxReachedStep((prev) => Math.max(prev, stepErrors.step));
+				navigate({ search: { step: stepErrors.step } });
+				return;
+			}
+			setMaxReachedStep((prev) => Math.max(prev, targetStep));
+		}
 
 		setErrors({});
 		setDirection(targetStep > currentStep ? "forward" : "backward");
 		navigate({ search: { step: targetStep } });
+	}
+
+	// Validate steps [from..to] inclusive; return the first failing step and its
+	// errors, or null if all pass.
+	function validateThrough(
+		from: number,
+		to: number,
+	): { step: number; errors: Record<string, string> } | null {
+		for (let step = from; step <= to; step++) {
+			const validator = VALIDATORS[step - 1];
+			if (!validator) continue;
+			const stepErrors = validator(formData);
+			if (Object.keys(stepErrors).length > 0) {
+				return { step, errors: stepErrors };
+			}
+		}
+		return null;
 	}
 
 	function handleEditStep(targetStep: number) {
@@ -222,6 +246,17 @@ function CreateStudyPage() {
 	}
 
 	function handleCreate() {
+		// Final guard: re-validate every step so the study cannot be created with
+		// missing required fields, even if the user jumped here via the stepper.
+		const failed = validateThrough(1, 4);
+		if (failed) {
+			setErrors(failed.errors);
+			setDirection("backward");
+			setMaxReachedStep((prev) => Math.max(prev, failed.step));
+			navigate({ search: { step: failed.step } });
+			return;
+		}
+
 		const KEY_TYPE_MAP: Record<
 			string,
 			"patientId" | "encounterId" | "providerId"
@@ -242,11 +277,11 @@ function CreateStudyPage() {
 				.filter((k) => k.type)
 				.map((k) => KEY_TYPE_MAP[k.type] ?? null),
 			strata: formData.strata
-				.filter((s) => s.name.trim())
+				.filter((s) => s.name.trim() && s.path.trim())
 				.map((s) => ({
 					name: s.name,
-					context: DEFAULT_STRATUM_CONTEXT,
-					path: s.name.toLowerCase().replace(/\s+/g, "_"),
+					context: s.context.trim() || DEFAULT_STRATUM_CONTEXT,
+					path: s.path.trim(),
 				})),
 			blockSize: formData.blockSize ? Number(formData.blockSize) : undefined,
 		};
@@ -277,9 +312,9 @@ function CreateStudyPage() {
 				<p className="text-sm text-muted-foreground">
 					Your study configuration has been saved.
 				</p>
-				<Button variant="outline" render={<Link to="/studies" />}>
+				<Link to="/studies" className={buttonVariants({ variant: "outline" })}>
 					Back to Studies
-				</Button>
+				</Link>
 			</div>
 		);
 	}
@@ -362,9 +397,12 @@ function CreateStudyPage() {
 						</Button>
 					)}
 
-					<Button variant="outline" render={<Link to="/studies" />}>
+					<Link
+						to="/studies"
+						className={buttonVariants({ variant: "outline" })}
+					>
 						Cancel
-					</Button>
+					</Link>
 				</div>
 			</form>
 		</div>
@@ -429,15 +467,12 @@ function ActiveStep({
 						dispatch({ type: "UPDATE_KEY", id, field, value })
 					}
 					onAddStratum={() => dispatch({ type: "ADD_STRATUM" })}
+					onAddStratumPreset={(preset) =>
+						dispatch({ type: "ADD_STRATUM_PRESET", preset })
+					}
 					onRemoveStratum={(id) => dispatch({ type: "REMOVE_STRATUM", id })}
 					onUpdateStratum={(id, field, value) =>
 						dispatch({ type: "UPDATE_STRATUM", id, field, value })
-					}
-					onAddStratumValue={(id, value) =>
-						dispatch({ type: "ADD_STRATUM_VALUE", id, value })
-					}
-					onRemoveStratumValue={(id, index) =>
-						dispatch({ type: "REMOVE_STRATUM_VALUE", id, index })
 					}
 				/>
 			);

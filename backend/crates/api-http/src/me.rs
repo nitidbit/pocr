@@ -1,8 +1,8 @@
 //! User identity endpoint for the frontend.
 
+use axum::Json;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Serialize;
 
 use crate::extractors::AuthUser;

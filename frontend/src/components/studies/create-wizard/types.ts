@@ -29,12 +29,14 @@ export interface CreateStudyFormData {
 	arms: Array<{ id: string; name: string; ratio: string }>;
 
 	// Step 4: Keys & Strata
-	keys: Array<{ id: string; name: string; type: KeyType | "" }>;
+	keys: Array<{ id: string; type: KeyType | "" }>;
 	strata: Array<{
 		id: string;
 		name: string;
-		type: "fhir-path" | "custom" | "";
-		values: string[];
+		// "fhir-path" is an advanced raw FHIRPath; presets set name + path directly.
+		type: "fhir-path" | "";
+		context: string;
+		path: string;
 	}>;
 }
 
@@ -63,10 +65,17 @@ export type FormAction =
 	| { type: "REMOVE_KEY"; id: string }
 	| { type: "UPDATE_KEY"; id: string; field: string; value: string }
 	| { type: "ADD_STRATUM" }
+	| {
+			type: "ADD_STRATUM_PRESET";
+			preset: {
+				name: string;
+				type: "fhir-path" | "";
+				context: string;
+				path: string;
+			};
+	  }
 	| { type: "REMOVE_STRATUM"; id: string }
 	| { type: "UPDATE_STRATUM"; id: string; field: string; value: string }
-	| { type: "ADD_STRATUM_VALUE"; id: string; value: string }
-	| { type: "REMOVE_STRATUM_VALUE"; id: string; index: number }
 	| { type: "ADD_SITE" }
 	| { type: "REMOVE_SITE"; id: string }
 	| { type: "UPDATE_SITE"; id: string; field: string; value: string }
@@ -96,13 +105,38 @@ export const INITIAL_FORM_DATA: CreateStudyFormData = {
 	strategy: "",
 	blockSize: "",
 	arms: [
-		{ id: "arm-1", name: "", ratio: "1" },
-		{ id: "arm-2", name: "", ratio: "1" },
+		{ id: "arm-1", name: "Control", ratio: "1" },
+		{ id: "arm-2", name: "Treatment", ratio: "1" },
 	],
 
-	keys: [{ id: "key-1", name: "", type: "" }],
+	keys: [{ id: "key-1", type: "" }],
 	strata: [],
 };
+
+/** Sensible default name for a newly added arm at position `index` (0-based). */
+export function defaultArmName(index: number): string {
+	if (index === 0) return "Control";
+	if (index === 1) return "Treatment";
+	return `Arm ${index + 1}`;
+}
+
+/** A stratum the wizard can add. Presets carry a known FHIR context + path we
+ * know how to resolve at randomization time. */
+export interface StratumPreset {
+	name: string;
+	type: "fhir-path" | "";
+	context: string;
+	path: string;
+}
+
+/** Standard FHIR-derived stratification factors offered as one-click presets. */
+export const STRATUM_PRESETS: Array<{ label: string; preset: StratumPreset }> =
+	[
+		{
+			label: "Sex / Gender",
+			preset: { name: "Sex", type: "", context: "Patient", path: "gender" },
+		},
+	];
 
 /** Step labels for the wizard stepper. */
 export const STEPS: StepConfig[] = [

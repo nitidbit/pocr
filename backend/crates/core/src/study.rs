@@ -270,8 +270,18 @@ mod tests {
             RandomizationConfig {
                 strategy: RandomizationStrategy::Simple,
                 arms: vec![
-                    Arm { id: Uuid::now_v7(), name: "A".into(), ratio: 1, locator: None },
-                    Arm { id: Uuid::now_v7(), name: "B".into(), ratio: 1, locator: None },
+                    Arm {
+                        id: Uuid::now_v7(),
+                        name: "A".into(),
+                        ratio: 1,
+                        locator: None,
+                    },
+                    Arm {
+                        id: Uuid::now_v7(),
+                        name: "B".into(),
+                        ratio: 1,
+                        locator: None,
+                    },
                 ],
                 keys: vec![],
                 strata: vec![],
@@ -383,14 +393,26 @@ mod tests {
         use Environment::*;
         use StudyStatus::*;
 
-        assert_eq!(gate(Production, Draft), GateDecision::Reject(GateRejection::StudyNotActive));
+        assert_eq!(
+            gate(Production, Draft),
+            GateDecision::Reject(GateRejection::StudyNotActive)
+        );
         assert_eq!(gate(Production, Active), GateDecision::Allow);
-        assert_eq!(gate(Production, Paused), GateDecision::Reject(GateRejection::StudyNotActive));
-        assert_eq!(gate(Production, Closed), GateDecision::Reject(GateRejection::StudyClosed));
+        assert_eq!(
+            gate(Production, Paused),
+            GateDecision::Reject(GateRejection::StudyNotActive)
+        );
+        assert_eq!(
+            gate(Production, Closed),
+            GateDecision::Reject(GateRejection::StudyClosed)
+        );
 
         assert_eq!(gate(NonProduction, Draft), GateDecision::Allow);
         assert_eq!(gate(NonProduction, Active), GateDecision::Allow);
         assert_eq!(gate(NonProduction, Paused), GateDecision::Allow);
-        assert_eq!(gate(NonProduction, Closed), GateDecision::Reject(GateRejection::StudyClosed));
+        assert_eq!(
+            gate(NonProduction, Closed),
+            GateDecision::Reject(GateRejection::StudyClosed)
+        );
     }
 }

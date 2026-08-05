@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AlertCircle, Calendar, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { StudyResponse } from "#/api/client";
-import { useDeleteStudy, useStudy, useUpdateStudy } from "#/api/queries";
+import { useDeleteStudy, useStudy, useTransitionStudy } from "#/api/queries";
 import { formatDate } from "#/lib/format";
 import type { StudyStatus } from "#/lib/types/study";
 import { STATUS_COLORS, STATUS_LABELS } from "#/lib/types/study";
@@ -65,84 +65,113 @@ function StudyOverviewPage() {
 	);
 }
 
+interface StatusAction {
+	target: StudyStatus;
+	label: string;
+	confirm: string;
+	primary?: boolean;
+}
+
+// Allowed transitions per the engine state machine, expressed as UI actions.
+const STATUS_ACTIONS: Record<StudyStatus, StatusAction[]> = {
+	draft: [
+		{
+			target: "active",
+			label: "Activate Study",
+			confirm:
+				"Activating freezes the allocation config and enables randomization via CDS Hooks.",
+			primary: true,
+		},
+		{
+			target: "closed",
+			label: "Close Study",
+			confirm: "Closing is permanent. No randomizations will be accepted.",
+		},
+	],
+	active: [
+		{
+			target: "paused",
+			label: "Pause Study",
+			confirm:
+				"Pausing stops new production randomizations. It can be resumed. Data is preserved.",
+		},
+		{
+			target: "closed",
+			label: "Close Study",
+			confirm: "Closing is permanent. No randomizations will be accepted.",
+		},
+	],
+	paused: [
+		{
+			target: "active",
+			label: "Resume Study",
+			confirm: "Resuming re-enables randomization via CDS Hooks.",
+			primary: true,
+		},
+		{
+			target: "closed",
+			label: "Close Study",
+			confirm: "Closing is permanent. No randomizations will be accepted.",
+		},
+	],
+	closed: [],
+};
+
 function StatusSection({ study }: { study: StudyResponse }) {
-	const updateStudy = useUpdateStudy(study.id);
-	const [confirming, setConfirming] = useState<
-		"activate" | "deactivate" | null
-	>(null);
+	const transitionStudy = useTransitionStudy(study.id);
+	const [confirming, setConfirming] = useState<StatusAction | null>(null);
+
+	const actions = STATUS_ACTIONS[study.status] ?? [];
 
 	const handleStatusChange = (status: StudyStatus) => {
-		updateStudy.mutate({ status }, { onSuccess: () => setConfirming(null) });
+		transitionStudy.mutate(status, { onSuccess: () => setConfirming(null) });
 	};
 
 	return (
 		<section className="flex items-center justify-between rounded-lg border bg-card p-4">
 			<div className="flex items-center gap-3">
 				<Badge
-					className={
-						STATUS_COLORS[study.status as StudyStatus] ??
-						"bg-gray-100 text-gray-700"
-					}
+					className={STATUS_COLORS[study.status] ?? "bg-gray-100 text-gray-700"}
 				>
-					{STATUS_LABELS[study.status as StudyStatus] ?? study.status}
+					{STATUS_LABELS[study.status] ?? study.status}
 				</Badge>
 				{study.status === "active" && (
 					<span className="text-xs text-muted-foreground">
 						Accepting randomizations via CDS Hooks
 					</span>
 				)}
+				{study.status === "paused" && (
+					<span className="text-xs text-muted-foreground">
+						Randomization paused
+					</span>
+				)}
 			</div>
 
 			<div className="flex items-center gap-2">
-				{study.status === "draft" && !confirming && (
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => setConfirming("activate")}
-					>
-						Activate Study
-					</Button>
-				)}
-				{study.status === "active" && !confirming && (
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => setConfirming("deactivate")}
-					>
-						Deactivate Study
-					</Button>
-				)}
-
-				{confirming === "activate" && (
-					<div className="flex items-center gap-2">
-						<span className="text-xs text-muted-foreground">
-							Activating enables randomization via CDS Hooks.
-						</span>
+				{!confirming &&
+					actions.map((action) => (
 						<Button
-							size="sm"
-							onClick={() => handleStatusChange("active")}
-							disabled={updateStudy.isPending}
-						>
-							Confirm
-						</Button>
-						<Button
+							key={action.target}
 							variant="outline"
 							size="sm"
-							onClick={() => setConfirming(null)}
+							onClick={() => setConfirming(action)}
 						>
-							Cancel
+							{action.label}
 						</Button>
-					</div>
-				)}
-				{confirming === "deactivate" && (
+					))}
+
+				{confirming && (
 					<div className="flex items-center gap-2">
 						<span className="text-xs text-muted-foreground">
-							Deactivating stops new randomizations. Data is preserved.
+							{confirming.confirm}
 						</span>
 						<Button
 							size="sm"
-							onClick={() => handleStatusChange("inactive")}
-							disabled={updateStudy.isPending}
+							variant={
+								confirming.target === "closed" ? "destructive" : "default"
+							}
+							onClick={() => handleStatusChange(confirming.target)}
+							disabled={transitionStudy.isPending}
 						>
 							Confirm
 						</Button>
@@ -195,15 +224,14 @@ function ArmsOverviewSection({ study }: { study: StudyResponse }) {
 							<th className="px-4 py-2.5 text-right font-medium text-muted-foreground">
 								Allocation %
 							</th>
-							<th className="px-4 py-2.5 text-right font-medium text-muted-foreground">
-								Locator
-							</th>
 						</tr>
 					</thead>
 					<tbody>
 						{arms.map((arm) => (
 							<tr key={arm.id} className="border-b last:border-b-0">
-								<td className="px-4 py-2.5 text-foreground">{arm.name}</td>
+								<td className="px-4 py-2.5 text-foreground">
+									{arm.name || arm.id}
+								</td>
 								<td className="px-4 py-2.5 text-right tabular-nums text-foreground">
 									{arm.ratio}
 								</td>
@@ -212,9 +240,6 @@ function ArmsOverviewSection({ study }: { study: StudyResponse }) {
 										? Math.round((arm.ratio / totalRatio) * 100)
 										: 0}
 									%
-								</td>
-								<td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
-									{arm.locator ?? "—"}
 								</td>
 							</tr>
 						))}

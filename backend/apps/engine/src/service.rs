@@ -20,7 +20,7 @@ use pocr_core::ports::{BlockCacheRepository, RandomizationRepository};
 use pocr_core::random::{
     Arm, KeyVariant, RandomPermutedBlock, Randomization, RandomizationRequest, Strata, Unit,
 };
-use pocr_core::study::{gate, GateDecision, GateRejection, RandomizationStrategy, Study};
+use pocr_core::study::{GateDecision, GateRejection, RandomizationStrategy, Study, gate};
 
 /// The randomization service wires together domain logic and persistence.
 pub struct Engine {
@@ -199,8 +199,8 @@ impl Engine {
     }
 
     fn simple_randomize(arms: &[Arm]) -> RandomizationResult<u32> {
-        use rand::distr::weighted::WeightedIndex;
         use rand::distr::Distribution;
+        use rand::distr::weighted::WeightedIndex;
 
         let weights: Vec<u32> = arms.iter().map(|a| a.ratio).collect();
         let dist = WeightedIndex::new(&weights).map_err(|_| {
@@ -283,7 +283,9 @@ mod tests {
     use std::sync::Mutex;
 
     use async_trait::async_trait;
-    use pocr_core::ports::{BlockCacheRepository, RandomizationRepository, RepositoryError};
+    use pocr_core::ports::{
+        ArmTally, BlockCacheRepository, RandomizationRepository, RepositoryError,
+    };
     use pocr_core::random::{Arm, RandomPermutedBlock, Randomization};
     use pocr_core::study::{RandomizationConfig, RandomizationStrategy, Study, StudyStatus};
 
@@ -296,7 +298,10 @@ mod tests {
 
     #[async_trait]
     impl RandomizationRepository for InMemoryRandomizationRepo {
-        async fn save(&self, randomization: &Randomization) -> Result<Randomization, RepositoryError> {
+        async fn save(
+            &self,
+            randomization: &Randomization,
+        ) -> Result<Randomization, RepositoryError> {
             let mut records = self.records.lock().unwrap();
             records.push(randomization.clone());
             Ok(randomization.clone())
@@ -314,6 +319,25 @@ mod tests {
                 .iter()
                 .filter(|r| r.study_id == *study_id && r.environment == environment)
                 .cloned()
+                .collect())
+        }
+
+        async fn count_by_arm(
+            &self,
+            study_id: &Uuid,
+            environment: Environment,
+        ) -> Result<Vec<ArmTally>, RepositoryError> {
+            let records = self.records.lock().unwrap();
+            let mut counts: std::collections::HashMap<Uuid, u64> = std::collections::HashMap::new();
+            for r in records
+                .iter()
+                .filter(|r| r.study_id == *study_id && r.environment == environment)
+            {
+                *counts.entry(r.arm.id).or_default() += 1;
+            }
+            Ok(counts
+                .into_iter()
+                .map(|(arm_id, count)| ArmTally { arm_id, count })
                 .collect())
         }
 
@@ -444,7 +468,9 @@ mod tests {
         let study = test_study(RandomizationStrategy::Simple);
         let request = test_request("P-001");
 
-        let result = engine.randomize(&study, Environment::Production, &request).await;
+        let result = engine
+            .randomize(&study, Environment::Production, &request)
+            .await;
 
         assert!(result.is_ok());
         let randomization = result.unwrap();
@@ -460,7 +486,9 @@ mod tests {
         let study = test_study(RandomizationStrategy::Block);
         let request = test_request("P-002");
 
-        let result = engine.randomize(&study, Environment::Production, &request).await;
+        let result = engine
+            .randomize(&study, Environment::Production, &request)
+            .await;
 
         assert!(result.is_ok());
         let randomization = result.unwrap();
@@ -476,8 +504,14 @@ mod tests {
         let study = test_study(RandomizationStrategy::Simple);
         let request = test_request("P-003");
 
-        let first = engine.randomize(&study, Environment::Production, &request).await.unwrap();
-        let second = engine.randomize(&study, Environment::Production, &request).await.unwrap();
+        let first = engine
+            .randomize(&study, Environment::Production, &request)
+            .await
+            .unwrap();
+        let second = engine
+            .randomize(&study, Environment::Production, &request)
+            .await
+            .unwrap();
 
         assert_eq!(first.id, second.id);
         assert_eq!(first.arm.id, second.arm.id);
@@ -495,8 +529,14 @@ mod tests {
 
         let study = test_study(RandomizationStrategy::Simple);
 
-        let first = engine.randomize(&study, Environment::Production, &test_request("P-100")).await.unwrap();
-        let second = engine.randomize(&study, Environment::Production, &test_request("P-200")).await.unwrap();
+        let first = engine
+            .randomize(&study, Environment::Production, &test_request("P-100"))
+            .await
+            .unwrap();
+        let second = engine
+            .randomize(&study, Environment::Production, &test_request("P-200"))
+            .await
+            .unwrap();
 
         assert_ne!(first.id, second.id);
 
@@ -519,12 +559,16 @@ mod tests {
             context: None,
         };
 
-        let result = engine.randomize(&study, Environment::Production, &request).await;
+        let result = engine
+            .randomize(&study, Environment::Production, &request)
+            .await;
 
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
-            RandomizationError::MissingField { field: "patient_id" }
+            RandomizationError::MissingField {
+                field: "patient_id"
+            }
         ));
     }
 
@@ -537,7 +581,10 @@ mod tests {
         let study = test_study(RandomizationStrategy::Block);
         let request = test_request("P-004");
 
-        engine.randomize(&study, Environment::Production, &request).await.unwrap();
+        engine
+            .randomize(&study, Environment::Production, &request)
+            .await
+            .unwrap();
 
         // Verify block was saved to cache
         let blocks = cache.blocks.lock().unwrap();

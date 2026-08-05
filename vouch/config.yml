@@ -1,0 +1,45 @@
+vouch:
+  domains:
+    - ucsf.edu
+
+  cookie:
+    secure: true
+    domain: pocr-app.ucsf.edu
+    name: VouchCookie
+
+  headers:
+    claims:
+      - name
+      - email
+      - picture
+
+  # allowAllUsers: true
+  # whiteList:
+  #  - you@gmail.com
+
+oauth:
+  provider: google
+  # `client_id` and `client_secret` set on server only
+  client_id:
+  client_secret:
+  callback_urls:
+    - https://pocr-app.ucsf.edu/auth
+
+  scopes:
+    - openid
+    - email
+    - profile
+
+# Okta config (future)
+#oauth:
+#  provider: oidc
+#  client_id: OKTA_CLIENT_ID
+#  client_secret: OKTA_CLIENT_SECRET
+#  auth_url: https://your-org.okta.com/oauth2/default/v1/authorize
+#  token_url: https://your-org.okta.com/oauth2/default/v1/token
+#  user_info_url: https://your-org.okta.com/oauth2/default/v1/userinfo
+#  callback_url: https://vouch.yourdomain.com/auth
+#  scopes:
+#    - openid
+#    - email
+#    - profile

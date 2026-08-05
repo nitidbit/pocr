@@ -47,7 +47,8 @@ export function validateStep3(
 	return errors;
 }
 
-/** Validates Step 4: Keys & Strata. Requires at least 1 key with name and type. */
+/** Validates Step 4: Keys & Strata. Requires at least 1 key with a type; any
+ * stratum needs a label and a FHIRPath. */
 export function validateStep4(
 	data: CreateStudyFormData,
 ): Record<string, string> {
@@ -58,11 +59,17 @@ export function validateStep4(
 	}
 
 	for (let i = 0; i < data.keys.length; i++) {
-		if (!data.keys[i].name.trim()) {
-			errors[`keys.${i}.name`] = "Key name is required";
-		}
 		if (!data.keys[i].type) {
 			errors[`keys.${i}.type`] = "Key type is required";
+		}
+	}
+
+	for (let i = 0; i < data.strata.length; i++) {
+		if (!data.strata[i].name.trim()) {
+			errors[`strata.${i}.name`] = "Label is required";
+		}
+		if (!data.strata[i].path.trim()) {
+			errors[`strata.${i}.path`] = "FHIRPath is required";
 		}
 	}
 

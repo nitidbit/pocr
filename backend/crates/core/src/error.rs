@@ -8,7 +8,9 @@ pub type RandomizationResult<T> = Result<T, RandomizationError>;
 #[non_exhaustive]
 pub enum RandomizationError {
     /// The requested block size is not a valid multiple of the ratio sum.
-    #[error("invalid block size (size {block_size:?} is not a multiple of ratio sum {ratio_sum:?})")]
+    #[error(
+        "invalid block size (size {block_size:?} is not a multiple of ratio sum {ratio_sum:?})"
+    )]
     InvalidBlockSize {
         /// The invalid block size that was requested.
         block_size: u32,

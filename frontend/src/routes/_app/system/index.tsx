@@ -6,7 +6,9 @@ import {
 	Database,
 	RefreshCw,
 	Server,
+	ShieldAlert,
 	ShieldCheck,
+	ShieldOff,
 } from "lucide-react";
 import type { ServiceHealth, SystemStatus, TlsStatus } from "#/api/client";
 import { useSystemStatus } from "#/api/queries";
@@ -88,7 +90,7 @@ function SystemStatusPage() {
 				<TlsSummaryCard tls={data.tls} />
 			</div>
 
-			{data.tls && <TlsDetailSection tls={data.tls} />}
+			{data.tls.state === "ok" && <TlsDetailSection tls={data.tls} />}
 		</div>
 	);
 }
@@ -182,37 +184,68 @@ function ServiceCard({
 	);
 }
 
-function TlsSummaryCard({ tls }: { tls?: TlsStatus }) {
-	if (!tls) {
-		return (
-			<div className="rounded-lg border bg-card p-5">
-				<div className="flex items-center gap-2">
-					<ShieldCheck className="size-4 text-muted-foreground" />
-					<p className="text-sm font-medium text-muted-foreground">
-						TLS Certificate
-					</p>
-				</div>
-				<p className="mt-2 text-sm text-muted-foreground">Not configured</p>
+function TlsCardShell({
+	icon: Icon,
+	children,
+}: {
+	icon: typeof ShieldCheck;
+	children: React.ReactNode;
+}) {
+	return (
+		<div className="rounded-lg border bg-card p-5">
+			<div className="flex items-center gap-2">
+				<Icon className="size-4 text-muted-foreground" />
+				<p className="text-sm font-medium text-muted-foreground">
+					TLS Certificate
+				</p>
 			</div>
+			{children}
+		</div>
+	);
+}
+
+function TlsSummaryCard({ tls }: { tls: TlsStatus }) {
+	// No cert path configured — benign when TLS is terminated upstream.
+	if (tls.state === "notConfigured") {
+		return (
+			<TlsCardShell icon={ShieldOff}>
+				<p className="mt-2 text-sm text-muted-foreground">Not configured</p>
+			</TlsCardShell>
 		);
 	}
 
-	const urgency =
-		tls.daysRemaining <= 7
+	// A cert path was set but the file could not be read or parsed — a real
+	// deployment problem, flagged distinctly from "not configured".
+	if (tls.state === "error") {
+		return (
+			<TlsCardShell icon={ShieldAlert}>
+				<div className="mt-2 flex items-center justify-between">
+					<span className="text-sm font-medium text-destructive">
+						Unavailable
+					</span>
+					<Badge className="bg-red-100 text-red-700">Error</Badge>
+				</div>
+				<p
+					className="mt-1 truncate text-xs text-destructive"
+					title={tls.message}
+				>
+					{tls.message}
+				</p>
+			</TlsCardShell>
+		);
+	}
+
+	const urgency = !tls.valid
+		? "bg-red-100 text-red-700"
+		: tls.daysRemaining <= 7
 			? "bg-red-100 text-red-700"
 			: tls.daysRemaining <= 30
 				? "bg-amber-100 text-amber-700"
 				: "bg-emerald-100 text-emerald-700";
 
 	return (
-		<div className="rounded-lg border bg-card p-5">
-			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-2">
-					<ShieldCheck className="size-4 text-muted-foreground" />
-					<p className="text-sm font-medium text-muted-foreground">
-						TLS Certificate
-					</p>
-				</div>
+		<TlsCardShell icon={ShieldCheck}>
+			<div className="flex items-center justify-end">
 				<Badge className={urgency}>
 					{tls.valid ? `${tls.daysRemaining}d` : "Expired"}
 				</Badge>
@@ -221,11 +254,20 @@ function TlsSummaryCard({ tls }: { tls?: TlsStatus }) {
 				{tls.daysRemaining}
 			</p>
 			<p className="text-xs text-muted-foreground">days remaining</p>
-		</div>
+		</TlsCardShell>
 	);
 }
 
-function TlsDetailSection({ tls }: { tls: TlsStatus }) {
+function TlsDetailSection({
+	tls,
+}: {
+	tls: Extract<TlsStatus, { state: "ok" }>;
+}) {
+	// Expiry reflects the soonest-expiring cert in the chain; note that when the
+	// chain has more than one certificate.
+	const expiryLabel =
+		tls.chainLength > 1 ? "Expires (soonest in chain)" : "Expires";
+
 	return (
 		<section className="rounded-lg border bg-card p-5">
 			<h2 className="mb-4 text-sm font-medium text-muted-foreground">
@@ -239,7 +281,7 @@ function TlsDetailSection({ tls }: { tls: TlsStatus }) {
 					value={new Date(tls.notBefore).toLocaleDateString()}
 				/>
 				<DetailRow
-					label="Expires"
+					label={expiryLabel}
 					value={new Date(tls.notAfter).toLocaleDateString()}
 				/>
 				<DetailRow
@@ -251,6 +293,10 @@ function TlsDetailSection({ tls }: { tls: TlsStatus }) {
 					label="Status"
 					value={tls.valid ? "Valid" : "Invalid / Expired"}
 					highlight={!tls.valid}
+				/>
+				<DetailRow
+					label="Chain Length"
+					value={`${tls.chainLength} certificate${tls.chainLength === 1 ? "" : "s"}`}
 				/>
 			</div>
 		</section>

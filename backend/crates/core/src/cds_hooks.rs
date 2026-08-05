@@ -33,19 +33,29 @@ pub struct CdsHookRequest {
 }
 
 /// OAuth2 token for accessing the FHIR server.
+///
+/// CDS Hooks embeds the raw OAuth2 token response, whose fields are
+/// snake_case (`access_token`, `token_type`, `expires_in`) — so this
+/// struct deliberately omits `rename_all = "camelCase"`. All fields are
+/// optional: `fhirAuthorization` may be present with a partial or empty
+/// token, and a missing sub-field must not fail deserialization.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FhirAuthorization {
     /// OAuth2 bearer token for FHIR server requests.
-    pub access_token: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub access_token: Option<String>,
     /// Token type (typically `"Bearer"`).
-    pub token_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_type: Option<String>,
     /// Lifetime of the token in seconds.
-    pub expires_in: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_in: Option<u64>,
     /// Granted OAuth2 scopes.
-    pub scope: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
     /// Client identifier the token was issued to.
-    pub subject: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject: Option<String>,
 }
 
 /// Contextual data from the hook trigger.
@@ -220,4 +230,93 @@ pub struct CdsServiceDescriptor {
     /// FHIR resources the EHR should prefetch, keyed by template name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prefetch: Option<serde_json::Value>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An Epic-shaped `patient-view` request with a full, snake_case
+    /// OAuth2 token under `fhirAuthorization`.
+    fn epic_request_json() -> serde_json::Value {
+        serde_json::json!({
+            "hookInstance": "d1577c69-dfbe-44ad-ba6d-3e05e953b2ea",
+            "fhirServer": "https://tst.epic.example/api/FHIR/R4",
+            "hook": "patient-view",
+            "fhirAuthorization": {
+                "access_token": "eyJraWQiOiJlLXAtb2F1dGgtY2VydA",
+                "token_type": "Bearer",
+                "expires_in": 3600,
+                "scope": "patient/*.read",
+                "subject": "cds-service4"
+            },
+            "context": {
+                "patientId": "eXbCe123",
+                "encounterId": "eKq456",
+                "userId": "Practitioner/ePr789"
+            }
+        })
+    }
+
+    #[test]
+    fn deserializes_snake_case_fhir_authorization() {
+        let req: CdsHookRequest = serde_json::from_value(epic_request_json()).unwrap();
+        let auth = req.fhir_authorization.expect("fhirAuthorization present");
+        assert_eq!(
+            auth.access_token.as_deref(),
+            Some("eyJraWQiOiJlLXAtb2F1dGgtY2VydA")
+        );
+        assert_eq!(auth.token_type.as_deref(), Some("Bearer"));
+        assert_eq!(auth.expires_in, Some(3600));
+        assert_eq!(auth.scope.as_deref(), Some("patient/*.read"));
+        assert_eq!(auth.subject.as_deref(), Some("cds-service4"));
+    }
+
+    #[test]
+    fn deserializes_fhir_authorization_missing_access_token() {
+        let mut json = epic_request_json();
+        json["fhirAuthorization"]
+            .as_object_mut()
+            .unwrap()
+            .remove("access_token");
+
+        let req: CdsHookRequest = serde_json::from_value(json).unwrap();
+        let auth = req.fhir_authorization.expect("fhirAuthorization present");
+        assert_eq!(auth.access_token, None);
+        assert_eq!(auth.token_type.as_deref(), Some("Bearer"));
+    }
+
+    #[test]
+    fn deserializes_request_without_fhir_authorization() {
+        let mut json = epic_request_json();
+        json.as_object_mut().unwrap().remove("fhirAuthorization");
+
+        let req: CdsHookRequest = serde_json::from_value(json).unwrap();
+        assert!(req.fhir_authorization.is_none());
+    }
+
+    #[test]
+    fn serializes_authorization_fields_as_snake_case() {
+        let req: CdsHookRequest = serde_json::from_value(epic_request_json()).unwrap();
+        let value = serde_json::to_value(&req).unwrap();
+        let auth = &value["fhirAuthorization"];
+        assert_eq!(auth["access_token"], "eyJraWQiOiJlLXAtb2F1dGgtY2VydA");
+        assert_eq!(auth["token_type"], "Bearer");
+        assert_eq!(auth["expires_in"], 3600);
+    }
+
+    #[test]
+    fn skips_none_authorization_fields_on_serialize() {
+        let auth = FhirAuthorization {
+            access_token: Some("tok".into()),
+            token_type: None,
+            expires_in: None,
+            scope: None,
+            subject: None,
+        };
+        let value = serde_json::to_value(&auth).unwrap();
+        let obj = value.as_object().unwrap();
+        assert_eq!(obj.len(), 1);
+        assert_eq!(obj["access_token"], "tok");
+    }
 }

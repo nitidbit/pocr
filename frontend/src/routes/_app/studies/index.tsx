@@ -5,7 +5,7 @@ import { useStudies } from "#/api/queries";
 import { formatDate } from "#/lib/format";
 import { STATUS_COLORS, STATUS_LABELS } from "#/lib/types/study";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/_app/studies/")({
@@ -26,7 +26,7 @@ function StudiesDashboardPage() {
 					<Skeleton className="h-9 w-40" />
 				</div>
 				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-					{["active", "total", "draft", "inactive"].map((stat) => (
+					{["active", "total", "draft", "closed"].map((stat) => (
 						<Skeleton key={stat} className="h-20 rounded-lg" />
 					))}
 				</div>
@@ -58,7 +58,9 @@ function StudiesDashboardPage() {
 	const list = studies ?? [];
 	const activeCount = list.filter((s) => s.status === "active").length;
 	const draftCount = list.filter((s) => s.status === "draft").length;
-	const inactiveCount = list.filter((s) => s.status === "inactive").length;
+	const closedCount = list.filter(
+		(s) => s.status === "closed" || s.status === "paused",
+	).length;
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -71,17 +73,21 @@ function StudiesDashboardPage() {
 						Manage randomization studies and monitor enrollment progress.
 					</p>
 				</div>
-				<Button render={<Link to="/studies/new" search={{ step: 1 }} />}>
+				<Link
+					to="/studies/new"
+					search={{ step: 1 }}
+					className={buttonVariants()}
+				>
 					<Plus className="size-4" />
 					Create New Study
-				</Button>
+				</Link>
 			</div>
 
 			<StatsRow
 				activeCount={activeCount}
 				totalStudies={list.length}
 				draftCount={draftCount}
-				inactiveCount={inactiveCount}
+				closedCount={closedCount}
 			/>
 
 			{list.length === 0 ? <EmptyState /> : <StudiesTable studies={list} />}
@@ -93,21 +99,21 @@ interface StatsRowProps {
 	activeCount: number;
 	totalStudies: number;
 	draftCount: number;
-	inactiveCount: number;
+	closedCount: number;
 }
 
 function StatsRow({
 	activeCount,
 	totalStudies,
 	draftCount,
-	inactiveCount,
+	closedCount,
 }: StatsRowProps) {
 	return (
 		<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 			<StatCard label="Active Studies" value={activeCount} />
 			<StatCard label="Total Studies" value={totalStudies} />
 			<StatCard label="In Draft" value={draftCount} />
-			<StatCard label="Inactive" value={inactiveCount} />
+			<StatCard label="Paused / Closed" value={closedCount} />
 		</div>
 	);
 }
@@ -187,9 +193,7 @@ function StudyRow({ study }: { study: StudyResponse }) {
 				>
 					{study.name}
 				</Link>
-				<p className="mt-0.5 text-xs text-muted-foreground">
-					{study.id.slice(0, 8)}...
-				</p>
+				<p className="mt-0.5 text-xs text-muted-foreground">{study.id}</p>
 			</td>
 			<td className="px-4 py-3 text-muted-foreground">
 				{study.randomizationConfig.strategy}

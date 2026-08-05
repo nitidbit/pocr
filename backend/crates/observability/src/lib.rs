@@ -1,5 +1,5 @@
-use tracing::{info, Level};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
+use tracing::{Level, info};
+use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(Clone, Copy, Debug)]
 pub enum LogFormat {

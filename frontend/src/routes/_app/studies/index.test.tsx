@@ -68,11 +68,7 @@ describe("StudiesDashboardPage", () => {
 		expect(await screen.findByText("Active Studies")).toBeInTheDocument();
 		expect(screen.getByText("Total Studies")).toBeInTheDocument();
 		expect(screen.getByText("In Draft")).toBeInTheDocument();
-		// "Inactive" also appears as a status badge, so scope to the stat label.
-		const inactiveLabel = screen
-			.getAllByText("Inactive")
-			.find((el) => el.classList.contains("text-muted-foreground"));
-		expect(inactiveLabel).toBeInTheDocument();
+		expect(screen.getByText("Paused / Closed")).toBeInTheDocument();
 	});
 
 	it("renders a row for every study returned by the API", async () => {
@@ -81,6 +77,15 @@ describe("StudiesDashboardPage", () => {
 		expect(await screen.findByText(MOCK_STUDIES[0].name)).toBeInTheDocument();
 		for (const study of MOCK_STUDIES) {
 			expect(screen.getByText(study.name)).toBeInTheDocument();
+		}
+	});
+
+	it("renders the full study ID as the row subtitle", async () => {
+		renderStudiesDashboard();
+
+		expect(await screen.findByText(MOCK_STUDIES[0].name)).toBeInTheDocument();
+		for (const study of MOCK_STUDIES) {
+			expect(screen.getByText(study.id)).toBeInTheDocument();
 		}
 	});
 

@@ -1,8 +1,8 @@
 //! API error types and HTTP response mapping.
 
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde_json::json;
 
 use pocr_core::ports::RepositoryError;
@@ -17,6 +17,8 @@ pub enum ApiError {
     PreconditionFailed(String),
     #[error("bad request: {0}")]
     BadRequest(String),
+    #[error("forbidden: {0}")]
+    Forbidden(String),
     #[error("conflict: {0}")]
     Conflict(String),
     #[error("validation failed")]
@@ -32,6 +34,7 @@ impl ApiError {
             ApiError::NotFound => StatusCode::NOT_FOUND,
             ApiError::PreconditionFailed(_) => StatusCode::PRECONDITION_FAILED,
             ApiError::BadRequest(_) => StatusCode::BAD_REQUEST,
+            ApiError::Forbidden(_) => StatusCode::FORBIDDEN,
             ApiError::Conflict(_) => StatusCode::CONFLICT,
             ApiError::ValidationFailed(_) => StatusCode::UNPROCESSABLE_ENTITY,
             ApiError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -44,6 +47,7 @@ impl ApiError {
             ApiError::NotFound => "not_found",
             ApiError::PreconditionFailed(_) => "precondition_failed",
             ApiError::BadRequest(_) => "bad_request",
+            ApiError::Forbidden(_) => "forbidden",
             ApiError::Conflict(_) => "conflict",
             ApiError::ValidationFailed(_) => "validation_failed",
             ApiError::Internal(_) => "internal_error",
@@ -127,11 +131,19 @@ mod tests {
     }
 
     #[test]
+    fn forbidden_maps_to_forbidden_status_and_code() {
+        let err = ApiError::Forbidden("owner only".into());
+        assert_eq!(err.status(), StatusCode::FORBIDDEN);
+        assert_eq!(err.code(), "forbidden");
+    }
+
+    #[test]
     fn every_variant_has_a_status_and_code() {
         let variants = [
             ApiError::NotFound,
             ApiError::PreconditionFailed("x".into()),
             ApiError::BadRequest("x".into()),
+            ApiError::Forbidden("x".into()),
             ApiError::Conflict("x".into()),
             ApiError::ValidationFailed(vec!["x".into()]),
             ApiError::Internal("x".into()),

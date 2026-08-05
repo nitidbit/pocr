@@ -1,14 +1,27 @@
 //! Axum extractors for common request context.
 
 use axum::extract::FromRequestParts;
-use axum::http::request::Parts;
 use axum::http::StatusCode;
+use axum::http::request::Parts;
+
+/// Normalize an email-form identity: trim surrounding whitespace and lowercase.
+///
+/// Google addresses are case-insensitive; applying this at every boundary that
+/// ingests an email keeps a single person from acquiring divergent identities
+/// (e.g. an owner row stored lowercase but a role lookup made against the raw
+/// header value).
+pub(crate) fn normalize_email(raw: &str) -> String {
+    raw.trim().to_lowercase()
+}
 
 /// Authenticated user ID extracted from the `X-Vouch-User` header.
 ///
 /// In production (release builds), Vouch proxy must set this header after
 /// successful OAuth/OIDC auth — requests without it are rejected with 401.
 /// In debug builds, falls back to `"system"` for local development.
+///
+/// The identity is normalized ([`normalize_email`]) so downstream comparisons
+/// against stored membership rows use one canonical form.
 pub struct AuthUser(pub String);
 
 impl AuthUser {
@@ -31,11 +44,13 @@ where
             .map(|s| s.to_owned());
 
         match header_value {
-            Some(user_id) => Ok(AuthUser(user_id)),
+            Some(user_id) => Ok(AuthUser(normalize_email(&user_id))),
             None => {
                 #[cfg(debug_assertions)]
                 {
-                    tracing::warn!("X-Vouch-User header missing, falling back to \"system\" (dev mode)");
+                    tracing::warn!(
+                        "X-Vouch-User header missing, falling back to \"system\" (dev mode)"
+                    );
                     Ok(AuthUser("system".to_owned()))
                 }
                 #[cfg(not(debug_assertions))]
@@ -66,6 +81,12 @@ mod tests {
     async fn extracts_user_id_from_header() {
         let user = extract(Some("alice@example.com")).await.unwrap();
         assert_eq!(user.id(), "alice@example.com");
+    }
+
+    #[tokio::test]
+    async fn normalizes_mixed_case_header_to_lowercase() {
+        let user = extract(Some(" Bob@X.com ")).await.unwrap();
+        assert_eq!(user.id(), "bob@x.com");
     }
 
     #[cfg(debug_assertions)]

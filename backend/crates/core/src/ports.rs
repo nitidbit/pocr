@@ -4,13 +4,16 @@
 //! Implementations live in `infra-pg` and `infra-redis`.
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::audit::AuditEvent;
 use crate::demographics::{PatientDemographics, PatientDemographicsWithArm};
 use crate::environment::Environment;
 use crate::error::RandomizationError;
-use crate::random::{Randomization, RandomPermutedBlock, RandomizationRequest};
+use crate::random::{RandomPermutedBlock, Randomization, RandomizationRequest};
 use crate::study::Study;
 
 /// Errors that can occur in repository operations.
@@ -42,6 +45,16 @@ pub trait StudyRepository: Send + Sync {
     async fn delete(&self, id: &Uuid) -> Result<(), RepositoryError>;
 }
 
+/// Per-arm randomization tally for a study within one environment.
+///
+/// Computed by the store (`GROUP BY` arm) so balance figures reflect every
+/// record, not just a paginated page of the newest rows.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArmTally {
+    pub arm_id: Uuid,
+    pub count: u64,
+}
+
 /// Persistence for randomization assignment records.
 ///
 /// All reads and the uniqueness check are partitioned by [`Environment`] so
@@ -58,6 +71,15 @@ pub trait RandomizationRepository: Send + Sync {
         limit: u32,
         offset: u32,
     ) -> Result<Vec<Randomization>, RepositoryError>;
+    /// Tally randomizations per arm for a study within one environment.
+    ///
+    /// Aggregated in the store so callers get whole-study counts without
+    /// paging through every record.
+    async fn count_by_arm(
+        &self,
+        study_id: &Uuid,
+        environment: Environment,
+    ) -> Result<Vec<ArmTally>, RepositoryError>;
     /// Check if a randomization already exists for this study + environment +
     /// unit combination. Returns the existing record if found.
     ///
@@ -117,10 +139,23 @@ pub trait LocatorRepository: Send + Sync {
     async fn find_study_id(&self, locator: u64) -> Result<Option<Uuid>, RepositoryError>;
 }
 
+/// A user's membership in a study.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StudyMember {
+    /// Canonical user identifier (Google email from `X-Vouch-User`).
+    pub user_id: String,
+    /// Membership role: `"owner"` or `"member"`.
+    pub role: String,
+    /// When the user was granted access.
+    pub joined_at: DateTime<Utc>,
+}
+
 /// Persistence for user ↔ study associations.
 #[async_trait]
 pub trait UserStudyRepository: Send + Sync {
-    /// Associate a user with a study in the given role.
+    /// Associate a user with a study in the given role, upserting the role if
+    /// the association already exists.
     async fn add_user(
         &self,
         user_id: &str,
@@ -129,6 +164,26 @@ pub trait UserStudyRepository: Send + Sync {
     ) -> Result<(), RepositoryError>;
     /// Remove a user's association with a study.
     async fn remove_user(&self, user_id: &str, study_id: &Uuid) -> Result<(), RepositoryError>;
+    /// Return the user's role in the study, or `None` if they have no access.
+    async fn get_role(
+        &self,
+        user_id: &str,
+        study_id: &Uuid,
+    ) -> Result<Option<String>, RepositoryError>;
+    /// List all members of a study, ordered by when they joined.
+    async fn list_members(&self, study_id: &Uuid) -> Result<Vec<StudyMember>, RepositoryError>;
+}
+
+/// Append-only persistence for study audit events.
+///
+/// Events are written once and never mutated. Reads return the study's history
+/// newest-first so the history view can render most-recent activity at the top.
+#[async_trait]
+pub trait AuditRepository: Send + Sync {
+    /// Append a new audit event.
+    async fn append(&self, event: &AuditEvent) -> Result<(), RepositoryError>;
+    /// List a study's audit events, ordered newest-first.
+    async fn list_by_study(&self, study_id: &Uuid) -> Result<Vec<AuditEvent>, RepositoryError>;
 }
 
 /// Persistence for patient demographics used by balance assessment.
@@ -138,10 +193,7 @@ pub trait UserStudyRepository: Send + Sync {
 #[async_trait]
 pub trait DemographicsRepository: Send + Sync {
     /// Bulk upsert a batch of demographic records, refreshing existing rows.
-    async fn upsert_batch(
-        &self,
-        batch: &[PatientDemographics],
-    ) -> Result<(), RepositoryError>;
+    async fn upsert_batch(&self, batch: &[PatientDemographics]) -> Result<(), RepositoryError>;
     /// Fetch demographics for a set of patient IDs.
     async fn find_by_patient_ids(
         &self,
@@ -159,9 +211,14 @@ pub trait DemographicsRepository: Send + Sync {
 #[async_trait]
 pub trait StudyCache: Send + Sync {
     /// Look up cached study_id for a locator.
-    async fn get_study_id_for_locator(&self, locator: u64) -> Result<Option<Uuid>, RepositoryError>;
+    async fn get_study_id_for_locator(&self, locator: u64)
+    -> Result<Option<Uuid>, RepositoryError>;
     /// Cache a locator → study_id mapping.
-    async fn cache_locator_mapping(&self, locator: u64, study_id: &Uuid) -> Result<(), RepositoryError>;
+    async fn cache_locator_mapping(
+        &self,
+        locator: u64,
+        study_id: &Uuid,
+    ) -> Result<(), RepositoryError>;
     /// Retrieve a cached study config.
     async fn get_cached_study(&self, study_id: &Uuid) -> Result<Option<Study>, RepositoryError>;
     /// Cache a full study config with TTL.
