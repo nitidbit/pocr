@@ -78,6 +78,7 @@ server {
     }
 
     location /cds-services {
+        include /etc/nginx/snippets/cds-access.conf;
         include /etc/nginx/snippets/proxy-common.conf;
         proxy_pass http://api_backend;
     }

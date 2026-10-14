@@ -11,3 +11,9 @@ AGENTS.md
 **/plans/*.md
 # macOS Finder metadata
 .DS_Store
+
+# Site-local install files (see docs/install.md) — never commit
+secrets/
+certs/
+backups/
+compose.override.yaml
