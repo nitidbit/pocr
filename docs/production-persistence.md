@@ -42,7 +42,7 @@ docker volume create pocr_pg_data
 docker volume create pocr_redis_data
 ```
 
-From then on `down -v` errors instead of wiping the database. (`docker volume rm` still works when the stack is down — Docker offers no true deletion lock — but external status removes every *accidental* path.)
+From then on `down -v` leaves the volumes alone (it skips external volumes without an error; verified 2026-10-14 with Compose v5.1). (`docker volume rm` still works when the stack is down — Docker offers no true deletion lock — but external status removes every *accidental* path.)
 
 **Alternative: bind mount an explicit host path**, e.g. `/srv/pocr/pgdata:/var/lib/postgresql`. The data then lives somewhere visible to whoever manages the box and to whatever backup policy already covers host paths. Choose this when the institution's ops team backs up directories, not Docker volumes. The external named volume is the more docker-native default; pick one and document the choice in the site's runbook.
 
