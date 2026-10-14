@@ -26,6 +26,16 @@ services:
       DATABASE_URL: postgres://pocr:pocr@postgres:5432/pocr
       REDIS_URL: redis://redis:6379
       RUST_LOG: info,sqlx=warn,hyper=warn,tower_http=trace
+      # Which CDS Hooks fhirServer URLs may randomize, and into which
+      # environment. The default admits the public CDS Hooks sandbox
+      # (sandbox.cds-hooks.org, whose FHIR server is launch.smarthealthit.org)
+      # and the local fake-Epic script, both as non-production.
+      FHIR_ENV_MAP: ${FHIR_ENV_MAP:-https://launch.smarthealthit.org/=nonproduction;https://fake-epic.localhost/=nonproduction}
+      # Let the public CDS Hooks sandbox (a browser app) call this engine, and
+      # list each open study as its own service so the sandbox can pick one.
+      # Both are off unless set; see docs/security-concerns.md S3/S4.
+      CDS_CORS_ORIGINS: ${CDS_CORS_ORIGINS:-https://sandbox.cds-hooks.org}
+      CDS_DISCOVERY_LIST_STUDIES: ${CDS_DISCOVERY_LIST_STUDIES:-true}
     volumes:
       - ./backend:/app
       - cargo_registry:/usr/local/cargo/registry

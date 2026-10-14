@@ -84,6 +84,17 @@ async fn main() -> EngineResult<()> {
         );
     }
 
+    // CDS Hooks options for browser-based clients such as the public sandbox.
+    // Both default off, which is right for a real EHR install.
+    let cds = api_http::CdsSettings {
+        cors_origins: api_http::CorsOrigins::parse(env::var("CDS_CORS_ORIGINS").ok().as_deref()),
+        list_studies_in_discovery: env::var("CDS_DISCOVERY_LIST_STUDIES")
+            .is_ok_and(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes")),
+    };
+    if cds.cors_origins == api_http::CorsOrigins::Any {
+        tracing::warn!("CDS_CORS_ORIGINS is '*' — any web page may call /cds-services");
+    }
+
     // TLS certificate path (optional — mounted in production)
     let cert_path = env::var("CERT_PATH").ok();
 
@@ -104,6 +115,7 @@ async fn main() -> EngineResult<()> {
         jwt_secret,
         cert_path,
         started_at: std::time::Instant::now(),
+        cds,
     });
 
     let app = api_http::app(state);

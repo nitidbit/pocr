@@ -132,6 +132,20 @@ impl StudyRepository for PgStudyRepository {
     }
 
     #[instrument(skip(self))]
+    async fn list_open(&self) -> Result<Vec<Study>, RepositoryError> {
+        let rows = sqlx::query_as::<_, StudyRow>(
+            r#"SELECT * FROM studies
+               WHERE status <> 'closed'
+               ORDER BY updated_at DESC"#,
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+
+        rows.into_iter().map(Study::try_from).collect()
+    }
+
+    #[instrument(skip(self))]
     async fn delete(&self, id: &Uuid) -> Result<(), RepositoryError> {
         sqlx::query("DELETE FROM studies WHERE id = $1")
             .bind(id)

@@ -41,6 +41,8 @@ pub trait StudyRepository: Send + Sync {
     async fn find_by_locator(&self, locator: u64) -> Result<Option<Study>, RepositoryError>;
     /// List all studies accessible to a user.
     async fn list_for_user(&self, user_id: &str) -> Result<Vec<Study>, RepositoryError>;
+    /// List every study that is not closed, newest first.
+    async fn list_open(&self) -> Result<Vec<Study>, RepositoryError>;
     /// Delete a study by ID.
     async fn delete(&self, id: &Uuid) -> Result<(), RepositoryError>;
 }

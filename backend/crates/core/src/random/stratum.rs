@@ -14,9 +14,11 @@ pub struct Stratum {
     pub id: String,
     /// Human-readable label.
     pub name: String,
-    /// FHIR resource type to look up in the request context (e.g. `"Patient"`).
+    /// Prefetch key of the resource to look up in the request context (e.g.
+    /// `"patient"`). Matched case-insensitively, so `"Patient"` also works.
     pub context: String,
-    /// JSON pointer path within the resource (e.g. `"/gender"`).
+    /// Path within the resource: a JSON pointer (`"/gender"`) or a dotted
+    /// path (`"gender"`, `"address.0.state"`).
     pub path: String,
 }
 
@@ -64,10 +66,10 @@ impl SimpleStratum {
         let context = stratum.context.as_str();
         let path = stratum.path.as_str();
 
-        let resource = request_context
-            .get(context)
-            .ok_or(RandomizationError::NotFound)?;
-        let value = get_by_pointer(resource, path).ok_or(RandomizationError::NotFound)?;
+        let resource =
+            context_resource(request_context, context).ok_or(RandomizationError::NotFound)?;
+        let value =
+            get_by_pointer(resource, &to_pointer(path)).ok_or(RandomizationError::NotFound)?;
 
         Ok(SimpleStratum::FhirPath {
             name: stratum.id.clone(),
@@ -122,6 +124,31 @@ impl From<&Strata> for String {
                 .join("|"),
         }
     }
+}
+
+/// Find a prefetch resource by key, preferring an exact match and falling
+/// back to a case-insensitive one. Prefetch keys are lowercase (`patient`)
+/// while study configs have historically used the resource type
+/// (`Patient`); both must resolve.
+fn context_resource<'a>(context: &'a Value, key: &str) -> Option<&'a Value> {
+    context.get(key).or_else(|| {
+        context
+            .as_object()?
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(key))
+            .map(|(_, v)| v)
+    })
+}
+
+/// Normalize a stratum path to a JSON pointer. Paths already starting with
+/// `/` (or empty) are pointers; anything else is treated as dot-separated.
+fn to_pointer(path: &str) -> String {
+    if path.is_empty() || path.starts_with('/') {
+        return path.to_string();
+    }
+    path.split('.')
+        .map(|segment| format!("/{}", segment.replace('~', "~0").replace('/', "~1")))
+        .collect()
 }
 
 fn get_by_pointer<T>(v: &Value, pointer: &str) -> Option<T>
@@ -203,6 +230,56 @@ mod tests {
         let result = SimpleStratum::try_parse(&stratum, &request);
 
         assert!(matches!(result.unwrap_err(), RandomizationError::NotFound));
+    }
+
+    #[test]
+    fn simple_stratum_try_parse_matches_context_key_case_insensitively() {
+        // Prefetch keys are lowercase; configs created by the wizard say "Patient".
+        let request = RandomizationRequest {
+            locator: None,
+            patient_id: None,
+            encounter_id: None,
+            user_id: None,
+            context: Some(json!({ "patient": { "gender": "female" } })),
+        };
+        let stratum = Stratum {
+            id: "sex".to_string(),
+            name: "Sex".to_string(),
+            context: "Patient".to_string(),
+            path: "/gender".to_string(),
+        };
+
+        let result = SimpleStratum::try_parse(&stratum, &request).unwrap();
+
+        assert!(matches!(
+            result,
+            SimpleStratum::FhirPath { ref value, .. } if value == "female"
+        ));
+    }
+
+    #[test]
+    fn simple_stratum_try_parse_accepts_dotted_paths() {
+        let request = RandomizationRequest {
+            locator: None,
+            patient_id: None,
+            encounter_id: None,
+            user_id: None,
+            context: Some(json!({
+                "patient": { "gender": "male", "address": [{ "state": "OK" }] }
+            })),
+        };
+        let stratum = |path: &str| Stratum {
+            id: "x".to_string(),
+            name: "X".to_string(),
+            context: "patient".to_string(),
+            path: path.to_string(),
+        };
+
+        let gender = SimpleStratum::try_parse(&stratum("gender"), &request).unwrap();
+        let state = SimpleStratum::try_parse(&stratum("address.0.state"), &request).unwrap();
+
+        assert!(matches!(gender, SimpleStratum::FhirPath { ref value, .. } if value == "male"));
+        assert!(matches!(state, SimpleStratum::FhirPath { ref value, .. } if value == "OK"));
     }
 
     #[test]

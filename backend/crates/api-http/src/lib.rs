@@ -15,7 +15,9 @@ pub mod system;
 use std::sync::Arc;
 
 use axum::Router;
+use axum::http::{HeaderValue, Method, header};
 use axum::routing::{get, post};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 
 use pocr_core::environment::EnvironmentMap;
@@ -54,10 +56,89 @@ pub struct AppState {
     pub cert_path: Option<String>,
     /// Server start time for uptime calculation.
     pub started_at: std::time::Instant,
+    /// Deployment options for the CDS Hooks routes.
+    pub cds: CdsSettings,
+}
+
+/// Deployment options for the CDS Hooks routes. The defaults suit a real
+/// EHR install: no CORS and no per-study entries in discovery.
+#[derive(Debug, Clone, Default)]
+pub struct CdsSettings {
+    /// Browser origins allowed to call `/cds-services` (from `CDS_CORS_ORIGINS`).
+    pub cors_origins: CorsOrigins,
+    /// Whether discovery lists one service per open study (from
+    /// `CDS_DISCOVERY_LIST_STUDIES`). The per-study endpoint works either way.
+    pub list_studies_in_discovery: bool,
+}
+
+/// Which browser origins may call the CDS Hooks routes.
+///
+/// EHRs such as Epic call server-to-server and never need CORS; only
+/// browser-based clients (e.g. the public CDS Hooks sandbox) do.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub enum CorsOrigins {
+    /// No CORS headers at all.
+    #[default]
+    None,
+    /// Any origin (`*`). Never appropriate for a server holding real data.
+    Any,
+    /// Exactly these origins.
+    List(Vec<HeaderValue>),
+}
+
+impl CorsOrigins {
+    /// Parse a comma-separated origin list. Unset or blank means
+    /// [`CorsOrigins::None`]; a lone `*` means [`CorsOrigins::Any`].
+    /// Entries that are not valid header values are skipped with a warning.
+    pub fn parse(raw: Option<&str>) -> Self {
+        let entries: Vec<&str> = raw
+            .unwrap_or_default()
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .collect();
+        match entries.as_slice() {
+            [] => CorsOrigins::None,
+            ["*"] => CorsOrigins::Any,
+            _ => CorsOrigins::List(
+                entries
+                    .into_iter()
+                    .filter_map(|origin| {
+                        let value = HeaderValue::from_str(origin.trim_end_matches('/')).ok();
+                        if value.is_none() {
+                            tracing::warn!(origin, "ignoring invalid CDS_CORS_ORIGINS entry");
+                        }
+                        value
+                    })
+                    .collect(),
+            ),
+        }
+    }
+
+    /// The CORS layer for these origins, or `None` when CORS is disabled.
+    fn layer(&self) -> Option<CorsLayer> {
+        let allow_origin = match self {
+            CorsOrigins::None => return None,
+            CorsOrigins::Any => AllowOrigin::any(),
+            CorsOrigins::List(origins) => AllowOrigin::list(origins.iter().cloned()),
+        };
+        // No cookies are used on these routes, so credentials stay disallowed.
+        // Private Network Access lets a public page (the sandbox) reach a
+        // server on localhost or an internal address.
+        Some(
+            CorsLayer::new()
+                .allow_origin(allow_origin)
+                .allow_methods([Method::GET, Method::POST])
+                .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
+                .allow_private_network(true),
+        )
+    }
 }
 
 /// Build the full application router with shared state.
 pub fn app(state: Arc<AppState>) -> Router {
+    let cds_cors = state.cds.cors_origins.layer();
+
     let api_v1 = Router::new()
         .route("/studies", get(list_studies).post(create_study))
         .route(
@@ -101,9 +182,13 @@ pub fn app(state: Arc<AppState>) -> Router {
         .route("/studies/{study_id}/balance", get(get_balance))
         .route("/system/status", get(system::get_system_status));
 
-    let cds = Router::new()
+    let mut cds = Router::new()
         .route("/cds-services", get(cds_hooks::discover_services))
-        .route("/cds-services/randomization", post(cds_hooks::randomize));
+        .route("/cds-services/randomization", post(cds_hooks::randomize))
+        .route("/cds-services/{study_id}", post(cds_hooks::randomize_study));
+    if let Some(cors) = cds_cors {
+        cds = cds.layer(cors);
+    }
 
     Router::new()
         .route("/health/live", get(health::live))
@@ -113,4 +198,31 @@ pub fn app(state: Arc<AppState>) -> Router {
         .merge(cds)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cors_origins_unset_or_blank_is_none() {
+        assert_eq!(CorsOrigins::parse(None), CorsOrigins::None);
+        assert_eq!(CorsOrigins::parse(Some(" , ")), CorsOrigins::None);
+    }
+
+    #[test]
+    fn cors_origins_star_is_any() {
+        assert_eq!(CorsOrigins::parse(Some(" * ")), CorsOrigins::Any);
+    }
+
+    #[test]
+    fn cors_origins_list_is_trimmed() {
+        assert_eq!(
+            CorsOrigins::parse(Some("https://sandbox.cds-hooks.org/, https://demo.example")),
+            CorsOrigins::List(vec![
+                HeaderValue::from_static("https://sandbox.cds-hooks.org"),
+                HeaderValue::from_static("https://demo.example"),
+            ])
+        );
+    }
 }

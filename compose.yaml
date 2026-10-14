@@ -84,6 +84,11 @@ services:
       # The engine reads JWT_SECRET as a plain env var (no _FILE variant). Source
       # it from the host secret file so it is not committed or shown on the CLI.
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env from secrets/jwt_secret}
+      # Only for a public demo used with the CDS Hooks sandbox; leave unset on
+      # a real install (Epic calls server-to-server and needs neither).
+      # See docs/security-concerns.md S3/S4.
+      CDS_CORS_ORIGINS: ${CDS_CORS_ORIGINS:-}
+      CDS_DISCOVERY_LIST_STUDIES: ${CDS_DISCOVERY_LIST_STUDIES:-false}
     volumes:
       - ./certs:/etc/certs:ro
     secrets:
