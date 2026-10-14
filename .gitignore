@@ -3,6 +3,7 @@
 .vscode/
 .scratch/
 
+*.code-workspace
 
 CLAUDE.md
 AGENTS.md
