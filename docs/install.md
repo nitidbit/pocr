@@ -202,7 +202,7 @@ oauth:
     - profile
 ```
 
-Ask your identity admin to register an application with redirect URI `https://<your-host>/auth`. For Google (as UCSF uses), set `provider: google` and drop the three URLs. Vouch's own documentation covers other providers (`github.com/vouch/vouch-proxy`, `config/config.yml_example_*`).
+Ask your identity admin to register an application with redirect URI `https://<your-host>/auth`. For Google, set `provider: google` and drop the three URLs. Vouch's own documentation covers other providers (`github.com/vouch/vouch-proxy`, `config/config.yml_example_*`).
 
 This file now holds a client secret: `sudo chmod 640 vouch/config.yml`, and do not commit it back to any repository.
 
@@ -216,7 +216,7 @@ sudo docker compose ps
 
 All six services should be `Up`, and `app`, `engine`, `postgres`, `redis` should be `(healthy)` within about a minute. nginx can restart once or twice on first start while Vouch comes up; that is harmless.
 
-The engine creates and migrates its database schema on every start; there is no separate migration step. (The `migrate` service in `compose.yaml` is a one-off tool for importing UCSF's legacy data. Other sites do not need it.)
+The engine creates and migrates its database schema on every start; there is no separate migration step. Ignore the `migrate` service in `compose.yaml`; it imports data from UCSF's previous system and is not needed elsewhere.
 
 ## 10. Verify
 
@@ -347,7 +347,6 @@ and leave `nginx/snippets/cds-access.conf` at `allow all;`. Do this only on a se
 | Symptom | Cause and fix |
 |---|---|
 | `docker compose up` fails: `set FHIR_ENV_MAP in .env` or `set JWT_SECRET in .env` | `.env` missing or incomplete (step 6). Run compose from `/srv/pocr`. |
-| `app` stays `unhealthy`, nginx never starts | Fixed on 2026-10-14 (the health check used `localhost`, which resolves to IPv6 inside the container). Pull the latest code. |
 | `vouch` restarting, log says `oauth.client_id not found` | `vouch/config.yml` not filled in (step 8). |
 | Everyone is logged out after each restart | `jwt.secret` / `session.key` not set in `vouch/config.yml`. |
 | Login loops back to the login page, or the IdP says "redirect URI mismatch" | `cookie.domain`, `callback_urls`, and the IdP's registered redirect URI must all use `<your-host>` exactly. |

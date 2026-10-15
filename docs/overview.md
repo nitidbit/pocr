@@ -1,13 +1,12 @@
 # POCR for Installing Sites — Overview and Readiness Checklist
 
-**Audience:** the health-system IT lead deciding whether and how to run POCR, and the people they will pull in (server admin, Epic analyst, security reviewer, study team).
-**Status:** written 2026-10-14 against the code in this repository. Steps that depend on Epic were reconstructed from UCSF's notes and have not been re-verified outside UCSF; they are marked as such.
+*Last updated: 2026-10-15*
 
 ---
 
 ## What POCR is
 
-POCR (Point of Care Randomization) assigns patients (or encounters, or providers) to study arms at the moment a clinician is in the chart. It was built at UCSF for pragmatic trials embedded in clinical care and replaces an older engine written in Epic's own Caché code.
+POCR (Point of Care Randomization) assigns patients (or encounters, or providers) to study arms at the moment a clinician is in the chart. It is designed for pragmatic trials embedded in clinical care.
 
 The workflow:
 
@@ -20,7 +19,7 @@ The EHR talks to POCR using **CDS Hooks**, an open HL7 standard for "the EHR ask
 
 ## How a site runs it
 
-**Each site runs its own, fully independent POCR server.** There is no central UCSF service, no data sent to UCSF, and no license. (Older UCSF material describes a "satellite / mothership" model where sites registered with a UCSF server; that is not how this version works.)
+**Each site runs its own, fully independent POCR server.** Nothing is sent to UCSF or any other outside party, and there is no license fee.
 
 ```
             ┌──────────── your network ────────────────────────────────────┐
@@ -91,7 +90,7 @@ Work through this before scheduling an install. Each line names who usually owns
 
 ### Infrastructure decisions
 
-- [ ] **Host:** a Linux x86-64 VM with Docker Engine and the Compose plugin. 2 vCPU / 4 GB RAM / 40 GB disk is plenty for the expected load. Put it close (network-wise) to your Epic Interconnect servers; UCSF measured ~300 ms for a full request with a co-located server.
+- [ ] **Host:** a Linux x86-64 VM with Docker Engine and the Compose plugin. 2 vCPU / 4 GB RAM / 40 GB disk is plenty for the expected load. Put it close (network-wise) to your Epic Interconnect servers. Most of a request's time is Epic gathering the patient data it sends along; POCR itself answers in milliseconds, so network distance to Epic is the part you control.
 - [ ] **DNS name** for the server, e.g. `pocr.your-health-system.org`.
 - [ ] **TLS certificate** for that name from a CA Epic trusts (your internal CA is usually fine for an internal-only server).
 - [ ] **Reachability:** is the console reachable only on your internal network/VPN (recommended), or from the internet? `/cds-services` only needs to be reachable from Epic Interconnect.
@@ -102,7 +101,7 @@ Work through this before scheduling an install. Each line names who usually owns
 ### Epic prerequisites (for the Epic analyst; unverified outside UCSF)
 
 - [ ] Your Epic version supports CDS Hooks from OPA / BestPractice Advisory criteria.
-- [ ] Someone who can create an **external endpoint record** (E0A/E0E) and a client ID with the **CDS Hooks** outgoing API scope. Adam Wright noted that getting these records created can be slow; start early.
+- [ ] Someone who can create an **external endpoint record** (E0A/E0E) and a client ID with the **CDS Hooks** outgoing API scope. Getting these records created can take a while at some sites; start early.
 - [ ] Your Interconnect servers can make outbound HTTPS calls to the POCR server.
 - [ ] For each study: one OPA criteria record per arm (POCR identifies the study and arm by the criteria ID Epic sends).
 
