@@ -8,3 +8,5 @@ ENV NGINX_SERVER_PORT=443 \
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY snippets/ /etc/nginx/snippets/
 COPY templates/ /etc/nginx/templates/
+# Builds the /cds-services allow-list from CDS_ALLOW_FROM at start (fails closed).
+COPY --chmod=755 docker-entrypoint.d/15-pocr-cds-access.sh /docker-entrypoint.d/

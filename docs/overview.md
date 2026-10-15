@@ -43,7 +43,7 @@ The EHR talks to POCR using **CDS Hooks**, an open HL7 standard for "the EHR ask
             └──────────────────────────────────────────────────────────────┘
 ```
 
-Everything runs as Docker containers on one Linux host, from the `compose.yaml` in this repository:
+Everything runs as Docker containers on one Linux host. Sites install from a release bundle (a Compose file, a settings template, and a setup script) that pulls prebuilt, signed images; see [install.md](install.md).
 
 | Container | Role |
 |---|---|
@@ -52,7 +52,7 @@ Everything runs as Docker containers on one Linux host, from the `compose.yaml` 
 | **engine** | The randomization service and the console's API. |
 | **app** | The web console (static files). |
 | **postgres** | The system of record: studies, every assignment, the audit log. Back this up. |
-| **redis** | Speeds things up and holds the in-progress permuted block for each study/stratum. Losing it is recoverable (see the install guide). |
+| **redis** | Speeds things up and holds the in-progress permuted block for each study/stratum. Losing it is recoverable (see the install guide's Backups section). |
 
 POCR **never calls back into Epic**. Epic sends everything POCR needs inside the request (CDS Hooks "prefetch"), so POCR needs no Epic credentials, no FHIR client registration for outbound calls, and no outbound network access to Epic.
 
@@ -73,7 +73,7 @@ Others: no blinding (the card names the arm), and the frontend is the only suppo
 
 ## Readiness checklist
 
-Work through this before scheduling an install. Each line names who usually owns it.
+Work through this before scheduling an install. Each line names who usually owns it. The server-side items are repeated in [install.md](install.md#before-you-start), so the server admin can work from that guide alone.
 
 ### People
 
@@ -110,7 +110,7 @@ Work through this before scheduling an install. Each line names who usually owns
 - [ ] Install done and verified ([install.md](install.md)).
 - [ ] Optional: the public CDS Hooks sandbox has been used to see POCR working end to end without Epic ([install.md](install.md#try-it-with-the-public-cds-hooks-sandbox)).
 - [ ] Test randomizations from a non-production Epic environment land as `nonproduction` and can be purged.
-- [ ] Backup job running and one restore tested.
+- [ ] Backup job running and one restore tested ([install.md](install.md#backups)).
 - [ ] Security review of S1 and S2 mitigations completed.
 
 ## Document map
@@ -118,9 +118,9 @@ Work through this before scheduling an install. Each line names who usually owns
 | Document | For |
 |---|---|
 | **overview.md** (this file) | Deciding, staffing, and planning |
-| [install.md](install.md) | Server admin: installing, configuring, upgrading, backing up |
+| [install.md](install.md) | Server admin: what to gather, installing, then backups, upgrades, and troubleshooting. Self-contained. |
 | [security-concerns.md](security-concerns.md) | Security reviewer: known issues and mitigations |
 | [feature-status.md](feature-status.md) | What is built, what is partial, what is planned |
-| [production-persistence.md](production-persistence.md) | Database durability details behind the install guide's backup section |
+| [production-persistence.md](production-persistence.md) | Background on database durability behind the install guide's Backups section |
 | [external-dev-guide.md](external-dev-guide.md) | Developers working on POCR without Epic access |
-| *Planned:* Epic integration guide, study setup guide, operations/troubleshooting | |
+| *Planned:* Epic integration guide, study setup guide | |

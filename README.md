@@ -43,12 +43,19 @@ dev server on port 5179.
 
 ## Production
 
-```bash
-docker compose up
-```
+Other sites install from a release bundle (`deploy/`: a Compose file, a
+settings template, and the `pocr-init` setup script) that pulls prebuilt,
+signed images. See [docs/install.md](docs/install.md).
 
-Production requires TLS certificates under `./certs/` and the following secret
-files under `./secrets/` (each a single line):
+Releases are cut by pushing a `v*` tag, which runs
+`.github/workflows/release.yml`: it builds the `release` group in
+`docker-bake.hcl`, pushes the images to `ghcr.io/<owner>`, signs them, and
+attaches the bundle to a GitHub Release.
+
+The top-level `compose.yaml` is UCSF's deployment: it builds or pulls UCSF's
+images and bind-mounts `nginx/` and `vouch/config.yml` from the checkout. It
+requires TLS certificates under `./certs/` and these secret files under
+`./secrets/` (each a single line):
 
 | File | Contents |
 |------|----------|
@@ -59,5 +66,5 @@ files under `./secrets/` (each a single line):
 
 The engine reads the full URLs; `postgres` and `redis` read the bare passwords.
 The password embedded in `database_url` / `redis_url` **must match** its
-corresponding `postgres_password` / `redis_password` file — keep them in sync
-when generating secrets.
+corresponding `postgres_password` / `redis_password` file; `deploy/pocr-init`
+shows one way to generate them together.

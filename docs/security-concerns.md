@@ -15,7 +15,7 @@ Each entry: what it is, where it lives, who can exploit it, and what a site can 
 
 Roles (`owner` / `member`) are stored, and the membership endpoints (`api-http/src/members.rs`) enforce them, but every other study endpoint does not: `get_study`, `update_study`, `transition_study`, `delete_study`, `purge_nonproduction`, `set_arm_locator`, `update_ratios`, `share_study`, `list_audit`, `list_randomizations`, `count_randomizations`, `get_balance`. Any user who can log in (anyone allowed by the Vouch config) and knows a study UUID can read or change it — including activating, closing, deleting, or re-pointing arm locators on a live trial.
 
-- **Mitigation today:** restrict Vouch to a small allow-list of named users (`whiteList` in `vouch/config.yml`) rather than a whole email domain.
+- **Mitigation today:** restrict console login to a small list of named users (`POCR_ALLOWED_USERS` in the install's `.env`; `whiteList` in `vouch/config.yml` for the repository's own `compose.yaml`) rather than a whole email domain.
 - **Fix:** an approved enforcement design (2026-07-16) exists in git history under the removed `docs/superpowers/specs/`.
 
 ### S2. CDS Hooks endpoints are unauthenticated — **High**
@@ -29,7 +29,7 @@ and create real randomization records, consuming block slots and skewing allocat
 
 The only gate is `FHIR_ENV_MAP`: the request's `fhirServer` must match a configured prefix. But `fhirServer` is a field in the caller's own JSON body, so it is not a security control — it prevents *accidents* (a test instance writing into production), not attacks.
 
-- **Mitigation today:** firewall the server so `/cds-services` is reachable only from the Epic Interconnect servers' addresses (nginx `allow`/`deny` on that location, or a network ACL).
+- **Mitigation today:** firewall the server so `/cds-services` is reachable only from the Epic Interconnect servers' addresses (`CDS_ALLOW_FROM` in the install's `.env`, which nginx enforces on that location, or a network ACL).
 - **Fix:** verify Epic's CDS Hooks JWT (signature via the `jku` JWKS, plus `iss`, `aud`, `exp`). Epic's scheme is public on fhir.epic.com, so this can be built and tested locally against a self-hosted JWKS.
 
 ### S3. Service discovery can list every open study — **Medium, off by default**

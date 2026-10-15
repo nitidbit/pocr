@@ -1,224 +1,180 @@
-# Installing POCR
+# Installing and Running POCR
 
-**Audience:** the server admin installing POCR for a health system. Read [overview.md](overview.md) first and work through its readiness checklist.
-**Verified:** every step up to "Connect Epic" was run on 2026-10-14 against this repository's `compose.yaml`, using a self-signed certificate and a fake Epic client. Two exceptions: console login against a real identity provider, and Linux file ownership of the secrets (that run was on Docker Desktop for Mac). The Epic side is in a separate guide (planned).
+*Last updated: 2026-10-15*
+
+This guide is for the server admin installing POCR at a site. It is self-contained: it covers what to arrange beforehand, the install itself, and running the server afterwards. For the wider picture (staffing, Epic build, study setup), see [overview.md](overview.md).
+
+**Verified:** install steps 3–7 and the backup and restore drill were run on 2026-10-15 with locally built images, a self-signed certificate, a mock OIDC identity provider (console login, allow and deny), and a fake Epic client. `pocr-init` was run as root on a Linux Docker Engine and as a non-root user on macOS. Not yet run: step 2 and [Upgrading](#upgrading) against a published release (none exists yet), signature verification, and login against a real identity provider. The Epic side is in a separate guide (planned).
+
+**Contents**
+
+- [What you end up with](#what-you-end-up-with)
+- [Before you start](#before-you-start): who you need, what to gather, two limitations that shape the install
+- [Install](#install): steps 1–7
+- [Running POCR](#running-pocr): backups, upgrading, day-to-day commands
+- [Try it with the public CDS Hooks sandbox](#try-it-with-the-public-cds-hooks-sandbox)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
 ## What you end up with
 
-One Linux host running six containers from `compose.yaml`, with only nginx exposed:
+One Linux host running six Docker containers, with only nginx exposed:
 
 | URL | Who uses it | Protected by |
 |---|---|---|
 | `https://<your-host>/` | Study staff (web console) | Login through your identity provider (Vouch) |
 | `https://<your-host>/api/...` | The console, behind the scenes | Same login |
-| `https://<your-host>/cds-services/...` | Epic | Your firewall / nginx allow-list (step 7). **No login.** |
+| `https://<your-host>/cds-services/...` | Epic | Address allow-list (`CDS_ALLOW_FROM`) and your firewall. **No login.** |
 
-Data lives in two Docker volumes: Postgres (system of record) and Redis (cache plus in-progress randomization blocks).
+| Container | Role |
+|---|---|
+| **nginx** | The only thing exposed to the network. Terminates TLS, sends `/cds-services` straight to the engine, and requires a login for everything else. |
+| **vouch** | Handles console login against your identity provider ([Vouch Proxy](https://github.com/vouch/vouch-proxy)). |
+| **engine** | The randomization service and the console's API. |
+| **app** | The web console (static files). |
+| **postgres** | The system of record: studies, every assignment, the audit log. |
+| **redis** | Cache, plus the in-progress permuted block for each study and stratum. |
 
-## 1. Prepare the host
+POCR never calls Epic: Epic sends everything POCR needs inside each request. So POCR needs no Epic credentials and no outbound network access to Epic.
 
-- Linux x86-64 VM; 2 vCPU, 4 GB RAM, 40 GB disk is ample.
-- Docker Engine 24+ with the Compose plugin (`docker compose version` should print v2.24.4 or later; older versions do not understand `!override` in step 3).
-- `git` and `openssl`.
-- Inbound TCP 443 from your users' network and from Epic Interconnect. Nothing else needs to be open. In particular, **do not open 1443**, the gRPC port (step 3 stops publishing it).
-- DNS name pointing at the host, e.g. `pocr.example.org`. Used throughout as `<your-host>`.
+You install from a **release bundle**: `compose.yaml`, `.env.example`, and a setup script, `pocr-init`. The POCR images are pulled from the project's container registry, already built and signed; nothing is compiled on your server. If your policy requires building images yourself, see [Building the images yourself](#building-the-images-yourself).
 
-Pick an install directory and keep it; this guide uses `/srv/pocr`.
+**The database holds PHI.** Each assignment records the EHR patient ID, encounter CSN, the Epic user ID of the clinician, the study, the arm, and the time. The server, its data volumes, and its backups fall under your normal PHI handling.
+
+---
+
+## Before you start
+
+### Who you need
+
+| Role | What they provide |
+|---|---|
+| **Server / platform admin** (you) | The Linux host with Docker; runs this guide; owns backups and patching. |
+| **Network / firewall admin** | DNS name, TLS certificate, and firewall rules so that Epic can reach the server and only Epic can reach `/cds-services`. |
+| **Identity admin** | Registers POCR as an OIDC application so study staff can log in to the console. |
+| **Epic Interconnect admin** | The addresses Epic will call from, and the FHIR base URL of each Epic environment that will call POCR. |
+
+### What to gather
+
+- [ ] **Host:** a Linux x86-64 VM; 2 vCPU, 4 GB RAM, 40 GB disk is ample. Put it close, network-wise, to your Epic Interconnect servers: POCR answers in milliseconds, so network distance to Epic is the part of response time you control.
+- [ ] **DNS name** for the server, e.g. `pocr.example.org`. Used throughout as `<your-host>`.
+- [ ] **TLS certificate** and key for that name, from a CA that both Epic Interconnect and your users' browsers trust. Your internal CA is usually fine for an internal-only server.
+- [ ] **Reachability:** the console reachable only from your internal network or VPN (recommended) or from the internet; `/cds-services` reachable only from Epic Interconnect.
+- [ ] **Identity provider registration** (Okta, Entra ID, Ping, Keycloak, Google, or any OIDC provider): client ID, client secret, and the authorize, token, and userinfo URLs. The identity admin will ask for the redirect URI, `https://<your-host>/auth`, and the scopes, `openid email profile`.
+- [ ] **Who may log in:** the email addresses of the study staff who will use the console.
+- [ ] **Epic Interconnect addresses:** the IP addresses or CIDR ranges Epic calls from.
+- [ ] **Epic environments:** the FHIR base URL of each Epic environment that will call this server (it typically ends in `/api/FHIR/R4`), and whether each counts as `production` or `nonproduction`. Many sites run one POCR server for all Epic environments; others run a separate test server.
+- [ ] **Backup destination:** where nightly database dumps go (off this host), and who tests restores.
+
+### Two limitations that shape the install
+
+These are tracked in [security-concerns.md](security-concerns.md); read it before go-live.
+
+- **The CDS Hooks endpoint does not verify Epic's signed token yet** (S2). Anyone who can reach `/cds-services` can create randomizations, so it must be reachable only from Epic Interconnect. This install enforces that with an address allow-list in nginx, and you should enforce it in your firewall as well.
+- **Console users are not restricted per study yet** (S1). Anyone who can log in can change any study, so login is limited to a named list of people.
+
+---
+
+## Install
+
+### 1. Prepare the host
+
+- Docker Engine 24+ with the Compose plugin (`docker compose version`).
+- `openssl` and `curl`.
+- Outbound HTTPS to `ghcr.io` and `quay.io` to pull images (or a registry mirror your platform team provides).
+- Inbound TCP 443 from your users' network and from Epic Interconnect. Nothing else needs to be open.
+- The DNS name pointing at the host.
+
+### 2. Download the release bundle
+
+Releases are listed at `https://github.com/<org>/pocr/releases`. Pick the latest version and unpack it into the directory you will run POCR from; this guide uses `/srv/pocr`:
 
 ```sh
-sudo git clone https://github.com/<org>/pocr.git /srv/pocr   # use the published repository URL
+V=1.0.0                                             # the release you chose
+BASE=https://github.com/<org>/pocr/releases/download/v$V
+curl -fLO $BASE/pocr-$V.tar.gz
+curl -fLO $BASE/pocr-$V.tar.gz.sha256
+sha256sum -c pocr-$V.tar.gz.sha256                  # expect: OK
+sudo mkdir -p /srv/pocr
+sudo tar -xzf pocr-$V.tar.gz -C /srv/pocr --strip-components=1
 cd /srv/pocr
 ```
 
-Everything below runs from `/srv/pocr`. The files you create (`.env`, `secrets/`, `certs/`, `backups/`, `compose.override.yaml`) are in `.gitignore`, so `git pull` never touches them.
+Everything below runs from `/srv/pocr`.
 
-## 2. Create the database volumes
-
-Create the volumes yourself, outside Compose, so no Compose command can delete them. (`docker compose down -v` skips volumes declared external. See [production-persistence.md](production-persistence.md).)
+**Optional: verify the image signatures.** Each image is signed by the project's release workflow with [Sigstore cosign](https://docs.sigstore.dev/). With cosign installed:
 
 ```sh
-docker volume create pocr_pg_data
-docker volume create pocr_redis_data
+for i in engine app redis nginx; do
+  cosign verify ghcr.io/<org>/pocr-$i:$V \
+    --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+    --certificate-identity-regexp '^https://github.com/<org>/pocr/\.github/workflows/release\.yml@refs/tags/v'
+done
 ```
 
-## 3. Create your site override file
+Each image also carries an SBOM and build provenance (`docker buildx imagetools inspect ghcr.io/<org>/pocr-engine:$V --format '{{json .SBOM}}'`), for your vulnerability scanning.
 
-`compose.yaml` carries UCSF's defaults. Put your changes in `compose.override.yaml`, which Compose merges in automatically:
-
-```yaml
-# /srv/pocr/compose.override.yaml
-name: pocr          # fixes container, network, and volume names regardless of directory
-
-services:
-  nginx:
-    # The gRPC listener has no backend yet; don't publish it.
-    ports: !override
-      - "443:443"
-
-  # Images are built locally from this checkout. Renaming them keeps a stray
-  # `docker compose pull` from replacing them with UCSF's published images.
-  app:
-    image: pocr-local/app:latest
-  engine:
-    image: pocr-local/engine:latest
-  migrate:
-    image: pocr-local/engine:latest
-  redis:
-    image: pocr-local/redis:latest
-
-volumes:
-  pg_data:
-    external: true
-    name: pocr_pg_data
-  redis_data:
-    external: true
-    name: pocr_redis_data
-```
-
-## 4. Generate secrets
-
-Each file holds one value. Each password appears twice: on its own (read by Postgres or Redis), and inside a connection URL (read by the engine). The two copies must match, so generate both together:
+### 3. Run `pocr-init`
 
 ```sh
-sudo mkdir -p secrets && sudo chmod 700 secrets
-PG_PW=$(openssl rand -hex 24); REDIS_PW=$(openssl rand -hex 24)
-printf '%s' "$PG_PW"    | sudo tee secrets/postgres_password >/dev/null
-printf '%s' "$REDIS_PW" | sudo tee secrets/redis_password    >/dev/null
-printf 'postgres://pocr:%s@postgres:5432/pocr' "$PG_PW"  | sudo tee secrets/database_url >/dev/null
-printf 'redis://default:%s@redis:6379' "$REDIS_PW"       | sudo tee secrets/redis_url    >/dev/null
-openssl rand -hex 32 | sudo tee secrets/jwt_secret >/dev/null
-sudo chmod 644 secrets/*
-unset PG_PW REDIS_PW
+sudo ./pocr-init
 ```
 
-Why `644` on the files: Compose (outside Swarm) bind-mounts secret files into containers with their host ownership and mode, and the engine runs as uid 1001, not root. The `700` directory is what keeps other host users out. If you'd rather use `600`, `chown 1001` the two URL files.
+It is safe to re-run at any time; it never replaces a secret or volume that already exists. It:
 
-Use hex passwords (as above). Characters such as `@`, `/`, or `:` would have to be URL-escaped inside the connection URLs.
+- generates the database and Redis passwords and the engine's signing key into `secrets/`, with each password written into its connection URL at the same time so the two always match;
+- sets ownership so only root and the engine's user (uid 1001) can read them;
+- creates `.env` from `.env.example` and fills in Vouch's two session keys;
+- creates the two data volumes, `pocr-postgres-data` and `pocr-redis-data`, outside Compose, so no Compose command can delete them (`docker compose down -v` skips external volumes);
+- finishes with a list of what is still left to configure.
 
-## 5. Install the TLS certificate
+### 4. Install the TLS certificate
 
 nginx expects exactly these two files:
 
 ```sh
-sudo mkdir -p certs
 sudo cp /path/to/your-host.crt certs/ssl.pem    # full chain: server cert first, then intermediates
 sudo cp /path/to/your-host.key certs/ssl.key
-sudo chmod 644 certs/ssl.pem && sudo chmod 640 certs/ssl.key
 ```
 
 The certificate must be trusted by Epic Interconnect (it is the TLS client when Epic calls POCR) and by your users' browsers.
 
-For a throwaway test install only, a self-signed certificate works:
+For a throwaway test install only, `sudo ./pocr-init --self-signed` makes a 30-day self-signed certificate for `POCR_HOST` (set that in `.env` first).
+
+### 5. Fill in `.env`
+
+Edit `/srv/pocr/.env`. Each setting is explained in the file; in summary:
+
+| Variable | What to put there |
+|---|---|
+| `POCR_IMAGE_REPO`, `POCR_VERSION` | Already set by the release bundle. Change `POCR_VERSION` only to upgrade ([Upgrading](#upgrading)). |
+| `POCR_HOST` | `<your-host>`. |
+| `FHIR_ENV_MAP` | Which Epic environments may randomize, and whether each counts as `production` or `nonproduction`. Format: `prefix=environment` pairs separated by `;`. A request is matched by the `fhirServer` URL Epic sends, which is that environment's FHIR base URL. Requests from an unlisted URL get an "Unrecognized environment" card and are not recorded. Non-production assignments are kept separate and can be purged per study. |
+| `CDS_ALLOW_FROM` | Your Epic Interconnect addresses or CIDR ranges, separated by spaces or commas. Empty refuses every caller. |
+| `POCR_ALLOWED_USERS` | Email addresses of the people who may log in to the console, comma-separated. |
+| `OAUTH_*` | From your identity provider registration (below). |
+| `VOUCH_JWT_SECRET`, `VOUCH_SESSION_KEY` | Already generated by `pocr-init`. Leave them. |
+
+**Why `CDS_ALLOW_FROM` matters.** It is the mitigation for S2 above. `FHIR_ENV_MAP` is not an access control: the caller writes the `fhirServer` field itself, so it only prevents accidents (test traffic landing in production data). Enforce the same restriction in your network firewall as well if you can: if nginx sees every request as coming from one Docker gateway address (common behind some load balancers), the allow-list cannot tell callers apart. Step 7 shows how to check.
+
+**Who may log in.** Because of S1, list named people in `POCR_ALLOWED_USERS`. Admitting a whole email domain is possible (leave `POCR_ALLOWED_USERS` empty and set `POCR_ALLOWED_EMAIL_DOMAINS=example.org`) but not recommended until S1 is fixed.
+
+**Identity provider.** Put the registration's client ID, client secret, and authorize, token, and userinfo URLs into the `OAUTH_*` settings. For Google, set `OAUTH_PROVIDER=google` and delete the three URL lines. [Vouch Proxy's documentation](https://github.com/vouch/vouch-proxy) covers other providers.
+
+When you are done, run `sudo ./pocr-init` again: its final list should be empty.
+
+### 6. Start
 
 ```sh
-sudo openssl req -x509 -newkey rsa:2048 -nodes -days 30 \
-  -subj "/CN=<your-host>" -addext "subjectAltName=DNS:<your-host>" \
-  -keyout certs/ssl.key -out certs/ssl.pem
-```
-
-## 6. Configure the environment (`.env`)
-
-```sh
-sudo tee .env >/dev/null <<EOF
-NGINX_SERVER_NAME=<your-host>
-FHIR_ENV_MAP=https://<epic-prd-fhir-base>/=production;https://<epic-tst-fhir-base>/=nonproduction
-JWT_SECRET=$(sudo cat secrets/jwt_secret)
-EOF
-sudo chmod 600 .env
-```
-
-| Variable | Required | What it does |
-|---|---|---|
-| `NGINX_SERVER_NAME` | Yes (defaults to UCSF's host name) | The host name nginx answers for. |
-| `FHIR_ENV_MAP` | Yes; Compose refuses to start without it | Which EHR environments may randomize, and whether each counts as `production` or `nonproduction`. Format: `prefix=environment` pairs separated by `;`. A request is matched by the `fhirServer` URL Epic sends, which is that Epic environment's FHIR base URL (ask your Interconnect admin; it typically ends in `/api/FHIR/R4`). Requests from an unlisted URL get an "Unrecognized environment" card and are not recorded. Non-production assignments are kept separate and can be purged per study. |
-| `JWT_SECRET` | Yes | Signs the console's study-sharing links. |
-| `CDS_CORS_ORIGINS` | No; leave unset | Only for a demo server used with the public CDS Hooks sandbox (see the sandbox section below). Epic does not need it. |
-| `CDS_DISCOVERY_LIST_STUDIES` | No; leave unset (`false`) | Same: demo servers only. Lists every open study, by name, to anyone who can reach `/cds-services`. |
-
-`FHIR_ENV_MAP` is a safety net against test traffic landing in production data, not an access control: the caller writes the `fhirServer` field itself. Access control comes from step 7.
-
-## 7. Restrict who can call `/cds-services`
-
-POCR does not yet verify the signed token Epic attaches to each CDS Hooks call ([security-concerns.md](security-concerns.md) S2). Until it does, allow only your Epic Interconnect servers. Edit `nginx/snippets/cds-access.conf`:
-
-```nginx
-allow 10.20.30.40;      # Interconnect PRD
-allow 10.20.31.0/24;    # Interconnect non-prod
-deny  all;
-```
-
-This applies only to `/cds-services`; the console is unaffected. After starting the stack (step 9), confirm nginx sees real client addresses: make a request and check `docker compose logs nginx`. If every request appears to come from one Docker gateway address (common behind some proxies and on Docker Desktop), enforce the restriction in your network firewall instead.
-
-You can apply the same restriction to the whole site at your network edge if the console is internal-only.
-
-## 8. Configure console login (Vouch)
-
-Edit `vouch/config.yml` on the host. It ships with UCSF's settings, which will not work for you. Every key below must change:
-
-```yaml
-vouch:
-  # Who may log in. Prefer an explicit list of people (see security-concerns.md S1:
-  # any logged-in user can currently change any study).
-  whiteList:
-    - pi@example.org
-    - coordinator@example.org
-  # ...or, less strictly, everyone in an email domain:
-  # domains:
-  #   - example.org
-
-  cookie:
-    secure: true
-    domain: <your-host>
-    name: VouchCookie
-
-  # Without these, Vouch makes up new keys at every restart and logs everyone out.
-  # Generate each with: openssl rand -hex 32
-  jwt:
-    secret: <random>
-  session:
-    key: <random>
-
-  headers:
-    claims:
-      - name
-      - email
-      - picture
-
-oauth:
-  # Any OIDC provider (Okta, Entra ID, Ping, Keycloak, ...):
-  provider: oidc
-  client_id: <from your identity admin>
-  client_secret: <from your identity admin>
-  auth_url: https://<idp>/oauth2/v1/authorize
-  token_url: https://<idp>/oauth2/v1/token
-  user_info_url: https://<idp>/oauth2/v1/userinfo
-  callback_urls:
-    - https://<your-host>/auth
-  scopes:
-    - openid
-    - email
-    - profile
-```
-
-Ask your identity admin to register an application with redirect URI `https://<your-host>/auth`. For Google, set `provider: google` and drop the three URLs. Vouch's own documentation covers other providers (`github.com/vouch/vouch-proxy`, `config/config.yml_example_*`).
-
-This file now holds a client secret: `sudo chmod 640 vouch/config.yml`, and do not commit it back to any repository.
-
-## 9. Build and start
-
-```sh
-sudo docker compose build        # first build compiles the Rust engine; allow several minutes
+sudo docker compose pull
 sudo docker compose up -d
 sudo docker compose ps
 ```
 
-All six services should be `Up`, and `app`, `engine`, `postgres`, `redis` should be `(healthy)` within about a minute. nginx can restart once or twice on first start while Vouch comes up; that is harmless.
+All six services should be `Up`, and `app`, `engine`, `postgres`, `redis` should be `(healthy)` within about a minute. The engine creates and migrates its database schema on every start; there is no separate migration step.
 
-The engine creates and migrates its database schema on every start; there is no separate migration step. Ignore the `migrate` service in `compose.yaml`; it imports data from UCSF's previous system and is not needed elsewhere.
-
-## 10. Verify
+### 7. Verify
 
 From a machine that can reach the server:
 
@@ -231,9 +187,12 @@ curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' $H/
 # API requires login, even with a forged identity header: expect 401 twice
 curl -s -o /dev/null -w '%{http_code}\n' $H/api/v1/studies
 curl -s -o /dev/null -w '%{http_code}\n' -H 'X-Vouch-User: someone@example.org' $H/api/v1/studies
+
+# From an address NOT in CDS_ALLOW_FROM: expect 403
+curl -s -o /dev/null -w '%{http_code}\n' $H/cds-services
 ```
 
-From an address in your `/cds-services` allow-list (or temporarily from anywhere, before you tighten step 7):
+From an address in `CDS_ALLOW_FROM`:
 
 ```sh
 # Service discovery: expect one service with id "randomization"
@@ -252,20 +211,42 @@ curl -s -H 'content-type: application/json' $H/cds-services/randomization -d '{
 
 An "Unrecognized environment" card instead means the `fhirServer` you sent does not start with any prefix in `FHIR_ENV_MAP`.
 
-From an address *outside* the allow-list, `curl $H/cds-services` should return `403`.
+Check that nginx sees real client addresses: `sudo docker compose logs nginx | tail` should show the addresses you made those requests from. If every request shows the same private address, enforce `CDS_ALLOW_FROM` in your firewall instead (step 5).
 
 Finally, open `https://<your-host>/` in a browser, log in, and create a draft study.
 
-## 11. Back up the database
+The install is done. Before the first live study, set up [backups](#backups) and run the restore drill once.
 
-Postgres holds every assignment and the audit trail; for a trial, it is the record that proves allocation integrity. Back it up nightly, **to storage off this host**, and test restores. [production-persistence.md](production-persistence.md) explains the reasoning; the minimum:
+### Building the images yourself
+
+For sites whose policy requires building from source, in place of pulling the published images. You need `git` and Docker Buildx; the engine build compiles Rust and takes several minutes.
+
+```sh
+git clone --branch v$V https://github.com/<org>/pocr.git pocr-src
+cd pocr-src
+RELEASE_REPO=pocr-local TAG=$V docker buildx bake -f docker-bake.hcl release --load
+```
+
+That produces `pocr-local/pocr-{engine,app,redis,nginx}:$V` in the local image store. Install from the bundle as above (the same files are in the checkout's `deploy/` directory), with `POCR_IMAGE_REPO=pocr-local` in `.env`, and skip `docker compose pull` (use `docker compose up -d --pull never`).
+
+---
+
+## Running POCR
+
+### Backups
+
+Postgres holds every assignment and the audit trail; for a trial, it is the record that proves allocation integrity. A Docker volume survives restarts and upgrades, but not a lost disk or host, so back it up nightly, **to storage off this host**, and test restores. The minimum:
+
+```sh
+sudo mkdir -p /srv/pocr/backups && sudo chmod 700 /srv/pocr/backups
+```
 
 ```sh
 # /etc/cron.d/pocr-backup — nightly at 02:15, keep 30 days
 15 2 * * * root cd /srv/pocr && docker compose exec -T postgres pg_dump -U pocr -Fc pocr > /srv/pocr/backups/pocr-$(date +\%F).dump && find /srv/pocr/backups -name 'pocr-*.dump' -mtime +30 -delete
 ```
 
-Then ship `/srv/pocr/backups` to your backup system. (`-T` matters: without it the dump is corrupted by terminal handling.)
+Then ship `/srv/pocr/backups` to your backup system. (`-T` matters: without it the dump is corrupted by terminal handling.) The dumps contain PHI.
 
 **Restore drill** (run once before go-live, then on a schedule). This restores into a throwaway container and leaves production alone:
 
@@ -281,29 +262,42 @@ The counts should match production.
 
 **Redis** needs no backup. It keeps an append-only file on its volume, so it survives restarts. If its data is lost entirely, no assignment is lost: assignments are in Postgres, and repeat requests still return the original assignment. What is lost is each study's *in-progress* permuted block. The next request starts a fresh block, so arm counts can drift by up to one block's worth of imbalance per stratum.
 
-**Never run `docker compose down -v` out of habit**, and treat a Postgres major-version change (18 to 19) as a planned dump-and-restore migration ([production-persistence.md](production-persistence.md), Gap 4).
+**Never run `docker compose down -v` out of habit.** The data volumes are external, so it leaves them alone here, but it is the habit that deletes volumes on other systems.
 
-## 12. Updating
+### Upgrading
+
+Read the release notes first. Then back up, download the new bundle, and take its `compose.yaml` and `pocr-init`. Your `.env`, `secrets/`, `certs/`, and `backups/` are yours and are left alone:
 
 ```sh
 cd /srv/pocr
-sudo docker compose exec -T postgres pg_dump -U pocr -Fc pocr > backups/pre-update-$(date +%F).dump
-sudo git pull
-sudo docker compose build
+sudo docker compose exec -T postgres pg_dump -U pocr -Fc pocr | sudo tee backups/pre-upgrade-$(date +%F).dump >/dev/null
+
+V=1.1.0
+curl -fLO https://github.com/<org>/pocr/releases/download/v$V/pocr-$V.tar.gz   # and check its .sha256 as in step 2
+tar -xzf pocr-$V.tar.gz
+sudo cp pocr-$V/compose.yaml pocr-$V/pocr-init .
+diff .env.example pocr-$V/.env.example; sudo cp pocr-$V/.env.example .   # copy any new settings into .env
+sudo sed -i "s/^POCR_VERSION=.*/POCR_VERSION=$V/" .env
+
+sudo ./pocr-init
+sudo docker compose pull
 sudo docker compose up -d
 ```
 
-Schema migrations run automatically when the new engine starts. Before pulling, check whether `vouch/config.yml` or `nginx/` changed upstream: `git pull` will stop if your local edits conflict, and you merge by hand.
+Schema migrations run automatically when the new engine starts. To roll back, set `POCR_VERSION` back and run `docker compose up -d`; if the new version migrated the schema, restore the pre-upgrade dump as well.
 
-## Day-to-day commands
+Third-party images (`postgres:18-alpine`, Vouch) receive security patches under the same tag; `docker compose pull && docker compose up -d` picks them up.
+
+**Postgres major versions** (18 to 19) change the on-disk format, so the new image will not start on the old volume. Treat it as planned maintenance: take a final dump, stop the stack, create a fresh volume, start the new version against it, restore the dump, verify, and only then retire the old volume.
+
+### Day-to-day commands
 
 | Task | Command |
 |---|---|
 | Status | `docker compose ps` |
 | Engine logs | `docker compose logs -f engine` |
-| Restart after editing nginx config | `docker compose restart nginx` |
-| Restart after editing Vouch config | `docker compose restart vouch` |
-| Readiness (DB + Redis) from inside | `docker compose exec engine wget -qO- http://localhost:3000/health/ready` |
+| Apply a change to `.env` | `docker compose up -d` (recreates only what changed) |
+| Readiness (DB + Redis) from inside | `docker compose exec engine wget -qO- http://127.0.0.1:3000/health/ready` |
 | Stop everything (data kept) | `docker compose down` |
 
 ---
@@ -321,7 +315,7 @@ POCR needs two settings for the sandbox, both off by default:
 
 The sandbox's patients come from `https://launch.smarthealthit.org/`, which must be in `FHIR_ENV_MAP` as `nonproduction`.
 
-**On a developer laptop** (`compose.dev.yaml` sets all three by default):
+**On a developer laptop** (from a clone of the repository; `compose.dev.yaml` sets all three by default):
 
 1. `docker compose -f compose.dev.yaml up`
 2. Open `http://localhost:5179`, create a study (draft is fine), e.g. two arms, block randomization, key "patient ID".
@@ -330,15 +324,18 @@ The sandbox's patients come from `https://launch.smarthealthit.org/`, which must
 
 The sandbox also calls the Epic-style `randomization` service and shows its "No locator found" card. That is expected. Turn it off under gear → *Configure CDS Services*.
 
-**On a demo server** (HTTPS, reachable by whoever will use the sandbox), add to `.env`:
+Never expose `compose.dev.yaml` beyond your own machine: its debug engine treats unauthenticated requests as a built-in user ([security-concerns.md](security-concerns.md) S5).
+
+**On a demo server** (installed as above, reachable by whoever will use the sandbox), set in `.env`:
 
 ```sh
 FHIR_ENV_MAP=https://launch.smarthealthit.org/=nonproduction
+CDS_ALLOW_FROM=all
 CDS_CORS_ORIGINS=https://sandbox.cds-hooks.org
 CDS_DISCOVERY_LIST_STUDIES=true
 ```
 
-and leave `nginx/snippets/cds-access.conf` at `allow all;`. Do this only on a server with synthetic data and no Epic connection: it publishes study names and lets anyone create randomizations ([security-concerns.md](security-concerns.md) S2–S4).
+Do this only on a server with synthetic data and no Epic connection: it publishes study names and lets anyone create randomizations ([security-concerns.md](security-concerns.md) S2–S4).
 
 ---
 
@@ -346,14 +343,16 @@ and leave `nginx/snippets/cds-access.conf` at `allow all;`. Do this only on a se
 
 | Symptom | Cause and fix |
 |---|---|
-| `docker compose up` fails: `set FHIR_ENV_MAP in .env` or `set JWT_SECRET in .env` | `.env` missing or incomplete (step 6). Run compose from `/srv/pocr`. |
-| `vouch` restarting, log says `oauth.client_id not found` | `vouch/config.yml` not filled in (step 8). |
-| Everyone is logged out after each restart | `jwt.secret` / `session.key` not set in `vouch/config.yml`. |
-| Login loops back to the login page, or the IdP says "redirect URI mismatch" | `cookie.domain`, `callback_urls`, and the IdP's registered redirect URI must all use `<your-host>` exactly. |
-| Logged in but "not authorized" | Your email isn't in `whiteList` / `domains`. |
+| `docker compose` fails: `set POCR_HOST in .env` (or another variable) | `.env` missing or incomplete (step 5). Run compose from `/srv/pocr`. |
+| `docker compose` fails: `run pocr-init to set VOUCH_JWT_SECRET` | Run `sudo ./pocr-init`. |
+| `docker compose` fails: `secret ... file ... not found` or a certificate bind mount fails | `secrets/` or `certs/` missing; run `sudo ./pocr-init` (step 3) and install the certificate (step 4). |
+| `pocr-init` says `secrets/ is partly filled` | Some secret files were deleted. See its message: Postgres keeps the password it was first started with. |
+| `vouch` restarting | `docker compose logs vouch` names the setting. Common: an `OAUTH_*` value missing, or `callback_url ... must be within a configured domains` (`POCR_HOST` mismatch). |
+| Login loops back to the login page, or the IdP says "redirect URI mismatch" | The IdP's registered redirect URI must be exactly `https://<POCR_HOST>/auth`. |
+| Logged in but "not authorized" (Vouch 403 page) | Your email isn't in `POCR_ALLOWED_USERS`. Change it, then `docker compose up -d`. |
 | nginx: `host not found in upstream "vouch:9090"` | Vouch wasn't up yet; nginx restarts and recovers. If it persists, fix Vouch first. |
-| Engine exits: `password authentication failed` | Password in `secrets/database_url` differs from `secrets/postgres_password`. Postgres only reads its password when the volume is first initialized: if you regenerate secrets later, change the password inside Postgres too (`ALTER USER pocr PASSWORD '...'`). |
-| Engine exits: `failed to read DATABASE_URL_FILE ... permission denied` | Secret file not readable by uid 1001 (step 4). |
+| Engine exits: `password authentication failed` | Postgres only reads its password when the volume is first initialized. If `secrets/` was regenerated after that, change the password inside Postgres to match `secrets/postgres_password` (`ALTER USER pocr PASSWORD '...'`). |
+| Engine exits: `failed to read DATABASE_URL_FILE ... permission denied` | Secret file not readable by uid 1001. Re-run `sudo ./pocr-init` (as root), which fixes ownership. |
 | CDS call returns "Unrecognized environment" | `fhirServer` in the request doesn't start with a `FHIR_ENV_MAP` prefix. Check the engine log for the URL received. |
-| CDS call returns `403` | The caller's IP isn't in `nginx/snippets/cds-access.conf`. |
+| CDS call returns `403` | The caller's address isn't in `CDS_ALLOW_FROM`. Change it, then `docker compose up -d`. |
 | Epic shows no card for an assigned patient | Expected for every arm except the one assigned: POCR answers `412` when the request's locator belongs to a different arm. See the Epic integration guide (planned). |

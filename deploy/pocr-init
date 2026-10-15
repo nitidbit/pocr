@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+# Prepares this directory to run POCR: secrets, .env, data volumes, and
+# (optionally) a self-signed certificate. Safe to re-run: it never replaces a
+# secret or volume that already exists, and it ends by listing what is still
+# left to configure.
+#
+#   sudo ./pocr-init                      # real install
+#   sudo ./pocr-init --self-signed        # also make a 30-day test certificate
+#
+# See docs/install.md.
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+ENGINE_UID=1001          # the engine image's runtime user
+SELF_SIGNED=false
+
+usage() { sed -n '2,10s/^# \{0,1\}//p' "$0"; }
+
+for arg in "$@"; do
+  case "$arg" in
+    --self-signed) SELF_SIGNED=true ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "unknown option: $arg" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+say()  { printf '%s\n' "$*"; }
+step() { printf '\n== %s\n' "$*"; }
+die()  { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+# --- Prerequisites -------------------------------------------------------------
+step "Checking prerequisites"
+command -v openssl >/dev/null || die "openssl not found"
+command -v docker  >/dev/null || die "docker not found"
+docker info >/dev/null 2>&1   || die "cannot talk to Docker (is it running, and are you root or in the docker group?)"
+docker compose version >/dev/null 2>&1 || die "the Docker Compose plugin is missing (docker compose version)"
+[ -f compose.yaml ] && [ -f .env.example ] || die "run this from the POCR deploy directory (compose.yaml, .env.example)"
+say "ok: $(docker compose version --short 2>/dev/null || docker compose version)"
+
+IS_ROOT=false; [ "$(id -u)" = 0 ] && IS_ROOT=true
+
+# --- Secrets -------------------------------------------------------------------
+step "Secrets (secrets/)"
+SECRET_FILES=(postgres_password redis_password database_url redis_url jwt_secret)
+mkdir -p secrets && chmod 700 secrets
+
+present=0
+for f in "${SECRET_FILES[@]}"; do [ -s "secrets/$f" ] && present=$((present + 1)); done
+
+if [ "$present" = "${#SECRET_FILES[@]}" ]; then
+  say "ok: all present, left unchanged"
+elif [ "$present" = 0 ]; then
+  # Hex only: no characters that would need escaping inside the URLs.
+  pg_pw=$(openssl rand -hex 24)
+  redis_pw=$(openssl rand -hex 24)
+  ( umask 077
+    printf '%s' "$pg_pw"    > secrets/postgres_password
+    printf '%s' "$redis_pw" > secrets/redis_password
+    printf 'postgres://pocr:%s@postgres:5432/pocr' "$pg_pw" > secrets/database_url
+    printf 'redis://default:%s@redis:6379' "$redis_pw"      > secrets/redis_url
+    openssl rand -hex 32 | tr -d '\n' > secrets/jwt_secret )
+  unset pg_pw redis_pw
+  say "created: ${SECRET_FILES[*]}"
+else
+  die "secrets/ is partly filled. Each password must match its URL, so pocr-init will not
+       fill gaps. If nothing has run yet, delete secrets/ and re-run. If Postgres
+       already holds data, its password is in secrets/postgres_password: rebuild the
+       missing files from it by hand."
+fi
+
+# Compose (outside Swarm) mounts secret files with their host owner and mode.
+# Postgres and Redis read theirs as root; the engine reads its three as uid 1001.
+if $IS_ROOT; then
+  chown root:root secrets/postgres_password secrets/redis_password
+  chown "$ENGINE_UID:$ENGINE_UID" secrets/database_url secrets/redis_url secrets/jwt_secret
+  chmod 600 secrets/*
+  say "ok: files mode 600; engine's files owned by uid $ENGINE_UID"
+else
+  # Without root we cannot chown to the engine's uid, so the files must be
+  # world-readable; the 700 directory still keeps other host users out.
+  chmod 644 secrets/*
+  say "note: not root, so files are mode 644 inside the 700 secrets/ directory"
+fi
+
+# --- .env ----------------------------------------------------------------------
+step "Site configuration (.env)"
+if [ ! -f .env ]; then
+  ( umask 077; cp .env.example .env )
+  say "created .env from .env.example"
+fi
+chmod 600 .env
+
+fill_if_empty() {   # fill_if_empty VAR VALUE: set VAR= in .env if it is blank
+  local var=$1 value=$2
+  if grep -q "^${var}=$" .env; then
+    local tmp; tmp=$(mktemp .env.XXXXXX)
+    sed "s|^${var}=$|${var}=${value}|" .env > "$tmp" && mv "$tmp" .env && chmod 600 .env
+    say "generated $var"
+  fi
+}
+fill_if_empty VOUCH_JWT_SECRET  "$(openssl rand -hex 32)"
+fill_if_empty VOUCH_SESSION_KEY "$(openssl rand -hex 32)"
+
+# --- Volumes -------------------------------------------------------------------
+step "Data volumes"
+for v in pocr-postgres-data pocr-redis-data; do
+  if docker volume inspect "$v" >/dev/null 2>&1; then
+    say "ok: $v exists"
+  else
+    docker volume create "$v" >/dev/null && say "created: $v"
+  fi
+done
+
+# --- Certificate ---------------------------------------------------------------
+step "TLS certificate (certs/)"
+mkdir -p certs
+host=$(sed -n 's/^POCR_HOST=//p' .env | tail -n1)
+if $SELF_SIGNED && [ ! -f certs/ssl.pem ]; then
+  [ -n "$host" ] || die "set POCR_HOST in .env before --self-signed"
+  openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=$host" \
+    -addext "subjectAltName=DNS:$host" \
+    -keyout certs/ssl.key -out certs/ssl.pem 2>/dev/null
+  say "created a 30-day self-signed certificate for $host (testing only)"
+fi
+if [ -f certs/ssl.pem ] && [ -f certs/ssl.key ]; then
+  # nginx reads the key as root; the engine reads only ssl.pem, as uid 1001.
+  chmod 644 certs/ssl.pem; chmod 600 certs/ssl.key
+  $IS_ROOT && chown root:root certs/ssl.key
+  say "ok: $(openssl x509 -in certs/ssl.pem -noout -subject -enddate | tr '\n' ' ')"
+fi
+
+# --- What is left --------------------------------------------------------------
+step "Still to do"
+todo=0
+need() { say "- $*"; todo=$((todo + 1)); }
+
+env_val() { sed -n "s/^$1=//p" .env | tail -n1; }
+
+[ -f certs/ssl.pem ] && [ -f certs/ssl.key ] ||
+  need "Put your certificate in certs/ssl.pem (full chain) and its key in certs/ssl.key."
+[ "$(env_val POCR_IMAGE_REPO)" = "ghcr.io/OWNER" ] || [ -z "$(env_val POCR_IMAGE_REPO)" ] &&
+  need "Set POCR_IMAGE_REPO in .env."
+[ "$(env_val POCR_VERSION)" = "VERSION" ] || [ -z "$(env_val POCR_VERSION)" ] &&
+  need "Set POCR_VERSION in .env."
+case "$(env_val POCR_HOST)" in ""|*example.org) need "Set POCR_HOST in .env." ;; esac
+case "$(env_val FHIR_ENV_MAP)" in ""|*example.org*) need "Set FHIR_ENV_MAP in .env to your Epic environments' FHIR base URLs." ;; esac
+[ -n "$(env_val CDS_ALLOW_FROM)" ] ||
+  need "Set CDS_ALLOW_FROM in .env to your Epic Interconnect addresses (until then /cds-services refuses everyone)."
+case "$(env_val POCR_ALLOWED_USERS)$(env_val POCR_ALLOWED_EMAIL_DOMAINS)" in
+  ""|*@example.org*) need "Set POCR_ALLOWED_USERS in .env to the people who may log in." ;;
+esac
+[ -n "$(env_val OAUTH_CLIENT_ID)" ] && [ -n "$(env_val OAUTH_CLIENT_SECRET)" ] ||
+  need "Fill in the OAUTH_* values in .env from your identity provider (redirect URI https://${host:-<POCR_HOST>}/auth)."
+case "$(env_val OAUTH_AUTH_URL)" in *idp.example.org*) need "Replace the example OAUTH_*_URL values in .env (or delete them for Google)." ;; esac
+
+if [ "$todo" = 0 ]; then
+  say "Nothing. Start POCR with: docker compose up -d"
+else
+  say ""
+  say "Edit .env, then re-run ./pocr-init to check, and start with: docker compose up -d"
+fi

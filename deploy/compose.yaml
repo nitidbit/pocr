@@ -1,0 +1,182 @@
+# POCR production stack for a site install. See docs/install.md.
+#
+# Every site-specific value comes from .env (start from .env.example) and the
+# files pocr-init creates in secrets/ and certs/. Nothing in this file needs
+# editing; to change something anyway, put it in compose.override.yaml.
+
+name: pocr
+
+x-hardened: &hardened
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  nginx:
+    <<: *hardened
+    image: ${POCR_IMAGE_REPO:?set POCR_IMAGE_REPO in .env}/pocr-nginx:${POCR_VERSION:?set POCR_VERSION in .env}
+    depends_on:
+      app:
+        condition: service_healthy
+      engine:
+        condition: service_healthy
+      vouch:
+        condition: service_started
+    environment:
+      NGINX_SERVER_NAME: ${POCR_HOST:?set POCR_HOST in .env}
+      # Who may call /cds-services. Empty means no one; see .env.example.
+      CDS_ALLOW_FROM: ${CDS_ALLOW_FROM:-}
+    volumes:
+      - ./certs/ssl.pem:/etc/nginx/certs/ssl.pem:ro
+      - ./certs/ssl.key:/etc/nginx/certs/ssl.key:ro
+    ports:
+      - "443:443"
+    networks:
+      - frontend
+      - backend
+
+  vouch:
+    <<: *hardened
+    image: quay.io/vouch/vouch-proxy:0.50.0
+    read_only: true
+    cap_drop: [ALL]
+    environment:
+      # Who may log in. With POCR_ALLOWED_USERS set, only those addresses can
+      # (Vouch checks the whitelist first). Leave it empty and set
+      # POCR_ALLOWED_EMAIL_DOMAINS to admit whole email domains instead (see
+      # docs/security-concerns.md S1). POCR_HOST is always in VOUCH_DOMAINS
+      # because Vouch only validates sessions for hosts listed there.
+      VOUCH_WHITELIST: ${POCR_ALLOWED_USERS:-}
+      VOUCH_DOMAINS: ${POCR_ALLOWED_EMAIL_DOMAINS:+${POCR_ALLOWED_EMAIL_DOMAINS},}${POCR_HOST}
+      VOUCH_COOKIE_DOMAIN: ${POCR_HOST}
+      VOUCH_COOKIE_SECURE: "true"
+      VOUCH_JWT_SECRET: ${VOUCH_JWT_SECRET:?run pocr-init to set VOUCH_JWT_SECRET in .env}
+      VOUCH_SESSION_KEY: ${VOUCH_SESSION_KEY:?run pocr-init to set VOUCH_SESSION_KEY in .env}
+      VOUCH_HEADERS_CLAIMS: name,email,picture
+      OAUTH_PROVIDER: ${OAUTH_PROVIDER:?set OAUTH_PROVIDER in .env}
+      OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID:?set OAUTH_CLIENT_ID in .env}
+      OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET:?set OAUTH_CLIENT_SECRET in .env}
+      OAUTH_AUTH_URL: ${OAUTH_AUTH_URL:-}
+      OAUTH_TOKEN_URL: ${OAUTH_TOKEN_URL:-}
+      OAUTH_USER_INFO_URL: ${OAUTH_USER_INFO_URL:-}
+      OAUTH_CALLBACK_URLS: https://${POCR_HOST}/auth
+      OAUTH_SCOPES: openid,email,profile
+    networks:
+      - frontend
+
+  app:
+    <<: *hardened
+    image: ${POCR_IMAGE_REPO}/pocr-app:${POCR_VERSION}
+    read_only: true
+    cap_drop: [ALL]
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx:uid=1001,gid=1001   # the image runs as uid 1001
+    networks:
+      - frontend
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:8080/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  engine:
+    <<: *hardened
+    image: ${POCR_IMAGE_REPO}/pocr-engine:${POCR_VERSION}
+    read_only: true
+    cap_drop: [ALL]
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL_FILE: /run/secrets/database_url
+      REDIS_URL_FILE: /run/secrets/redis_url
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      RUST_LOG: info
+      # Read only to report certificate expiry on the status page.
+      CERT_PATH: /etc/certs/ssl.pem
+      # Which EHR environments may randomize; unset or empty rejects all.
+      FHIR_ENV_MAP: ${FHIR_ENV_MAP:?set FHIR_ENV_MAP in .env}
+      # Demo servers only (public CDS Hooks sandbox); see .env.example.
+      CDS_CORS_ORIGINS: ${CDS_CORS_ORIGINS:-}
+      CDS_DISCOVERY_LIST_STUDIES: ${CDS_DISCOVERY_LIST_STUDIES:-false}
+    volumes:
+      - ./certs/ssl.pem:/etc/certs/ssl.pem:ro
+    secrets:
+      - database_url
+      - redis_url
+      - jwt_secret
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:3000/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  postgres:
+    <<: *hardened
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: pocr
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: pocr
+    secrets:
+      - postgres_password
+    networks:
+      - backend
+    volumes:
+      - pg_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pocr"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    <<: *hardened
+    image: ${POCR_IMAGE_REPO}/pocr-redis:${POCR_VERSION}
+    secrets:
+      - redis_password
+    networks:
+      - backend
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  frontend:
+  backend:
+    internal: true
+
+# Created by pocr-init, outside Compose, so `docker compose down -v` cannot
+# delete them. Postgres is the trial's system of record: back it up.
+volumes:
+  pg_data:
+    external: true
+    name: pocr-postgres-data
+  redis_data:
+    external: true
+    name: pocr-redis-data
+
+# Generated by pocr-init. Each password appears both on its own and inside its
+# connection URL; pocr-init writes them together so they always match.
+secrets:
+  database_url:
+    file: ./secrets/database_url
+  redis_url:
+    file: ./secrets/redis_url
+  jwt_secret:
+    file: ./secrets/jwt_secret
+  postgres_password:
+    file: ./secrets/postgres_password
+  redis_password:
+    file: ./secrets/redis_password

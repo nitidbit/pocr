@@ -1,0 +1,96 @@
+# Publishes a POCR release for other sites when a version tag is pushed:
+#
+#   git tag v1.2.0 && git push origin v1.2.0
+#
+# 1. Builds the four POCR images (docker-bake.hcl, group "release") and pushes
+#    them to ghcr.io/<repository owner>/pocr-*:<version>, with SBOM and
+#    provenance attestations.
+# 2. Signs each image with Sigstore cosign (keyless, tied to this workflow).
+# 3. Creates a GitHub Release with the install bundle (deploy/ with the image
+#    location and version filled in).
+#
+# The first push creates the GHCR packages as private; make each one public
+# once under the owner's Packages settings so sites can pull without logging in.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write   # create the release
+  packages: write   # push to ghcr.io
+  id-token: write   # keyless cosign signing
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Work out names
+        id: names
+        run: |
+          echo "repo=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+          echo "version=${GITHUB_REF_NAME#v}"           >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push images
+        env:
+          RELEASE_REPO: ${{ steps.names.outputs.repo }}
+          TAG: ${{ steps.names.outputs.version }}
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+          REVISION: ${{ github.sha }}
+        run: |
+          docker buildx bake -f docker-bake.hcl release --push \
+            --set '*.attest=type=sbom' \
+            --set '*.attest=type=provenance,mode=max' \
+            --metadata-file bake-metadata.json
+
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Sign images
+        run: |
+          jq -r '.[] | objects | select(has("containerimage.digest")) | .["image.name"] + "@" + .["containerimage.digest"]' \
+            bake-metadata.json | sed 's/:[^:@]*@/@/' | while read -r ref; do
+            echo "signing $ref"
+            cosign sign --yes "$ref"
+          done
+
+      - name: Assemble install bundle
+        env:
+          REPO: ${{ steps.names.outputs.repo }}
+          VERSION: ${{ steps.names.outputs.version }}
+        run: |
+          dir="pocr-$VERSION"
+          mkdir "$dir"
+          cp deploy/compose.yaml deploy/pocr-init deploy/README.md "$dir/"
+          sed -e "s|^POCR_IMAGE_REPO=.*|POCR_IMAGE_REPO=$REPO|" \
+              -e "s|^POCR_VERSION=.*|POCR_VERSION=$VERSION|" \
+              deploy/.env.example > "$dir/.env.example"
+          tar -czf "$dir.tar.gz" "$dir"
+          sha256sum "$dir.tar.gz" > "$dir.tar.gz.sha256"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ steps.names.outputs.repo }}
+          VERSION: ${{ steps.names.outputs.version }}
+        run: |
+          {
+            echo "Install with \`pocr-$VERSION.tar.gz\`; see docs/install.md."
+            echo
+            echo "Images (signed with cosign, SBOM and provenance attached):"
+            echo
+            jq -r '.[] | objects | select(has("containerimage.digest"))
+                   | "- `" + .["image.name"] + "` `" + .["containerimage.digest"] + "`"' bake-metadata.json
+          } > notes.md
+          gh release create "$GITHUB_REF_NAME" --title "POCR $VERSION" --notes-file notes.md \
+            "pocr-$VERSION.tar.gz" "pocr-$VERSION.tar.gz.sha256"

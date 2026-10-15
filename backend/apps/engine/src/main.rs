@@ -45,20 +45,7 @@ async fn main() -> EngineResult<()> {
     );
 
     // JWT secret for study sharing
-    let jwt_secret = match env::var("JWT_SECRET") {
-        Ok(secret) => secret,
-        Err(_) => {
-            #[cfg(debug_assertions)]
-            {
-                tracing::warn!("JWT_SECRET not set, using insecure dev default");
-                "pocr-dev-secret-change-in-production".into()
-            }
-            #[cfg(not(debug_assertions))]
-            {
-                panic!("JWT_SECRET must be set in production");
-            }
-        }
-    };
+    let jwt_secret = resolve_secret("JWT_SECRET", "pocr-dev-secret-change-in-production")?;
 
     // Build repositories
     let study_repo = Arc::new(infra_pg::PgStudyRepository::new(pg_pool.clone()));
@@ -134,11 +121,12 @@ async fn main() -> EngineResult<()> {
     Ok(())
 }
 
-/// Resolve a connection URL that may be supplied directly or via a secret file.
+/// Resolve a secret (connection URL or key) supplied directly or via a secret file.
 ///
 /// Resolution order for a variable named `var`:
 /// 1. `<var>_FILE` — read the file, trim whitespace, and use its contents (the
-///    full URL including any credentials). Docker/Kubernetes mount secrets here.
+///    full value, e.g. a URL including credentials). Docker/Kubernetes mount
+///    secrets here.
 /// 2. `<var>` — use the environment value directly.
 /// 3. Fall back to `dev_default` in debug builds; panic in release builds so a
 ///    misconfigured production deployment fails fast rather than using a default.

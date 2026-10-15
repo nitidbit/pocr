@@ -66,3 +66,61 @@ target "redis" {
     "${REGISTRY}:pocr-redis-${TAG}",
   ]
 }
+
+# -- Release images for other sites (deploy/compose.yaml) --
+#
+# One repository per image, tagged with the release version:
+#
+#   RELEASE_REPO=ghcr.io/<owner> TAG=1.2.0 \
+#     docker buildx bake -f docker-bake.hcl release --push
+#
+# CI (.github/workflows/release.yml) runs this on every v* tag, with SBOM and
+# provenance attestations, then signs the pushed images.
+
+variable "RELEASE_REPO" {
+  default = "pocr-local"
+}
+
+# Source URL and commit, stamped into the OCI labels.
+variable "SOURCE_URL" {
+  default = ""
+}
+
+variable "REVISION" {
+  default = ""
+}
+
+group "release" {
+  targets = ["release-engine", "release-app", "release-redis", "release-nginx"]
+}
+
+target "_release" {
+  inherits = ["_common"]
+  labels = {
+    "org.opencontainers.image.source"   = SOURCE_URL
+    "org.opencontainers.image.revision" = REVISION
+    "org.opencontainers.image.version"  = TAG
+  }
+}
+
+target "release-engine" {
+  inherits = ["engine", "_release"]
+  tags     = ["${RELEASE_REPO}/pocr-engine:${TAG}"]
+}
+
+target "release-app" {
+  inherits = ["app", "_release"]
+  tags     = ["${RELEASE_REPO}/pocr-app:${TAG}"]
+}
+
+target "release-redis" {
+  inherits = ["redis", "_release"]
+  tags     = ["${RELEASE_REPO}/pocr-redis:${TAG}"]
+}
+
+# nginx with POCR's config baked in (compose.yaml instead bind-mounts nginx/).
+target "release-nginx" {
+  inherits = ["_common", "_release"]
+  context  = "./nginx"
+  tags     = ["${RELEASE_REPO}/pocr-nginx:${TAG}"]
+}
