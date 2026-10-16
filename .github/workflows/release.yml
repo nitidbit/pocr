@@ -75,7 +75,7 @@ jobs:
           sed -e "s|^POCR_IMAGE_REPO=.*|POCR_IMAGE_REPO=$REPO|" \
               -e "s|^POCR_VERSION=.*|POCR_VERSION=$VERSION|" \
               deploy/.env.example > "$dir/.env.example"
-          tar -czf "$dir.tar.gz" "$dir"
+          tar -czf "$dir.tar.gz" --owner=0 --group=0 --numeric-owner "$dir"
           sha256sum "$dir.tar.gz" > "$dir.tar.gz.sha256"
 
       - name: Create GitHub release
