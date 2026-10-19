@@ -402,7 +402,7 @@ Then `sudo docker compose up -d`.
 ### Run it
 
 1. Log in to `https://<your-host>/` and create a study (draft is fine), e.g. two arms, block randomization, key "patient ID".
-2. In the same browser, open `https://sandbox.cds-hooks.org/?serviceDiscoveryURL=https://<your-host>/cds-services`. (Or use the gear menu → _Add CDS Services_ and enter that URL.)
+2. In the same browser, open `https://sandbox.cds-hooks.org/?serviceDiscoveryURL=https://<your-host>/cds-services`. Or open `https://sandbox.cds-hooks.org`, use the gear menu → _Add CDS Services_, and enter only the discovery URL, `https://<your-host>/cds-services`, with no trailing slash.
 3. On the Patient View tab you should see a "Randomized: <arm>" card from POCR. Reloading shows the same assignment for the same patient; _Change Patient_ gives a new assignment. In the Change Patient dialog, click _Save_ once and close the dialog with its ×: the dialog stays open after saving, and a second _Save_ clears the cards.
 4. The sandbox also calls the Epic-style `randomization` service and shows its "No locator found" card. That is expected; turn it off under gear → _Configure CDS Services_.
 5. In the console, set the data environment selector in the header to **Non-Production** and open the study's **Monitoring** tab. Each sandbox patient is listed under Recent Randomizations. **Purge Non-Production Data** on the same tab clears them.
