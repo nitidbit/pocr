@@ -35,6 +35,17 @@ The repo currently contains **zero example CDS Hooks request payloads** — the 
 
 Not publicly available: **Epic UserWeb / Galaxy** documentation, including the Caboodle data model. That requires an Epic-community login, which UCSF staff have — schema questions route through them.
 
+## Trying the CDS Hooks sandbox locally
+
+The public [CDS Hooks sandbox](https://sandbox.cds-hooks.org) can call a POCR engine running on your laptop, because the sandbox runs in your browser and the browser makes the calls. Chrome and Firefox allow an HTTPS page to call `http://localhost`; Safari does not. `compose.dev.yaml` already sets the sandbox settings (`CDS_CORS_ORIGINS`, `CDS_DISCOVERY_LIST_STUDIES`, and `launch.smarthealthit.org` in `FHIR_ENV_MAP`).
+
+1. `docker compose -f compose.dev.yaml up`
+2. Open `http://localhost:5179` and create a study (draft is fine), e.g. two arms, block randomization, key "patient ID".
+3. In Chrome, open `https://sandbox.cds-hooks.org/?serviceDiscoveryURL=http://localhost:3000/cds-services`.
+4. On the Patient View tab you should see a "Randomized: <arm>" card. Reloading shows the same assignment; _Change Patient_ gives a new one. Ignore the "No locator found" card from the Epic-style `randomization` service, or turn it off under gear → _Configure CDS Services_.
+
+Never expose `compose.dev.yaml` beyond your own machine: its debug engine treats unauthenticated requests as a built-in user ([security-concerns.md](security-concerns.md) S5). For the sandbox against an installed server, see [install.md](install.md#try-it-with-the-public-cds-hooks-sandbox).
+
 ## The standing ask-list for UCSF
 
 | Ask | Unblocks |

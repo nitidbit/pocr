@@ -3,6 +3,8 @@
 **Date:** 2026-07-24
 **Method:** Each item from the inherited product/status doc was audited against the actual codebase (frontend, HTTP API, domain core, and integrations) at commit `49802e2`. "Previous status" is what the inherited doc claimed; "Verified status" is what the code shows.
 
+**Updated 2026-10-19:** items 5 and 13, the findings list, and the priority order were corrected for later changes to the edge configuration and deployment files.
+
 > Numbering matches the source doc for easy cross-reference (there is no #9; the list jumps from 8 to 10).
 >
 > **See also:** [external-dev-guide.md](external-dev-guide.md) — per-item paths for developing each feature without Epic/UCSF-internal access (same numbering).
@@ -65,7 +67,7 @@ Caveats: extraction is best-effort — missing identifiers become silent `NULL`s
 
 **Previous status:** "Pilot planned (1-week Salesforce); configuration scaffolding needed."
 
-**Verified status: Matches doc — zero code.** No Salesforce/contact-center code anywhere. Important prerequisite: there is **no direct REST randomize endpoint** — CDS Hooks (`POST /cds-services/randomization`) is the *only* randomization entry point, so any non-EHR channel requires new API surface first.
+**Verified status: Matches doc — zero code.** No Salesforce/contact-center code anywhere. Important prerequisite: there is **no direct REST randomize endpoint** — the CDS Hooks endpoints (`POST /cds-services/randomization`, and `POST /cds-services/{study_id}` when `CDS_DISCOVERY_LIST_STUDIES` is on) are the *only* randomization entry points, so any non-EHR channel requires new API surface first.
 
 ## 6. REDCap integration options ❌
 
@@ -119,8 +121,8 @@ Reliability note: the authoritative within-block allocation pointer lives in a *
 - **Login:** implemented at the edge — Vouch OAuth/OIDC behind nginx; the engine trusts the `X-Vouch-User` header (`api-http/src/extractors.rs`). Debug builds auto-authenticate as `"system"`.
 - **Tokens:** "signed/encrypted" is really HS256-**signed** study-share links only (7-day expiry, readable claims, `sharing.rs`). Not session auth, not encrypted.
 - **Authorization: absent.** Roles (`owner`/`member`) are stored but **never enforced** — `get/update/delete/transition/purge/set_arm_locator/share`, `list_randomizations`, and `get_balance` do no membership checks. Any authenticated user who knows a study UUID can read or mutate it. An approved enforcement design (2026-07-16, in git history under the removed `docs/superpowers/specs/`) is unimplemented.
-- **Edge gaps:** `/api/` and `/cds-services` are **not** behind nginx `auth_request`, and inbound `X-Vouch-User` is not explicitly stripped (header-spoofing surface). `/cds-services` has no mTLS/allowlist/shared-secret protection.
-- **Deploy gaps:** `JWT_SECRET` and `FHIR_ENV_MAP` are not injected in `compose.yaml` — a release engine panics at startup without out-of-band injection. The satellite spec flags a committed Google OAuth client secret as still exposed.
+- **Edge:** `/api/` and the console require a login (nginx `auth_request` to Vouch), and nginx overwrites any client-supplied `X-Vouch-User`. `/cds-services` has no login and the engine does not verify Epic's signed JWT ([security-concerns.md](security-concerns.md) S2); nginx limits it to the addresses in `CDS_ALLOW_FROM`.
+- **Deploy:** both compose files supply `JWT_SECRET` and `FHIR_ENV_MAP` (the release bundle, `deploy/compose.yaml`, through a secret file and `.env`). No OAuth client secret is committed in this repository (`vouch/config.yml` leaves it blank).
 
 ## 14. Public "satellite" demo endpoint 🟡⚠️
 
@@ -156,14 +158,13 @@ Reliability note: the authoritative within-block allocation pointer lives in a *
 
 ## Findings not in the original doc
 
-- **gRPC is a dead path:** `crates/api-grpc` is an empty stub (placeholder function, no deps, no protos, not wired into the engine), yet `compose.yaml` exposes `:50051` and nginx terminates gRPC TLS on `:1443` into nothing.
+- **gRPC is a dead path:** `crates/api-grpc` is an empty stub (placeholder function, no deps, no protos, not wired into the engine), yet the root `compose.yaml` (UCSF's deployment) publishes nginx's gRPC TLS port `:1443`, which proxies into nothing. The release bundle publishes only 443.
 - **Frontend/backend contract drift:** study statuses (`inactive` vs backend `paused`/`closed`), phantom randomization strategies (#7), and the wizard's dropped fields (#1) indicate the API contract and UI evolved separately.
 - **Legacy migration tool:** `backend/apps/migrate` is a one-shot, idempotent Redis→Postgres ETL from the legacy engine (UUID v4→v7, manifest-tracked) with a good operator README — relevant if data ever needs re-migrating from the UCSF deployment.
 
 ## Suggested priority order
 
 1. **Authorization enforcement** (#13) — highest-risk gap for a clinical-trial system; approved design already exists in git history.
-2. **Edge hardening** (#13) — `auth_request` on `/api/`, strip inbound `X-Vouch-*`, protect `/cds-services`.
+2. **Verify Epic's CDS Hooks JWT** (#13, security-concerns S2) — so `/cds-services` no longer depends on an address allow-list.
 3. **Create-wizard data loss** (#1) — silently dropped IRB/team/timeline fields will surprise study teams.
-4. **Deploy blockers** (#13) — `JWT_SECRET` / `FHIR_ENV_MAP` injection in `compose.yaml`.
-5. **CSV export** (#2/#16) — small scope, closes the doc's most-repeated false claim.
+4. **CSV export** (#2/#16) — small scope, closes the doc's most-repeated false claim.

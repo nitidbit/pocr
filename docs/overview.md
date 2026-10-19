@@ -1,6 +1,6 @@
 # POCR for Installing Sites — Overview and Readiness Checklist
 
-*Last updated: 2026-10-15*
+*Last updated: 2026-10-19*
 
 ---
 
@@ -13,7 +13,7 @@ The workflow:
 1. **Define a study** in POCR's web console: its arms and their ratio (e.g. Control 1 : Drug A 2 : Drug B 2), simple or permuted-block randomization, the unit being randomized (patient, encounter, provider), and any stratification factors (e.g. sex).
 2. **Configure the EHR** to call POCR at the right point in the workflow, sending the data POCR needs (patient, encounter, any stratification fields).
 3. **The EHR calls POCR** when that point is reached. POCR assigns an arm, records it, and returns a card the EHR shows to the clinician. Asking again for the same unit returns the same assignment.
-4. **Export** assignments and audit history from the console for analysis.
+4. **Review** assignments and arm balance in the console. There is no export yet ([feature-status.md](feature-status.md) #16).
 
 The EHR talks to POCR using **CDS Hooks**, an open HL7 standard for "the EHR asks an outside service for advice and shows the answer as a card". Epic supports it; so do other EHRs and the public CDS Hooks sandbox.
 
@@ -53,6 +53,19 @@ Everything runs as Docker containers on one Linux host. Sites install from a rel
 | **app** | The web console (static files). |
 | **postgres** | The system of record: studies, every assignment, the audit log. Back this up. |
 | **redis** | Speeds things up and holds the in-progress permuted block for each study/stratum. Losing it is recoverable (see the install guide's Backups section). |
+
+### Endpoints
+
+nginx exposes these; everything else on the server is internal.
+
+| Endpoint | Called by | When | Protected by |
+|---|---|---|---|
+| `GET /cds-services` | Epic, the CDS Hooks sandbox | When the service is registered (CDS Hooks discovery). Lists POCR's services. | Address allow-list |
+| `POST /cds-services/randomization` | Epic | Each time a study arm's BestPractice Advisory criteria fire. POCR identifies the study and arm from the Epic criteria ID in the request (the arm's *locator*), randomizes, and returns a card only if the patient's assigned arm is that one. | Address allow-list |
+| `POST /cds-services/<study-id>` | The CDS Hooks sandbox, or another CDS Hooks client that cannot send Epic's criteria ID | Each patient view. The study is in the URL, and the card always names the assigned arm. Exists only when `CDS_DISCOVERY_LIST_STUDIES=true` (off by default). | Address allow-list |
+| `/api/v1/...`, `/api/me` | The web console | Whenever study staff use the console | Login |
+
+The three `/cds-services` endpoints are the CDS Hooks interface and have no login: Epic calls them server to server. Until POCR verifies the token Epic signs each call with, nginx admits only the addresses in `CDS_ALLOW_FROM` ([security-concerns.md](security-concerns.md) S2). A repeat call for an already randomized patient never re-randomizes: POCR uses the original assignment.
 
 POCR **never calls back into Epic**. Epic sends everything POCR needs inside the request (CDS Hooks "prefetch"), so POCR needs no Epic credentials, no FHIR client registration for outbound calls, and no outbound network access to Epic.
 
