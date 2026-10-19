@@ -3,7 +3,7 @@
 **Date:** 2026-07-24
 **Method:** Each item from the inherited product/status doc was audited against the actual codebase (frontend, HTTP API, domain core, and integrations) at commit `49802e2`. "Previous status" is what the inherited doc claimed; "Verified status" is what the code shows.
 
-**Updated 2026-10-19:** items 5 and 13, the findings list, and the priority order were corrected for later changes to the edge configuration and deployment files.
+**Updated 2026-10-19:** items 5, 11, and 13, the findings list, and the priority order were corrected for later changes to the edge configuration and deployment files.
 
 > Numbering matches the source doc for easy cross-reference (there is no #9; the list jumps from 8 to 10).
 >
@@ -95,11 +95,13 @@ Caveats: extraction is best-effort — missing identifiers become silent `NULL`s
 
 **Verified status: Confirmed.** No variant tooling, no clickthrough/acknowledgment tracking. Card/suggestion UUIDs are modeled per CDS spec but there is **no `/cds-services/{id}/feedback` endpoint** and nothing consumes acceptance events.
 
-## 11. Non-Epic EHR support via CDS Hooks ❌⚠️
+## 11. Non-Epic EHR support via CDS Hooks 🟡⚠️
 
 **Previous status:** "Reflection service in progress; public sandbox testing underway."
 
-**Verified status: Nothing in this repo.** Exactly one hook (`patient-view`), hardcoded to Epic: study locator read from `com.epic.cdshooks.request.criteria-id`, CSN by Epic OID, environment map keyed to UCSF Epic prod/non-prod URL prefixes. `fhirAuthorization` is modeled but never used — there is **no FHIR client at all** (prefetch-only; no live FHIR fetch capability). No Cerner/Athena/SMART-sandbox code. If a reflection service is in progress, it lives in another repo (possibly the satellite's).
+**Verified status: Partial — one EHR-neutral endpoint; the rest is Epic-specific.** `POST /cds-services/{study_id}` (`api-http/src/cds_hooks.rs`) reads no vendor extension: the study is in the URL and the card always names the assigned arm. It is always served; `CDS_DISCOVERY_LIST_STUDIES` only controls whether discovery lists it. The public CDS Hooks sandbox randomizes through it.
+
+Still Epic-specific: the main endpoint `POST /cds-services/randomization` finds the study and arm from `com.epic.cdshooks.request.criteria-id`; the recorded patient, CSN, and user identifiers are extracted by Epic conventions (`EXTERNAL` type text, CSN OID suffix) and stored in `epic_*` columns, which are silently `NULL` on other EHRs; balance demographics come only from Caboodle (#3); only `patient-view` is advertised; the assignment card links to `https://randomization.ucsf.edu`. The environment map (`FHIR_ENV_MAP`) is a generic URL-prefix match. `fhirAuthorization` is modeled but never used — there is **no FHIR client at all** (prefetch-only). No Cerner/Athena-specific code.
 
 ## 12. Performance, scaling, and reliability 🟡⚠️
 

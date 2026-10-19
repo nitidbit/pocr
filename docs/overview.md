@@ -62,7 +62,7 @@ nginx exposes these; everything else on the server is internal.
 |---|---|---|---|
 | `GET /cds-services` | Epic, the CDS Hooks sandbox | When the service is registered (CDS Hooks discovery). Lists POCR's services. | Address allow-list |
 | `POST /cds-services/randomization` | Epic | Each time a study arm's BestPractice Advisory criteria fire. POCR identifies the study and arm from the Epic criteria ID in the request (the arm's *locator*), randomizes, and returns a card only if the patient's assigned arm is that one. | Address allow-list |
-| `POST /cds-services/<study-id>` | The CDS Hooks sandbox, or another CDS Hooks client that cannot send Epic's criteria ID | Each patient view. The study is in the URL, and the card always names the assigned arm. Exists only when `CDS_DISCOVERY_LIST_STUDIES=true` (off by default). | Address allow-list |
+| `POST /cds-services/<study-id>` | The CDS Hooks sandbox, or another CDS Hooks client that cannot send Epic's criteria ID | Each patient view. The study is in the URL, and the card always names the assigned arm. Always served; `CDS_DISCOVERY_LIST_STUDIES=true` (off by default) only makes discovery list each open study's service. | Address allow-list |
 | `/api/v1/...`, `/api/me` | The web console | Whenever study staff use the console | Login |
 
 The three `/cds-services` endpoints are the CDS Hooks interface and have no login: Epic calls them server to server. Until POCR verifies the token Epic signs each call with, nginx admits only the addresses in `CDS_ALLOW_FROM` ([security-concerns.md](security-concerns.md) S2). A repeat call for an already randomized patient never re-randomizes: POCR uses the original assignment.
