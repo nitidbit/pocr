@@ -29,7 +29,7 @@ dashmap = "6.1.0"
 x509-parser = "0.17"
 pem = "3"
 secrecy = "0.10.3"
-tiberius = { version = "0.12", features = ["chrono"] }
+tiberius = { version = "0.12", default-features = false, features = ["chrono", "tds73", "native-tls"] }
 tokio-util = { version = "0.7", features = ["compat"] }
 
 [workspace.lints.rust]

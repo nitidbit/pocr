@@ -125,6 +125,7 @@ pub fn init(cfg: Config) -> Guard {
     };
 
     tracing_subscriber::registry()
+        .with(database_log_filter())
         .with(env_filter)
         .with(err_layer)
         .with(fmt_layer)
@@ -166,4 +167,47 @@ fn env_bool(key: &str) -> Option<bool> {
     };
 
     Some(v)
+}
+
+fn database_log_filter<S: tracing::Subscriber>() -> impl Layer<S> {
+    // Tiberius emits raw server messages at ERROR/INFO and row data at TRACE.
+    // Application errors preserve safe categories and server codes instead.
+    tracing_subscriber::filter::filter_fn(|metadata| {
+        metadata.target() != "tiberius" && !metadata.target().starts_with("tiberius::")
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    use tracing::Subscriber;
+    use tracing_subscriber::layer::Context;
+
+    struct EventCount(Arc<AtomicUsize>);
+
+    impl<S: Subscriber> Layer<S> for EventCount {
+        fn on_event(&self, _: &tracing::Event<'_>, _: Context<'_, S>) {
+            self.0.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    #[test]
+    fn database_driver_events_are_suppressed_even_at_trace_level() {
+        let count = Arc::new(AtomicUsize::new(0));
+        let subscriber = tracing_subscriber::registry()
+            .with(database_log_filter())
+            .with(EventCount(count.clone()));
+        tracing::subscriber::with_default(subscriber, || {
+            tracing::error!(target: "tiberius::tds::stream::token", "sensitive server error");
+            tracing::trace!(target: "tiberius::tds::stream::token", "sensitive row data");
+            tracing::info!(target: "tiberius", "sensitive server message");
+            assert_eq!(count.load(Ordering::Relaxed), 0);
+            tracing::error!(target: "infra_caboodle", "sanitized application error");
+            assert_eq!(count.load(Ordering::Relaxed), 1);
+        });
+    }
 }
