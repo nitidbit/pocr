@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Upgrades this POCR install to another release.
+#
+#   sudo ./pocr-upgrade 1.2.0
+#
+# It backs up the database, downloads and checks the release bundle, replaces
+# the bundle's files (compose.yaml, the scripts, .env.example), sets
+# POCR_VERSION in .env, and restarts. Your .env, secrets/, certs/ and backups/
+# are left alone. Read the release notes first.
+# See docs/install.md.
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+# Where releases are published; the release workflow fills this in.
+RELEASES=${POCR_RELEASES:-https://github.com/OWNER/pocr/releases/download}
+
+usage() { sed -n '2,10s/^# \{0,1\}//p' "$0"; }
+say()  { printf '%s\n' "$*"; }
+step() { printf '\n== %s\n' "$*"; }
+die()  { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+case "${1:-}" in -h|--help) usage; exit 0 ;; ""|-*) usage >&2; exit 2 ;; esac
+V=${1#v}
+[ -f .env ] || die "no .env here; run this from your POCR directory"
+current=$(sed -n 's/^POCR_VERSION=//p' .env | tail -n1)
+say "upgrading from $current to $V"
+
+step "Downloading pocr-$V"
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+( cd "$tmp"
+  curl -fsSLO "$RELEASES/v$V/pocr-$V.tar.gz"
+  curl -fsSLO "$RELEASES/v$V/pocr-$V.tar.gz.sha256"
+  sha256sum -c "pocr-$V.tar.gz.sha256"
+  mkdir bundle && tar -xzf "pocr-$V.tar.gz" -C bundle --strip-components=1 --no-same-owner )
+
+step "Backing up the database"
+[ -x pocr-backup ] || cp "$tmp/bundle/pocr-backup" .
+./pocr-backup
+
+step "Installing the new bundle files"
+for f in compose.yaml pocr-init pocr-backup pocr-upgrade README.md .env.example; do
+  [ -f "$tmp/bundle/$f" ] && cp "$tmp/bundle/$f" "$f" && say "updated: $f"
+done
+# Settings the new release adds, which this .env does not have yet.
+new=$(grep -oE '^#? ?[A-Z][A-Z0-9_]*=' .env.example | tr -d '#= ' | sort -u |
+      while read -r var; do grep -qE "^#? ?$var=" .env || echo "$var"; done)
+if [ -n "$new" ]; then
+  say "New settings in .env.example (copy any you need into .env):"
+  printf '  %s\n' $new
+fi
+tmpenv=$(mktemp .env.XXXXXX)
+sed "s|^POCR_VERSION=.*|POCR_VERSION=$V|" .env > "$tmpenv" && mv "$tmpenv" .env && chmod 600 .env
+say "set POCR_VERSION=$V in .env"
+
+step "Checking the configuration"
+./pocr-init
+
+step "Starting $V"
+docker compose pull
+docker compose up -d
+docker compose ps
+say ""
+say "Upgraded to $V. To roll back: set POCR_VERSION=$current in .env and run docker compose up -d"
+say "(if $V changed the database schema, restore the dump made above as well)."

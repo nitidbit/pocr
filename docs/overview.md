@@ -113,6 +113,8 @@ Work through this before scheduling an install. Each line names who usually owns
 
 ### Epic prerequisites (for the Epic analyst; unverified outside UCSF)
 
+Steps are in [epic-integration.md](epic-integration.md).
+
 - [ ] Your Epic version supports CDS Hooks from OPA / BestPractice Advisory criteria.
 - [ ] Someone who can create an **external endpoint record** (E0A/E0E) and a client ID with the **CDS Hooks** outgoing API scope. Getting these records created can take a while at some sites; start early.
 - [ ] Your Interconnect servers can make outbound HTTPS calls to the POCR server.
@@ -123,7 +125,7 @@ Work through this before scheduling an install. Each line names who usually owns
 - [ ] Install done and verified ([install.md](install.md)).
 - [ ] Optional: the public CDS Hooks sandbox has been used to see POCR working end to end without Epic ([install.md](install.md#try-it-with-the-public-cds-hooks-sandbox)).
 - [ ] Test randomizations from a non-production Epic environment land as `nonproduction` and can be purged.
-- [ ] Backup job running and one restore tested ([install.md](install.md#backups)).
+- [ ] Backup job running and one restore tested ([install.md](install.md#6-set-up-backups)).
 - [ ] Security review of S1 and S2 mitigations completed.
 
 ## Document map
@@ -132,8 +134,10 @@ Work through this before scheduling an install. Each line names who usually owns
 |---|---|
 | **overview.md** (this file) | Deciding, staffing, and planning |
 | [install.md](install.md) | Server admin: what to gather, installing, then backups, upgrades, and troubleshooting. Self-contained. |
+| [epic-integration.md](epic-integration.md) | Epic analysts and client admins: connecting Epic to POCR, with test requests |
+| [study-setup.md](study-setup.md) | Study coordinators: creating, testing, and running a study in the console |
+| [epic-dependency.md](epic-dependency.md) | What is Epic-specific, for non-Epic EHRs |
 | [security-concerns.md](security-concerns.md) | Security reviewer: known issues and mitigations |
 | [feature-status.md](feature-status.md) | What is built, what is partial, what is planned |
 | [production-persistence.md](production-persistence.md) | Background on database durability behind the install guide's Backups section |
 | [external-dev-guide.md](external-dev-guide.md) | Developers working on POCR without Epic access |
-| *Planned:* Epic integration guide, study setup guide | |

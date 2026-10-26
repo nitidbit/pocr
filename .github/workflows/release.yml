@@ -68,10 +68,13 @@ jobs:
         env:
           REPO: ${{ steps.names.outputs.repo }}
           VERSION: ${{ steps.names.outputs.version }}
+          RELEASES: ${{ github.server_url }}/${{ github.repository }}/releases/download
         run: |
           dir="pocr-$VERSION"
           mkdir "$dir"
-          cp deploy/compose.yaml deploy/pocr-init deploy/README.md "$dir/"
+          cp deploy/compose.yaml deploy/pocr-init deploy/pocr-backup deploy/README.md "$dir/"
+          sed "s|^RELEASES=.*|RELEASES=\${POCR_RELEASES:-$RELEASES}|" deploy/pocr-upgrade > "$dir/pocr-upgrade"
+          chmod 755 "$dir/pocr-upgrade"
           sed -e "s|^POCR_IMAGE_REPO=.*|POCR_IMAGE_REPO=$REPO|" \
               -e "s|^POCR_VERSION=.*|POCR_VERSION=$VERSION|" \
               deploy/.env.example > "$dir/.env.example"

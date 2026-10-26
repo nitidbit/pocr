@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Prepares this directory to run POCR: secrets, .env, data volumes, and
-# (optionally) a self-signed certificate. Safe to re-run: it never replaces a
-# secret or volume that already exists, and it ends by listing what is still
-# left to configure.
+# Prepares this directory to run POCR: secrets, .env, data volumes, and the TLS
+# certificate. Safe to re-run: it never replaces a secret or volume that already
+# exists, and it ends by listing what is still left to configure.
 #
-#   sudo ./pocr-init                      # real install
-#   sudo ./pocr-init --self-signed        # also make a 30-day test certificate
+#   sudo ./pocr-init                       # create secrets, .env, volumes; check
+#   sudo ./pocr-init --csr                 # also make a key and certs/pocr.csr for your CA
+#   sudo ./pocr-init --letsencrypt EMAIL   # also get a Let's Encrypt certificate
+#   sudo ./pocr-init --self-signed         # also make a 30-day test certificate
 #
 # See docs/install.md.
 set -euo pipefail
@@ -14,15 +15,22 @@ cd "$(dirname "$0")"
 
 ENGINE_UID=1001          # the engine image's runtime user
 SELF_SIGNED=false
+CSR=false
+LE_EMAIL=
 
-usage() { sed -n '2,10s/^# \{0,1\}//p' "$0"; }
+usage() { sed -n '2,11s/^# \{0,1\}//p' "$0"; }
 
-for arg in "$@"; do
-  case "$arg" in
+while [ $# -gt 0 ]; do
+  case "$1" in
     --self-signed) SELF_SIGNED=true ;;
+    --csr) CSR=true ;;
+    --letsencrypt)
+      [ $# -ge 2 ] && [ "${2#-}" = "$2" ] || { echo "--letsencrypt needs an email address" >&2; exit 2; }
+      LE_EMAIL=$2; shift ;;
     -h|--help) usage; exit 0 ;;
-    *) echo "unknown option: $arg" >&2; usage >&2; exit 2 ;;
+    *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
+  shift
 done
 
 say()  { printf '%s\n' "$*"; }
@@ -116,18 +124,74 @@ done
 step "TLS certificate (certs/)"
 mkdir -p certs
 host=$(sed -n 's/^POCR_HOST=//p' .env | tail -n1)
+need_host() {
+  case "$host" in ""|*example.org) die "set POCR_HOST in .env before $1" ;; esac
+}
+
+if $CSR; then
+  need_host --csr
+  if [ -f certs/ssl.key ]; then
+    say "using the existing key, certs/ssl.key"
+  else
+    ( umask 077; openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out certs/ssl.key 2>/dev/null )
+    say "created a private key, certs/ssl.key (it stays on this server)"
+  fi
+  openssl req -new -key certs/ssl.key -subj "/CN=$host" -addext "subjectAltName=DNS:$host" -out certs/pocr.csr
+  say "created certs/pocr.csr for $host; send it to your certificate team:"
+  cat certs/pocr.csr
+fi
+
+if [ -n "$LE_EMAIL" ]; then
+  need_host --letsencrypt
+  $IS_ROOT || die "--letsencrypt must run as root"
+  command -v certbot >/dev/null || die "certbot not found. Install it first (Debian/Ubuntu: apt-get install -y certbot)"
+  live=/etc/letsencrypt/live/$host
+  if [ ! -f "$live/fullchain.pem" ]; then
+    # Let's Encrypt connects to $host on port 80 to check that we control it.
+    certbot certonly --standalone --non-interactive --agree-tos --no-eff-email \
+      -m "$LE_EMAIL" -d "$host" ||
+      die "certbot failed. Check that $host resolves to this server from the internet and that TCP 80 is open to everyone."
+  fi
+  # cp, not mv: the containers bind-mount these files and must see the change.
+  cp "$live/fullchain.pem" certs/ssl.pem
+  cp "$live/privkey.pem" certs/ssl.key
+  # certbot's timer renews the certificate; this hook copies each renewal in.
+  hook=/etc/letsencrypt/renewal-hooks/deploy/pocr
+  mkdir -p "$(dirname "$hook")"
+  cat > "$hook" <<HOOK
+#!/bin/sh
+# Installed by pocr-init: copy each renewed certificate into POCR and reload nginx.
+set -e
+cp "$live/fullchain.pem" "$PWD/certs/ssl.pem"
+cp "$live/privkey.pem"   "$PWD/certs/ssl.key"
+cd "$PWD" && docker compose exec -T nginx nginx -s reload || true
+HOOK
+  chmod 755 "$hook"
+  say "ok: Let's Encrypt certificate installed; $hook copies in each renewal"
+fi
+
 if $SELF_SIGNED && [ ! -f certs/ssl.pem ]; then
-  [ -n "$host" ] || die "set POCR_HOST in .env before --self-signed"
+  need_host --self-signed
   openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=$host" \
     -addext "subjectAltName=DNS:$host" \
     -keyout certs/ssl.key -out certs/ssl.pem 2>/dev/null
   say "created a 30-day self-signed certificate for $host (testing only)"
 fi
+
+cert_ok=false
 if [ -f certs/ssl.pem ] && [ -f certs/ssl.key ]; then
   # nginx reads the key as root; the engine reads only ssl.pem, as uid 1001.
   chmod 644 certs/ssl.pem; chmod 600 certs/ssl.key
   $IS_ROOT && chown root:root certs/ssl.key
+  cert_ok=true
   say "ok: $(openssl x509 -in certs/ssl.pem -noout -subject -enddate | tr '\n' ' ')"
+  if [ "$(openssl x509 -in certs/ssl.pem -noout -pubkey 2>/dev/null)" != \
+       "$(openssl pkey -in certs/ssl.key -pubout 2>/dev/null)" ]; then
+    say "warning: certs/ssl.key is not the private key for certs/ssl.pem"; cert_ok=false
+  fi
+  if ! openssl x509 -in certs/ssl.pem -noout -checkhost "$host" 2>/dev/null | grep -q 'does match'; then
+    say "warning: certs/ssl.pem is not valid for POCR_HOST ($host)"; cert_ok=false
+  fi
 fi
 
 # --- What is left --------------------------------------------------------------
@@ -137,8 +201,11 @@ need() { say "- $*"; todo=$((todo + 1)); }
 
 env_val() { sed -n "s/^$1=//p" .env | tail -n1; }
 
-[ -f certs/ssl.pem ] && [ -f certs/ssl.key ] ||
-  need "Put your certificate in certs/ssl.pem (full chain) and its key in certs/ssl.key."
+if [ -f certs/pocr.csr ] && [ ! -f certs/ssl.pem ]; then
+  need "When your CA returns the certificate, put it (then its intermediates) in certs/ssl.pem and re-run ./pocr-init."
+else
+  $cert_ok || need "Install a certificate for POCR_HOST: certs/ssl.pem (full chain) and certs/ssl.key (docs/install.md step 4)."
+fi
 [ "$(env_val POCR_IMAGE_REPO)" = "ghcr.io/OWNER" ] || [ -z "$(env_val POCR_IMAGE_REPO)" ] &&
   need "Set POCR_IMAGE_REPO in .env."
 [ "$(env_val POCR_VERSION)" = "VERSION" ] || [ -z "$(env_val POCR_VERSION)" ] &&
@@ -155,8 +222,8 @@ esac
 case "$(env_val OAUTH_AUTH_URL)" in *idp.example.org*) need "Replace the example OAUTH_*_URL values in .env (or delete them for Google)." ;; esac
 
 if [ "$todo" = 0 ]; then
-  say "Nothing. Start POCR with: docker compose up -d"
+  say "Nothing. Start POCR with: docker compose pull && docker compose up -d"
 else
   say ""
-  say "Edit .env, then re-run ./pocr-init to check, and start with: docker compose up -d"
+  say "Edit .env, then re-run ./pocr-init to check."
 fi

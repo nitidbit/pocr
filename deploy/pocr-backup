@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Backs up the POCR database, or checks that a backup restores.
+#
+#   sudo ./pocr-backup                       # dump to backups/, delete dumps older than 30 days
+#   sudo ./pocr-backup --test-restore FILE   # restore FILE into a throwaway database and count rows
+#
+# Nightly from cron (/etc/cron.d/pocr-backup):
+#   15 2 * * * root /srv/pocr/pocr-backup
+#
+# Set KEEP_DAYS to change the retention. The dumps contain PHI.
+# See docs/install.md.
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+KEEP_DAYS=${KEEP_DAYS:-30}
+
+usage() { sed -n '2,11s/^# \{0,1\}//p' "$0"; }
+say()  { printf '%s\n' "$*"; }
+die()  { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+counts() {   # counts CMD...: studies and randomizations, via psql run by CMD
+  "$@" psql -U pocr -d pocr -tAc \
+    "select (select count(*) from studies) || ' studies, ' || (select count(*) from randomizations) || ' randomizations'"
+}
+
+case "${1:-}" in
+  "")
+    mkdir -p backups && chmod 700 backups
+    out=backups/pocr-$(date +%F-%H%M).dump
+    # Write to a temporary name so a failed dump never looks like a good one.
+    trap 'rm -f "$out.partial"' EXIT
+    ( umask 077; docker compose exec -T postgres pg_dump -U pocr -Fc pocr > "$out.partial" )
+    mv "$out.partial" "$out"
+    say "ok: $out ($(du -h "$out" | cut -f1)); live database has $(counts docker compose exec -T postgres)"
+    find backups -name 'pocr-*.dump' -mtime +"$KEEP_DAYS" -print -delete | sed 's/^/deleted: /'
+    ;;
+
+  --test-restore)
+    file=${2:-}
+    [ -f "$file" ] || die "usage: $0 --test-restore backups/pocr-YYYY-MM-DD-HHMM.dump"
+    image=$(docker compose config --images | grep '^postgres:' | head -n1)
+    name=pocr-restore-test
+    docker rm -f "$name" >/dev/null 2>&1 || true
+    trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
+    # A separate container with no network or volume: production is untouched.
+    docker run -d --name "$name" --network none -e POSTGRES_USER=pocr \
+      -e POSTGRES_PASSWORD=restoretest -e POSTGRES_DB=pocr "$image" >/dev/null
+    # Over TCP: the image's first-run setup server listens only on its socket.
+    for _ in $(seq 60); do
+      docker exec "$name" pg_isready -h 127.0.0.1 -U pocr -d pocr -q 2>/dev/null && break
+      sleep 1
+    done
+    docker exec -i "$name" pg_restore -U pocr -d pocr --no-owner --exit-on-error < "$file"
+    say "restored: $(counts docker exec "$name")"
+    say "live:     $(counts docker compose exec -T postgres)"
+    say "ok: $file restores. The counts above should match, less anything created since the dump."
+    ;;
+
+  -h|--help) usage ;;
+  *) usage >&2; exit 2 ;;
+esac
