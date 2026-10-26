@@ -145,7 +145,7 @@ Edit `/srv/pocr/.env`. Each setting is explained in the file:
 | `FHIR_ENV_MAP`       | Each Epic environment's FHIR base URL and whether it is `production` or `nonproduction`, as `url=environment` pairs separated by `;`. A request whose `fhirServer` matches no entry gets an "Unrecognized environment" card and is not recorded. |
 | `CDS_ALLOW_FROM`     | Epic Interconnect addresses or CIDR ranges, separated by spaces or commas. Empty refuses every caller.                                                                                                  |
 | `POCR_ALLOWED_USERS` | Email addresses of the people who may log in, comma-separated.                                                                                                                                          |
-| `OAUTH_*`            | Your identity provider registration. For Google, set `OAUTH_PROVIDER=google` and delete the three URL lines.                                                                                            |
+| `OAUTH_*`            | Your identity provider registration. For Google, set `OAUTH_PROVIDER=google` and delete the three URL lines; to register, create a Web application OAuth client in Google Cloud Console ([Google's instructions](https://support.google.com/cloud/answer/6158849)) with redirect URI `https://<your-host>/auth`, and choose Internal on the consent screen so only your organization's accounts can sign in.                                                                                            |
 
 Leave `POCR_IMAGE_REPO`, `POCR_VERSION`, and the two `VOUCH_*` keys as they are; the bundle and `pocr-init` set them.
 
