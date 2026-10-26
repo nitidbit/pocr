@@ -126,6 +126,9 @@ services:
     # supplied at runtime via `docker compose run -e ...` — pocr-migrate/pocr-sync
     # read these directly (not the *_FILE secrets the engine uses).
     #
+    # CABOODLE_USERNAME/CABOODLE_PASSWORD must identify a SQL Server service
+    # account. See docs/DEPLOYMENT.md section 5.
+    #
     # Joined to satellite_backend (the legacy stack's network) so it can reach the
     # legacy Redis, which publishes no host port. NOTE: both networks expose a
     # service aliased `redis`; address every endpoint by container name
