@@ -210,16 +210,31 @@ fi
   need "Set POCR_IMAGE_REPO in .env."
 [ "$(env_val POCR_VERSION)" = "VERSION" ] || [ -z "$(env_val POCR_VERSION)" ] &&
   need "Set POCR_VERSION in .env."
-case "$(env_val POCR_HOST)" in ""|*example.org) need "Set POCR_HOST in .env." ;; esac
-case "$(env_val FHIR_ENV_MAP)" in ""|*example.org*) need "Set FHIR_ENV_MAP in .env to your Epic environments' FHIR base URLs." ;; esac
+case "$(env_val POCR_HOST)" in ""|*example.org) need "Set POCR_HOST in .env (it is empty or still the example)." ;; esac
+case "$(env_val FHIR_ENV_MAP)" in
+  "") need "Set FHIR_ENV_MAP in .env (it is empty)." ;;
+  *example.org*) need "FHIR_ENV_MAP in .env still has the example URLs. Use your Epic environments' FHIR base URLs (for the CDS Hooks sandbox: https://launch.smarthealthit.org/=nonproduction)." ;;
+esac
 [ -n "$(env_val CDS_ALLOW_FROM)" ] ||
   need "Set CDS_ALLOW_FROM in .env to your Epic Interconnect addresses (until then /cds-services refuses everyone)."
-case "$(env_val POCR_ALLOWED_USERS)$(env_val POCR_ALLOWED_EMAIL_DOMAINS)" in
-  ""|*@example.org*) need "Set POCR_ALLOWED_USERS in .env to the people who may log in." ;;
+users=$(env_val POCR_ALLOWED_USERS)
+case "$users$(env_val POCR_ALLOWED_EMAIL_DOMAINS)" in
+  "") need "Set POCR_ALLOWED_USERS in .env to the people who may log in (it is empty)." ;;
+  *@example.org*) need "POCR_ALLOWED_USERS in .env still has example addresses; remove them: $(printf '%s' "$users" | tr ',' '\n' | grep '@example.org' | paste -sd, -)" ;;
 esac
-[ -n "$(env_val OAUTH_CLIENT_ID)" ] && [ -n "$(env_val OAUTH_CLIENT_SECRET)" ] ||
-  need "Fill in the OAUTH_* values in .env from your identity provider (redirect URI https://${host:-<POCR_HOST>}/auth)."
-case "$(env_val OAUTH_AUTH_URL)" in *idp.example.org*) need "Replace the example OAUTH_*_URL values in .env (or delete them for Google)." ;; esac
+missing=$(for v in OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET; do [ -n "$(env_val $v)" ] || echo "$v"; done | sed '2s/^/and /' | paste -sd' ' -)
+[ -z "$missing" ] ||
+  need "Set $missing in .env from your identity provider registration (redirect URI https://${host:-<POCR_HOST>}/auth)."
+if [ "$(env_val OAUTH_PROVIDER)" = google ]; then
+  grep -q '^OAUTH_[A-Z_]*_URL=.*idp\.example\.org' .env &&
+    need "Delete the example OAUTH_*_URL lines from .env (Google needs none)."
+else
+  bad=$(for v in OAUTH_AUTH_URL OAUTH_TOKEN_URL OAUTH_USER_INFO_URL; do
+          case "$(env_val $v)" in ""|*idp.example.org*) echo "$v" ;; esac
+        done | paste -sd' ' -)
+  [ -z "$bad" ] ||
+    need "Set $bad in .env to your identity provider's URLs (they are empty or still the examples). For Google, set OAUTH_PROVIDER=google instead."
+fi
 
 if [ "$todo" = 0 ]; then
   say "Nothing. Start POCR with: docker compose pull && docker compose up -d"

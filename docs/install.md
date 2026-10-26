@@ -4,8 +4,6 @@ _Last updated: 2026-10-26_
 
 This guide is for the server admin installing POCR at a site. Connecting Epic is covered in [epic-integration.md](epic-integration.md), and setting up studies in [study-setup.md](study-setup.md). [overview.md](overview.md) gives the wider picture.
 
-**Verified:** release v0.1.0 was installed with this procedure on 2026-10-16 (Ubuntu 26.04 on AWS EC2, published images, Let's Encrypt certificate, Google login, the CDS Hooks sandbox). The backup and restore drill was run on 2026-10-15 with locally built images. Not yet run against a published release: the `pocr-init --csr` and `--letsencrypt` options, `pocr-backup`, `pocr-upgrade`, and image signature verification.
-
 **Contents**
 
 - [What you end up with](#what-you-end-up-with)
@@ -38,7 +36,7 @@ One Linux host running six Docker containers, with only nginx exposed on port 44
 
 POCR never calls Epic: each request carries everything POCR needs. It needs no Epic credentials and no outbound access to Epic.
 
-You install from a **release bundle**: `compose.yaml`, `.env.example`, and three scripts, `pocr-init`, `pocr-backup`, and `pocr-upgrade`. The images are pulled already built and signed; nothing is compiled on your server.
+You install from a **release bundle**: `compose.yaml`, `.env.example`, and three scripts, `pocr-init`, `pocr-backup`, and `pocr-upgrade`. The built and signed images are pulled from GitHub.
 
 **The database holds PHI.** Each assignment records the EHR patient ID, encounter CSN, the clinician's Epic user ID, the study, the arm, and the time. The server, its volumes, and its backups fall under your normal PHI handling.
 
@@ -46,18 +44,64 @@ You install from a **release bundle**: `compose.yaml`, `.env.example`, and three
 
 ## Before you start
 
-Gather these. The person who usually provides each is in brackets.
+You need two things before step 1: a server set up as below, and some information from other people, which you use from step 2 on.
 
-- [ ] **Host** [you]: Linux x86-64 VM with Docker Engine 24+ and the Compose plugin, `openssl`, and `curl`. 2 vCPU, 4 GB RAM, 40 GB disk is ample. Put it close, network-wise, to your Epic Interconnect servers.
-- [ ] **DNS name** [network admin], e.g. `pocr.example.org`, pointing at a fixed IP address (on AWS, an Elastic IP). Used below as `<your-host>`.
-- [ ] **Firewall** [network admin]: inbound TCP 443 from your users' network and from Epic Interconnect; `/cds-services` reachable only from Epic. Outbound HTTPS to `ghcr.io` and `quay.io` (or a registry mirror).
+### The server
+
+Provision a server with:
+
+- [ ] **Linux, x86-64:** 2 vCPU, 4 GB RAM, 40 GB disk is ample. Put it close, network-wise, to your Epic Interconnect servers.
+- [ ] **Docker Engine 24+ with the Compose plugin**, plus `openssl` and `curl`. See [Installing Docker](#installing-docker) below.
+- [ ] **A DNS name** (e.g. `pocr.example.org`, used below as `<your-host>`) pointing at a **fixed IP address** for the server (on AWS, an Elastic IP).
+- [ ] **Inbound TCP 443** from your users' network and from Epic Interconnect. Also TCP 80 from anywhere if you will use Let's Encrypt (step 3, option B).
+- [ ] **Outbound HTTPS** to `github.com`, `ghcr.io`, and `quay.io` (or a registry mirror).
+
+#### Installing Docker
+
+Install Docker, the Compose plugin, `openssl`, and `curl` with the commands for your distribution:
+
+| Distribution                       | Commands                                                                                                                                                                                                                                                                                            |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ubuntu 24.04 or later              | `sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2 openssl curl`                                                                                                                                                                                                           |
+| Debian 13 or later                 | `sudo apt-get update && sudo apt-get install -y docker.io docker-compose openssl curl`                                                                                                                                                                                                              |
+| RHEL, Rocky Linux, AlmaLinux 9 or 10 | See below.                                                                                                                                                                                                                                                                                        |
+| Anything else                      | Docker Engine and the Compose plugin from [Docker's install instructions](https://docs.docker.com/engine/install/) (or your platform team's standard build), then `openssl` and `curl` from your package manager. Debian 12 and Amazon Linux 2023 are in this group: their own Docker packages are too old or lack the Compose plugin. |
+
+RHEL, Rocky Linux, and AlmaLinux do not package Docker, so these commands add Docker's repository. `curl` is already installed.
+
+```sh
+sudo dnf install -y dnf-plugins-core
+sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin openssl
+sudo systemctl enable --now docker
+```
+
+If `dnf` reports a conflict with `podman` or `runc`, remove those first (`sudo dnf remove -y podman runc`).
+
+#### Checking the server
+
+Run these on the server. Each should print a version or the server's IP address:
+
+```sh
+docker compose version
+openssl version
+curl --version | head -n1
+getent hosts <your-host>
+```
+
+### Information to collect
+
+The person who usually provides each item is in brackets.
+
 - [ ] **TLS certificate** [PKI or network team]: trusted by both Epic Interconnect and your users' browsers. Step 3 covers your institution's CA, Let's Encrypt, and self-signed.
 - [ ] **Identity provider registration** [identity admin]: an OIDC application (Okta, Entra ID, Ping, Keycloak, Google, ...) with redirect URI `https://<your-host>/auth` and scopes `openid email profile`. You need its client ID, client secret, and authorize, token, and userinfo URLs.
 - [ ] **Who may log in** [study team]: email addresses of the study staff who will use the console.
-- [ ] **Epic details** [Epic Interconnect admin]: the IP addresses or CIDR ranges Epic calls from, and the FHIR base URL of each Epic environment that will call POCR (typically ending in `/api/FHIR/R4`), marked `production` or `nonproduction`.
+- [ ] **Epic details** [Epic Interconnect admin]: the IP addresses or CIDR ranges Epic calls from, and the FHIR base URL of each Epic environment that will call POCR (typically ending in `/api/FHIR/R4`), marked `production` or `nonproduction`. Ask the network admin to allow `/cds-services` from those addresses only.
 - [ ] **Backup destination** [you]: storage off this host for nightly database dumps.
 
-**Two limitations shape this install.** Both are tracked in [security-concerns.md](security-concerns.md); read it before go-live.
+### Two limitations that shape this install
+
+Both are tracked in [security-concerns.md](security-concerns.md); read it before go-live.
 
 - **POCR does not yet verify Epic's signed token** (S2). Anyone who can reach `/cds-services` can create randomizations. This install limits it to the addresses in `CDS_ALLOW_FROM`; enforce the same in your firewall.
 - **Console users are not yet restricted per study** (S1). Anyone who can log in can change any study, so login is limited to named people.
@@ -68,10 +112,12 @@ Gather these. The person who usually provides each is in brackets.
 
 ### 1. Download the release bundle
 
-Pick the latest release from `https://github.com/nitidbit/pocr/releases` and unpack it into `/srv/pocr`:
+Start once the server passes the [Checking the server](#checking-the-server) steps above, log in to it. Steps 1–4 and 6 run there.
+
+Pick the latest release from `https://github.com/nitidbit/pocr/releases`, note the release number, and unpack it into `/srv/pocr`:
 
 ```sh
-V=1.0.0                                             # the release you chose
+V=0.2.0                 # the release you chose
 BASE=https://github.com/nitidbit/pocr/releases/download/v$V
 curl -fLO $BASE/pocr-$V.tar.gz
 curl -fLO $BASE/pocr-$V.tar.gz.sha256
