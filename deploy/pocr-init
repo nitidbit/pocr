@@ -218,10 +218,17 @@ esac
 [ -n "$(env_val CDS_ALLOW_FROM)" ] ||
   need "Set CDS_ALLOW_FROM in .env to your Epic Interconnect addresses (until then /cds-services refuses everyone)."
 users=$(env_val POCR_ALLOWED_USERS)
-case "$users$(env_val POCR_ALLOWED_EMAIL_DOMAINS)" in
-  "") need "Set POCR_ALLOWED_USERS in .env to the people who may log in (it is empty)." ;;
-  *@example.org*) need "POCR_ALLOWED_USERS in .env still has example addresses; remove them: $(printf '%s' "$users" | tr ',' '\n' | grep '@example.org' | paste -sd, -)" ;;
-esac
+domains=$(env_val POCR_ALLOWED_EMAIL_DOMAINS)
+if [ -n "$users" ]; then
+  case "$users" in
+    *@example.org*) need "POCR_ALLOWED_USERS in .env still has example addresses; remove them: $(printf '%s' "$users" | tr ',' '\n' | grep '@example.org' | paste -sd, -)" ;;
+  esac
+else
+  case ",$domains," in
+    ,,) need "Set POCR_ALLOWED_EMAIL_DOMAINS (or POCR_ALLOWED_USERS) in .env; until then nobody can log in." ;;
+    *,example.org,*) need "POCR_ALLOWED_EMAIL_DOMAINS in .env is still the example; set your users' email domains, and limit the application to a group in your identity provider." ;;
+  esac
+fi
 missing=$(for v in OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET; do [ -n "$(env_val $v)" ] || echo "$v"; done | sed '2s/^/and /' | paste -sd' ' -)
 [ -z "$missing" ] ||
   need "Set $missing in .env from your identity provider registration (redirect URI https://${host:-<POCR_HOST>}/auth)."

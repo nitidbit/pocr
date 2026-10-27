@@ -78,7 +78,7 @@ Each assignment row holds the EHR patient ID, encounter CSN, the Epic user ID of
 Read [security-concerns.md](security-concerns.md) before go-live. The two that affect deployment design:
 
 - **The CDS Hooks endpoint does not verify Epic's signed token yet** (S2). Until it does, restrict `/cds-services` at the network level to your Epic Interconnect servers.
-- **Console users are not restricted per study yet** (S1). Anyone who can log in can change any study. Limit login to a short named list of people.
+- **Console users are not restricted per study yet** (S1). Anyone who can log in can change any study. Limit login to the people who run trials, e.g. by assigning the application to a group in your identity provider.
 
 Others: no blinding (the card names the arm), and the frontend is the only supported way to configure studies. [feature-status.md](feature-status.md) lists what is built and what is not.
 
@@ -107,7 +107,7 @@ Work through this before scheduling an install. Each line names who usually owns
 - [ ] **DNS name** for the server, e.g. `pocr.your-health-system.org`.
 - [ ] **TLS certificate** for that name from a CA Epic trusts (your internal CA is usually fine for an internal-only server).
 - [ ] **Reachability:** is the console reachable only on your internal network/VPN (recommended), or from the internet? `/cds-services` only needs to be reachable from Epic Interconnect.
-- [ ] **Identity provider** for console login, and the list of people allowed in.
+- [ ] **Identity provider** for console login, and a group in it of the people allowed in (or, if it can't limit an application to a group, their email addresses).
 - [ ] **Backups:** where nightly database dumps go (off the host), and who tests restores.
 - [ ] **Environments:** which Epic environments will call this server. Each Epic environment's FHIR base URL is mapped to either `production` or `nonproduction` in POCR (`FHIR_ENV_MAP`). Many sites run one POCR server for all Epic environments; others run a separate test server.
 

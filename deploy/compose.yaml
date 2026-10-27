@@ -41,10 +41,10 @@ services:
     read_only: true
     cap_drop: [ALL]
     environment:
-      # Who may log in. With POCR_ALLOWED_USERS set, only those addresses can
-      # (Vouch checks the whitelist first). Leave it empty and set
-      # POCR_ALLOWED_EMAIL_DOMAINS to admit whole email domains instead (see
-      # docs/security-concerns.md S1). POCR_HOST is always in VOUCH_DOMAINS
+      # Who may log in: anyone the identity provider signs in whose email is
+      # in POCR_ALLOWED_EMAIL_DOMAINS, or, when POCR_ALLOWED_USERS is set,
+      # only those addresses (Vouch then ignores the domains). POCR_HOST is
+      # always in VOUCH_DOMAINS
       # because Vouch only validates sessions for hosts listed there.
       VOUCH_WHITELIST: ${POCR_ALLOWED_USERS:-}
       VOUCH_DOMAINS: ${POCR_ALLOWED_EMAIL_DOMAINS:+${POCR_ALLOWED_EMAIL_DOMAINS},}${POCR_HOST}

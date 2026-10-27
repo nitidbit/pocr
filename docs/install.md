@@ -95,16 +95,13 @@ The person who usually provides each item is in brackets.
 
 - [ ] **TLS certificate** [PKI or network team]: trusted by both Epic Interconnect and your users' browsers. Step 3 covers your institution's CA, Let's Encrypt, and self-signed.
 - [ ] **Identity provider registration** [identity admin]: an OIDC application (Okta, Entra ID, Ping, Keycloak, Google, ...) with redirect URI `https://<your-host>/auth` and scopes `openid email profile`. You need its client ID, client secret, and authorize, token, and userinfo URLs.
-- [ ] **Who may log in** [study team]: email addresses of the study staff who will use the console.
+- [ ] **Who may log in** [identity provider admin]: a group of the study staff who will use the console, with the POCR application assigned to it (or, if your identity provider can't limit an application to a group, the staff's email addresses).
 - [ ] **Epic details** [Epic Interconnect admin]: the IP addresses or CIDR ranges Epic calls from, and the FHIR base URL of each Epic environment that will call POCR (typically ending in `/api/FHIR/R4`), marked `production` or `nonproduction`. Ask the network admin to allow `/cds-services` from those addresses only.
 - [ ] **Backup destination** [you]: storage off this host for nightly database dumps.
 
-### Two limitations that shape this install
+### A limitation that shapes this install
 
-Both are tracked in [security-concerns.md](security-concerns.md); read it before go-live.
-
-- **POCR does not yet verify Epic's signed token** (S2). Anyone who can reach `/cds-services` can create randomizations. This install limits it to the addresses in `CDS_ALLOW_FROM`; enforce the same in your firewall.
-- **Console users are not yet restricted per study** (S1). Anyone who can log in can change any study, so login is limited to named people.
+**POCR does not yet verify Epic's signed token** (S2 in [security-concerns.md](security-concerns.md); read it before go-live). Anyone who can reach `/cds-services` can create randomizations. This install limits it to the addresses in `CDS_ALLOW_FROM`; enforce the same in your firewall.
 
 ---
 
@@ -144,12 +141,14 @@ Edit `/srv/pocr/.env`. Each setting is explained in the file:
 | `POCR_HOST`          | `<your-host>`.                                                                                                                                                                                          |
 | `FHIR_ENV_MAP`       | Each Epic environment's FHIR base URL and whether it is `production` or `nonproduction`, as `url=environment` pairs separated by `;`. A request whose `fhirServer` matches no entry gets an "Unrecognized environment" card and is not recorded. |
 | `CDS_ALLOW_FROM`     | Epic Interconnect addresses or CIDR ranges, separated by spaces or commas. Empty refuses every caller.                                                                                                  |
-| `POCR_ALLOWED_USERS` | Email addresses of the people who may log in, comma-separated.                                                                                                                                          |
+| `POCR_ALLOWED_EMAIL_DOMAINS` | Your users' email domains, comma-separated. In your identity provider, assign the POCR application only to a group of the people who should use the console. If it can't limit the application to a group, use `POCR_ALLOWED_USERS` instead (below). |
 | `OAUTH_*`            | Your identity provider registration. For Google, set `OAUTH_PROVIDER=google` and delete the three URL lines; to register, create a Web application OAuth client in Google Cloud Console ([Google's instructions](https://support.google.com/cloud/answer/6158849)) with redirect URI `https://<your-host>/auth`, and choose Internal on the consent screen so only your organization's accounts can sign in.                                                                                            |
 
 Leave `POCR_IMAGE_REPO`, `POCR_VERSION`, and the two `VOUCH_*` keys as they are; the bundle and `pocr-init` set them.
 
-`FHIR_ENV_MAP` is not an access control (the caller writes `fhirServer` itself); it keeps test traffic out of production data. `CDS_ALLOW_FROM` and your firewall are the access control. Admitting a whole email domain instead of named users is possible (`POCR_ALLOWED_EMAIL_DOMAINS`) but not recommended until S1 is fixed.
+`FHIR_ENV_MAP` is not an access control (the caller writes `fhirServer` itself); it keeps test traffic out of production data. `CDS_ALLOW_FROM` and your firewall are the access control.
+
+Where your identity provider can't limit the application to a group (a Google Internal app admits your whole Workspace), set `POCR_ALLOWED_USERS` to the email addresses of the people who may log in, comma-separated; only those addresses can then log in, and `POCR_ALLOWED_EMAIL_DOMAINS` is ignored.
 
 ### 3. Install the TLS certificate
 
@@ -389,7 +388,7 @@ That produces `pocr-local/pocr-{engine,app,redis,nginx}:$V` in the local image s
 | `pocr-init --letsencrypt`: certbot fails                                                  | `<your-host>` does not resolve to this server from the internet, or TCP 80 is not open to everyone. certbot's message says which.                                                                                             |
 | `vouch` restarting                                                                        | `docker compose logs vouch` names the setting. Common: an `OAUTH_*` value missing, or `callback_url ... must be within a configured domains` (`POCR_HOST` mismatch).                                                          |
 | Login loops back to the login page, or the IdP says "redirect URI mismatch"               | The IdP's registered redirect URI must be exactly `https://<POCR_HOST>/auth`.                                                                                                                                                 |
-| Logged in but "not authorized" (Vouch 403 page)                                           | Your email isn't in `POCR_ALLOWED_USERS`. Change it, then `docker compose up -d`.                                                                                                                                             |
+| Logged in but "not authorized" (Vouch 403 page)                                           | Your email's domain isn't in `POCR_ALLOWED_EMAIL_DOMAINS`, or `POCR_ALLOWED_USERS` is set and your email isn't in it. Change it, then `docker compose up -d`. (If the identity provider itself refuses you, ask for the POCR group.) |
 | nginx: `host not found in upstream "vouch:9090"`                                          | Vouch wasn't up yet; nginx restarts and recovers. If it persists, fix Vouch first.                                                                                                                                            |
 | Engine exits: `password authentication failed`                                            | Postgres only reads its password when the volume is first initialized. If `secrets/` was regenerated after that, change the password inside Postgres to match `secrets/postgres_password` (`ALTER USER pocr PASSWORD '...'`). |
 | Engine exits: `failed to read DATABASE_URL_FILE ... permission denied`                    | Secret file not readable by uid 1001. Re-run `sudo ./pocr-init` as root, which fixes ownership.                                                                                                                               |

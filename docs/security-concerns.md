@@ -15,7 +15,7 @@ Each entry: what it is, where it lives, who can exploit it, and what a site can 
 
 Roles (`owner` / `member`) are stored, and the membership endpoints (`api-http/src/members.rs`) enforce them, but every other study endpoint does not: `get_study`, `update_study`, `transition_study`, `delete_study`, `purge_nonproduction`, `set_arm_locator`, `update_ratios`, `share_study`, `list_audit`, `list_randomizations`, `count_randomizations`, `get_balance`. Any user who can log in (anyone allowed by the Vouch config) and knows a study UUID can read or change it — including activating, closing, deleting, or re-pointing arm locators on a live trial.
 
-- **Mitigation today:** restrict console login to a small list of named users (`POCR_ALLOWED_USERS` in the install's `.env`; `whiteList` in `vouch/config.yml` for the repository's own `compose.yaml`) rather than a whole email domain.
+- **Mitigation today:** admit only the people who run trials. Preferably assign the POCR application to a group in the identity provider (with `POCR_ALLOWED_EMAIL_DOMAINS` in the install's `.env`, or `domains` in `vouch/config.yml` for the repository's own `compose.yaml`). Where the identity provider can't do that, list named users (`POCR_ALLOWED_USERS`; `whiteList` in `vouch/config.yml`). Don't admit everyone in an email domain without one of these.
 - **Fix:** an approved enforcement design (2026-07-16) exists in git history under the removed `docs/superpowers/specs/`.
 
 ### S2. CDS Hooks endpoints are unauthenticated — **High**
