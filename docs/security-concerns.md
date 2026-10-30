@@ -30,7 +30,8 @@ and create real randomization records, consuming block slots and skewing allocat
 The only gate is `FHIR_ENV_MAP`: the request's `fhirServer` must match a configured prefix. But `fhirServer` is a field in the caller's own JSON body, so it is not a security control — it prevents *accidents* (a test instance writing into production), not attacks.
 
 - **Mitigation today:** firewall the server so `/cds-services` is reachable only from the Epic Interconnect servers' addresses (`CDS_ALLOW_FROM` in the install's `.env`, which nginx enforces on that location, or a network ACL).
-- **Fix:** verify Epic's CDS Hooks JWT (signature via the `jku` JWKS, plus `iss`, `aud`, `exp`). Epic's scheme is public on fhir.epic.com, so this can be built and tested locally against a self-hosted JWKS.
+- **Fix (POCR only):** verify Epic's CDS Hooks JWT (signature via the `jku` JWKS, plus `iss`, `aud`, `exp`). Epic's scheme is public on fhir.epic.com, so this can be built and tested locally against a self-hosted JWKS.
+- **Epic side:** nothing to roll out. Epic already signs each request when the external endpoint record uses JWT authentication, which [epic-integration.md](epic-integration.md) step 2 asks sites to set, so no Epic change is needed when POCR starts verifying. After the fix, the POCR server will need outbound access to Epic's `jku` URL, and probably a list of trusted `iss` values.
 
 ### S3. Service discovery can list every open study — **Medium, off by default**
 

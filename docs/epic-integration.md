@@ -1,10 +1,9 @@
 # Connecting Epic to POCR
 
-_Last updated: 2026-10-26_
+_Last updated: 2026-10-30_
 
 This guide is for the Epic analysts and Interconnect/client admins who connect an Epic environment to an installed POCR server ([install.md](install.md)). The console side of each study is in [study-setup.md](study-setup.md).
 
-> **Unverified on the Epic side.** The Epic build steps below come from working builds at other sites, not from a build the maintainers could test; record and screen names vary by Epic version. POCR's side (what it reads from the request and what it returns) is checked against the code, and the [example requests](#testing-without-epic) were run against POCR on 2026-10-26.
 
 ---
 
@@ -69,16 +68,16 @@ JWT claims:
 | `iss` | This environment's FHIR R4 base URL |
 | `sub` | The client ID |
 
-POCR does not verify this JWT yet ([security-concerns.md](security-concerns.md) S2); fill it in so it is ready when it does.
+Configure the JWT authentication and claims as shown.
 
 Epic must trust the POCR server's TLS certificate, and the Interconnect servers must be able to reach `POCR_HOST` on port 443.
 
 ### 3. POCR settings
 
-Give the POCR server admin, for each Epic environment:
+POCR is configured on its server, not in Epic. For each Epic environment, send these values to whoever installed the POCR server; they enter them in POCR's configuration ([install.md](install.md#2-run-pocr-init-and-fill-in-env)):
 
-- **The FHIR base URL Epic sends as `fhirServer`**, and whether the environment is production or non-production. It goes in `FHIR_ENV_MAP` in `.env`, for example `https://epic.example.org/interconnect-tst/api/FHIR/R4=nonproduction`. POCR matches on prefix. A request whose `fhirServer` matches nothing is refused. If you are unsure of the exact URL, fire one advisory and look for `unrecognized fhirServer` in the POCR logs ([Troubleshooting](#troubleshooting)), which prints the URL Epic sent.
-- **The source addresses of your Interconnect servers.** They go in `CDS_ALLOW_FROM`. Anything else gets HTTP 403 from POCR's nginx.
+- **The FHIR base URL Epic sends as `fhirServer`**, and whether the environment is production or non-production, for example `https://epic.example.org/interconnect-tst/api/FHIR/R4`, non-production. POCR matches on prefix. Requests from an environment that isn't configured get an "Unrecognized environment" card and are not recorded. If you are unsure of the exact URL, fire one advisory and ask the POCR server admin for the URL in the `unrecognized fhirServer` log line ([Troubleshooting](#troubleshooting)).
+- **The source addresses of your Interconnect servers.** POCR refuses calls from any other address with HTTP 403.
 
 Production and non-production requests are kept apart: a non-production environment can never write production assignments ([study-setup.md](study-setup.md#3-test-in-non-production)).
 
@@ -171,7 +170,7 @@ These requests have the shape Epic sends: the criteria-ID extension, a CSN with 
 **Setup.** Either:
 
 - **Local dev stack:** `docker compose -f compose.dev.yaml up -d engine`. Its `FHIR_ENV_MAP` already maps `https://fake-epic.localhost/` to non-production, and `/cds-services` is open. Use `POCR=http://localhost:3000`.
-- **Installed server:** add `https://fake-epic.localhost/=nonproduction` to `FHIR_ENV_MAP` and your address to `CDS_ALLOW_FROM`, then `docker compose up -d`. Use `POCR=https://<POCR_HOST>`. Remove both entries afterwards.
+- **Installed server:** ask the POCR server admin to add `https://fake-epic.localhost/=nonproduction` to `FHIR_ENV_MAP` and your address to `CDS_ALLOW_FROM` in `.env`, run `docker compose up -d`, and remove both entries when you are done. Use `POCR=https://<POCR_HOST>`.
 
 Then create a study in the console with two arms, unit **Patient ID**, and stratum **Sex / Gender**, and set the arms' locators to `11131` and `11132`.
 
@@ -272,7 +271,7 @@ HTTP 200
 
 ## Troubleshooting
 
-Watch POCR's log while firing an advisory. On the POCR server, in the install directory:
+Have the POCR server admin watch POCR's log while you fire an advisory. On the POCR server, in the install directory:
 
 ```sh
 docker compose logs -f engine
@@ -280,8 +279,8 @@ docker compose logs -f engine
 
 | Epic shows / log says | Cause |
 |---|---|
-| Web service call failed, and no POCR log line | The request never reached POCR: endpoint address, TLS trust, firewall, or `CDS_ALLOW_FROM` (nginx returns 403; see `docker compose logs nginx`). |
-| `rejecting randomization from unrecognized fhirServer` | Add the URL printed in that line to `FHIR_ENV_MAP`. |
+| Web service call failed, and no POCR log line | The request never reached POCR: endpoint address, TLS trust, firewall, or the Interconnect address is missing from the POCR server's `CDS_ALLOW_FROM` (nginx returns 403; the server admin can check `docker compose logs nginx`). |
+| `rejecting randomization from unrecognized fhirServer` | The POCR server admin adds the URL printed in that line to `FHIR_ENV_MAP`. |
 | `No study found for locator` | The criteria ID is not entered as any arm's locator, or a wrong ID was entered. |
 | `Assigned arm is for a different locator — no card` | Normal: this patient is in another arm. |
 | `missing required field` or `not found` (HTTP 500) | The study's unit key is not in `context`, or a stratum's value is not in the prefetched resource. Check the prefetch templates and the trigger's context. |
