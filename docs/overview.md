@@ -139,5 +139,10 @@ Steps are in [epic-integration.md](epic-integration.md).
 | [epic-dependency.md](epic-dependency.md) | What is Epic-specific, for non-Epic EHRs |
 | [security-concerns.md](security-concerns.md) | Security reviewer: known issues and mitigations |
 | [feature-status.md](feature-status.md) | What is built, what is partial, what is planned |
-| [production-persistence.md](production-persistence.md) | Background on database durability behind the install guide's Backups section |
-| [external-dev-guide.md](external-dev-guide.md) | Developers working on POCR without Epic access |
+
+For people developing POCR, in [dev/](dev/):
+
+| Document | For |
+|---|---|
+| [external-dev-guide.md](dev/external-dev-guide.md) | Developers working on POCR without Epic access |
+| [production-persistence.md](dev/production-persistence.md) | Background on database durability behind the install guide's Backups section |

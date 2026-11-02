@@ -95,4 +95,4 @@ In suggested order. Items 2 and 3 also fix problems for Epic sites (silent `NULL
    - Make the card's source URL a setting.
    - Split the EHR-integration docs into a generic CDS Hooks guide and an Epic-specific section.
 
-6. **Test against a second CDS Hooks client.** The public CDS Hooks sandbox covers the protocol. For any specific EHR, first confirm which hooks and prefetch templates it supports, and get a de-identified request body captured from it, as [external-dev-guide.md](external-dev-guide.md) recommends for Epic.
+6. **Test against a second CDS Hooks client.** The public CDS Hooks sandbox covers the protocol. For any specific EHR, first confirm which hooks and prefetch templates it supports, and get a de-identified request body captured from it, as [external-dev-guide.md](dev/external-dev-guide.md) recommends for Epic.

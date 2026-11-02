@@ -313,7 +313,7 @@ To restore production from a dump, stop the engine (`docker compose stop engine`
 
 ## Try it with the public CDS Hooks sandbox
 
-The [CDS Hooks sandbox](https://sandbox.cds-hooks.org) is a web page that plays the part of an EHR: it shows a synthetic patient and calls your CDS services. It is the quickest way to see POCR return a card without any Epic work. To try it on a laptop instead, see [external-dev-guide.md](external-dev-guide.md#trying-the-cds-hooks-sandbox-locally).
+The [CDS Hooks sandbox](https://sandbox.cds-hooks.org) is a web page that plays the part of an EHR: it shows a synthetic patient and calls your CDS services. It is the quickest way to see POCR return a card without any Epic work. To try it on a laptop instead, see [external-dev-guide.md](dev/external-dev-guide.md#trying-the-cds-hooks-sandbox-locally).
 
 The sandbox runs **in the browser**: the browser makes the calls to POCR. The server must be reachable from that browser with a certificate it trusts (option A or B).
 

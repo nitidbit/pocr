@@ -7,7 +7,7 @@
 #    provenance attestations.
 # 2. Signs each image with Sigstore cosign (keyless, tied to this workflow).
 # 3. Creates a GitHub Release with the install bundle (deploy/ with the image
-#    location and version filled in).
+#    location and version filled in, plus docs/), linking to the docs at this tag.
 #
 # The first push creates the GHCR packages as private; make each one public
 # once under the owner's Packages settings so sites can pull without logging in.
@@ -69,10 +69,13 @@ jobs:
           REPO: ${{ steps.names.outputs.repo }}
           VERSION: ${{ steps.names.outputs.version }}
           RELEASES: ${{ github.server_url }}/${{ github.repository }}/releases/download
+          DOCS: ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.ref_name }}/docs
         run: |
           dir="pocr-$VERSION"
           mkdir "$dir"
           cp deploy/compose.yaml deploy/pocr-init deploy/pocr-backup deploy/README.md "$dir/"
+          cp -R docs "$dir/docs"
+          printf '\nThe same documentation online: %s/overview.md\n' "$DOCS" >> "$dir/README.md"
           sed "s|^RELEASES=.*|RELEASES=\${POCR_RELEASES:-$RELEASES}|" deploy/pocr-upgrade > "$dir/pocr-upgrade"
           chmod 755 "$dir/pocr-upgrade"
           sed -e "s|^POCR_IMAGE_REPO=.*|POCR_IMAGE_REPO=$REPO|" \
@@ -86,9 +89,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ steps.names.outputs.repo }}
           VERSION: ${{ steps.names.outputs.version }}
+          DOCS: ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.ref_name }}/docs
         run: |
           {
-            echo "Install with \`pocr-$VERSION.tar.gz\`; see docs/install.md."
+            echo "Install with \`pocr-$VERSION.tar.gz\` by following [install.md]($DOCS/install.md)."
+            echo "The bundle includes the documentation for this release in \`docs/\`; start with [overview.md]($DOCS/overview.md)."
             echo
             echo "Images (signed with cosign, SBOM and provenance attached):"
             echo

@@ -1,8 +1,25 @@
 # POCR — Point of Care Randomization
 
-Clinical trial randomization engine for UCSF. POCR configures randomization
-studies and randomizes subjects at the point of care, either through a web
-console or in response to Epic CDS Hooks requests.
+Clinical trial randomization engine, developed at UCSF. POCR configures
+randomization studies and randomizes subjects at the point of care, either
+through a web console or in response to Epic CDS Hooks requests.
+
+## Running POCR at your institution
+
+Each site runs its own POCR server, installed from a
+[release](../../releases) bundle. Start with the document for your role:
+
+| You are… | Read |
+|---|---|
+| Deciding whether to adopt POCR, or planning the project | [overview.md](docs/overview.md), [feature-status.md](docs/feature-status.md) |
+| Reviewing it for security or compliance | [security-concerns.md](docs/security-concerns.md) |
+| The server admin installing and running it | [install.md](docs/install.md) |
+| The Epic analyst connecting Epic | [epic-integration.md](docs/epic-integration.md) |
+| On a study team setting up a trial | [study-setup.md](docs/study-setup.md) |
+| Using an EHR other than Epic | [epic-dependency.md](docs/epic-dependency.md) |
+| A developer changing POCR | This README, then [docs/dev/](docs/dev/) |
+
+Each release bundle includes the documentation for that release in `docs/`.
 
 ## Architecture
 
@@ -41,16 +58,18 @@ docker compose -f compose.dev.yaml up
 This starts the engine (via `cargo watch`), PostgreSQL, Redis, and the frontend
 dev server on port 5179.
 
-## Production
+## Releases and production
 
-Other sites install from a release bundle (`deploy/`: a Compose file, a
-settings template, and the `pocr-init` setup script) that pulls prebuilt,
-signed images. See [docs/install.md](docs/install.md).
+Sites install from a release bundle (`deploy/`: a Compose file, a settings
+template, and the `pocr-init`, `pocr-backup`, and `pocr-upgrade` scripts, plus
+`docs/`) that pulls prebuilt, signed images. See [docs/install.md](docs/install.md).
 
 Releases are cut by pushing a `v*` tag, which runs
 `.github/workflows/release.yml`: it builds the `release` group in
 `docker-bake.hcl`, pushes the images to `ghcr.io/<owner>`, signs them, and
-attaches the bundle to a GitHub Release.
+attaches the bundle to a GitHub Release whose notes link to the docs at that
+tag. Docs change in the same commit as the code they describe, so each tag's
+docs match its images.
 
 The top-level `compose.yaml` is UCSF's deployment: it builds or pulls UCSF's
 images and bind-mounts `nginx/` and `vouch/config.yml` from the checkout. It

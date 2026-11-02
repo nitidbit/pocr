@@ -1,7 +1,7 @@
 # POCR External-Developer Guide — Working Without Epic Access
 
 **Date:** 2026-07-28
-**Context:** Companion to [feature-status.md](feature-status.md); item numbering matches. Premise: development is done by a non-UCSF developer who will likely have SSH/dev access to a UCSF server but will **never** have access to Epic, and possibly not to other UCSF-internal systems (Caboodle, REDCap, the clinical network). This doc maps, per feature, what can be built externally, what to stub or mock, and what genuinely requires a UCSF partner.
+**Context:** Companion to [feature-status.md](../feature-status.md); item numbering matches. Premise: development is done by a non-UCSF developer who will likely have SSH/dev access to a UCSF server but will **never** have access to Epic, and possibly not to other UCSF-internal systems (Caboodle, REDCap, the clinical network). This doc maps, per feature, what can be built externally, what to stub or mock, and what genuinely requires a UCSF partner.
 
 ---
 
@@ -44,7 +44,7 @@ The public [CDS Hooks sandbox](https://sandbox.cds-hooks.org) can call a POCR en
 3. In Chrome, open `https://sandbox.cds-hooks.org/?serviceDiscoveryURL=http://localhost:3000/cds-services`.
 4. On the Patient View tab you should see a "Randomized: <arm>" card. Reloading shows the same assignment; _Change Patient_ gives a new one. Ignore the "No locator found" card from the Epic-style `randomization` service, or turn it off under gear → _Configure CDS Services_.
 
-Never expose `compose.dev.yaml` beyond your own machine: its debug engine treats unauthenticated requests as a built-in user ([security-concerns.md](security-concerns.md) S5). For the sandbox against an installed server, see [install.md](install.md#try-it-with-the-public-cds-hooks-sandbox).
+Never expose `compose.dev.yaml` beyond your own machine: its debug engine treats unauthenticated requests as a built-in user ([security-concerns.md](../security-concerns.md) S5). For the sandbox against an installed server, see [install.md](../install.md#try-it-with-the-public-cds-hooks-sandbox).
 
 ## The standing ask-list for UCSF
 

@@ -7,7 +7,7 @@
 
 > Numbering matches the source doc for easy cross-reference (there is no #9; the list jumps from 8 to 10).
 >
-> **See also:** [external-dev-guide.md](external-dev-guide.md) — per-item paths for developing each feature without Epic/UCSF-internal access (same numbering).
+> **See also:** [external-dev-guide.md](dev/external-dev-guide.md) — per-item paths for developing each feature without Epic/UCSF-internal access (same numbering).
 
 **Sprint history (added 2026-07-28, per the project manager):** Sprint 1 covered items 12, 13, and 14; Sprint 2 covered items 1 and 3. Those are five of the eight items flagged ⚠️ below — for them, the mismatch is best read as the inherited doc *predating the sprint work* (staleness), not as the doc being wrong when written. The remaining ⚠️ items (2, 11, 16) still have no in-repo explanation for their claims.
 

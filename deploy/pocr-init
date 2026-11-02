@@ -204,7 +204,7 @@ env_val() { sed -n "s/^$1=//p" .env | tail -n1; }
 if [ -f certs/pocr.csr ] && [ ! -f certs/ssl.pem ]; then
   need "When your CA returns the certificate, put it (then its intermediates) in certs/ssl.pem and re-run ./pocr-init."
 else
-  $cert_ok || need "Install a certificate for POCR_HOST: certs/ssl.pem (full chain) and certs/ssl.key (docs/install.md step 4)."
+  $cert_ok || need "Install a certificate for POCR_HOST: certs/ssl.pem (full chain) and certs/ssl.key (docs/install.md step 3)."
 fi
 [ "$(env_val POCR_IMAGE_REPO)" = "ghcr.io/OWNER" ] || [ -z "$(env_val POCR_IMAGE_REPO)" ] &&
   need "Set POCR_IMAGE_REPO in .env."
