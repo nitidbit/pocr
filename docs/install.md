@@ -1,6 +1,6 @@
 # Installing and Running POCR
 
-_Last updated: 2026-10-26_
+_Last updated: 2026-11-02_
 
 This guide is for the server admin installing POCR at a site. Connecting Epic is covered in [epic-integration.md](epic-integration.md), and setting up studies in [study-setup.md](study-setup.md). [overview.md](overview.md) gives the wider picture.
 
@@ -109,12 +109,13 @@ The person who usually provides each item is in brackets.
 
 ### 1. Download the release bundle
 
-Start once the server passes the [Checking the server](#checking-the-server) steps above, log in to it. Steps 1–4 and 6 run there.
+Once the server passes [Checking the server](#checking-the-server), log in to it. Steps 1–4 and 6 run there.
 
-Pick the latest release from `https://github.com/nitidbit/pocr/releases`, note the release number, and unpack it into `/srv/pocr`:
+Download the latest release ([list of releases](https://github.com/nitidbit/pocr/releases)) and unpack it into `/srv/pocr`:
 
 ```sh
-V=0.2.0                 # the release you chose
+V=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/nitidbit/pocr/releases/latest)
+V=${V##*/v}; echo $V    # the latest release number; or set V=1.2.3 for a specific one
 BASE=https://github.com/nitidbit/pocr/releases/download/v$V
 curl -fLO $BASE/pocr-$V.tar.gz
 curl -fLO $BASE/pocr-$V.tar.gz.sha256
