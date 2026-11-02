@@ -64,7 +64,8 @@ Sites install from a release bundle (`deploy/`: a Compose file, a settings
 template, and the `pocr-init`, `pocr-backup`, and `pocr-upgrade` scripts, plus
 `docs/`) that pulls prebuilt, signed images. See [docs/install.md](docs/install.md).
 
-Releases are cut by pushing a `v*` tag, which runs
+Cut a release with `scripts/release.sh` (or `scripts/release 1.2.3`). It tags the
+current commit and pushes a `v*` tag, which runs
 `.github/workflows/release.yml`: it builds the `release` group in
 `docker-bake.hcl`, pushes the images to `ghcr.io/<owner>`, signs them, and
 attaches the bundle to a GitHub Release whose notes link to the docs at that
