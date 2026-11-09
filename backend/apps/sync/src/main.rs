@@ -35,14 +35,9 @@ async fn run() -> Result<(), SyncError> {
     let mut caboodle = infra_caboodle::CaboodleClient::connect(&caboodle_config).await?;
     info!("connected to Caboodle");
 
-    let patients: Vec<PatientRow> = sqlx::query_as(
-        r#"SELECT DISTINCT ON (epic_patient_id) epic_patient_id, issued_at
-           FROM randomizations
-           WHERE epic_patient_id IS NOT NULL
-           ORDER BY epic_patient_id, issued_at ASC"#,
-    )
-    .fetch_all(&pg_pool)
-    .await?;
+    let patients: Vec<PatientRow> = sqlx::query_as(include_str!("patients.sql"))
+        .fetch_all(&pg_pool)
+        .await?;
 
     if patients.is_empty() {
         info!("no randomized patients with Epic IDs found, nothing to sync");

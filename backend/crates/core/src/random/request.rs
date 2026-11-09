@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 /// An incoming request to randomize a subject into a study arm.
 ///
 /// Fields are optional because different studies use different keys
@@ -14,6 +16,8 @@ pub struct RandomizationRequest {
     pub encounter_id: Option<String>,
     /// Provider/user identifier, required when the study key is [`KeyVariant::ProviderId`](super::KeyVariant::ProviderId).
     pub user_id: Option<String>,
+    /// FHIR server namespace associated with the original request identifiers.
+    pub fhir_server: Option<String>,
     /// FHIR resource context for stratification and FhirPath-based unit extraction.
     pub context: Option<serde_json::Value>,
 }
@@ -30,6 +34,25 @@ pub struct EpicIds {
 }
 
 impl RandomizationRequest {
+    /// Capture selected identifiers only; never persist prefetch resources or tokens.
+    pub fn extract_context(&self) -> BTreeMap<String, serde_json::Value> {
+        let epic = self.extract_epic_ids();
+        [
+            ("fhir_patient_id", self.patient_id.as_ref()),
+            ("fhir_encounter_id", self.encounter_id.as_ref()),
+            ("fhir_user_reference", self.user_id.as_ref()),
+            ("fhir_server", self.fhir_server.as_ref()),
+            ("epic_patient_id", epic.patient_id.as_ref()),
+            ("epic_csn", epic.csn.as_ref()),
+            ("epic_user_id", epic.user_id.as_ref()),
+        ]
+        .into_iter()
+        .filter_map(|(key, value)| {
+            value.map(|v| (key.to_owned(), serde_json::Value::String(v.clone())))
+        })
+        .collect()
+    }
+
     /// Extract Epic-native IDs from the FHIR resources in the request context.
     ///
     /// The context is the CDS Hooks `prefetch` block: `patient`, `encounter`,
@@ -107,8 +130,29 @@ mod tests {
             patient_id: None,
             encounter_id: None,
             user_id: None,
+            fhir_server: None,
             context: Some(context),
         }
+    }
+
+    #[test]
+    fn context_retains_fhir_identifiers_without_prefetch() {
+        let request = RandomizationRequest {
+            locator: None,
+            patient_id: Some("patient".into()),
+            encounter_id: Some("encounter".into()),
+            user_id: None,
+            fhir_server: Some("https://synthetic.example/FHIR/R4".into()),
+            context: None,
+        };
+        assert_eq!(
+            serde_json::to_value(request.extract_context()).unwrap(),
+            json!({
+                "fhir_patient_id": "patient",
+                "fhir_encounter_id": "encounter",
+                "fhir_server": "https://synthetic.example/FHIR/R4"
+            })
+        );
     }
 
     #[test]
@@ -214,6 +258,7 @@ mod tests {
             patient_id: None,
             encounter_id: None,
             user_id: None,
+            fhir_server: None,
             context: None,
         };
 

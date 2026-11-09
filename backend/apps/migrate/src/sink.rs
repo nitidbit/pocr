@@ -74,8 +74,8 @@ impl PocrSink {
     ///
     /// Mirrors the `infra-pg` row mapping — `unit_hash`/`strata_key` are the
     /// shared `String::from` hashes — but adds the `ON CONFLICT` clause the
-    /// migration needs for idempotent re-runs. On conflict the arm, issued-at,
-    /// and Epic-id columns are refreshed so a corrected re-run converges.
+    /// migration needs for idempotent re-runs. Existing assignments and context
+    /// are immutable: a rerun never overwrites manually enriched identifiers.
     ///
     /// # Errors
     ///
@@ -87,17 +87,13 @@ impl PocrSink {
         let strata_key = rec.strata.as_ref().map(String::from);
         let arm_json = serde_json::to_value(&rec.arm)?;
 
-        sqlx::query(
+        let mut tx = self.pool.begin().await?;
+        let inserted: Option<Uuid> = sqlx::query_scalar(
             r#"INSERT INTO randomizations
-                 (id, study_id, environment, unit_hash, strata_key, arm, issued_at,
-                  epic_patient_id, epic_csn, epic_user_id)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-               ON CONFLICT (study_id, environment, unit_hash) DO UPDATE SET
-                 arm = EXCLUDED.arm,
-                 issued_at = EXCLUDED.issued_at,
-                 epic_patient_id = EXCLUDED.epic_patient_id,
-                 epic_csn = EXCLUDED.epic_csn,
-                 epic_user_id = EXCLUDED.epic_user_id"#,
+                 (id, study_id, environment, unit_hash, strata_key, arm, issued_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT (study_id, environment, unit_hash) DO NOTHING
+               RETURNING id"#,
         )
         .bind(rec.id)
         .bind(rec.study_id)
@@ -106,11 +102,13 @@ impl PocrSink {
         .bind(&strata_key)
         .bind(&arm_json)
         .bind(rec.issued_at)
-        .bind(&rec.epic_patient_id)
-        .bind(&rec.epic_csn)
-        .bind(&rec.epic_user_id)
-        .execute(&self.pool)
+        .fetch_optional(&mut *tx)
         .await?;
+        if let Some(id) = inserted {
+            sqlx::query("INSERT INTO randomization_context (randomization_id, context_key, context_value) SELECT $1, key, value FROM jsonb_each($2)")
+                .bind(id).bind(sqlx::types::Json(&rec.context)).execute(&mut *tx).await?;
+        }
+        tx.commit().await?;
         Ok(())
     }
 
@@ -149,5 +147,62 @@ impl PocrSink {
             .save_block(Environment::Production, block)
             .await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pocr_core::random::{Arm, SimpleUnit, Unit};
+
+    #[sqlx::test(migrations = "../../crates/infra-pg/migrations")]
+    #[ignore = "requires disposable PostgreSQL via DATABASE_URL"]
+    async fn import_preserves_existing_assignment_and_context_on_conflict(pool: PgPool) {
+        let study_id = Uuid::now_v7();
+        sqlx::query(
+            "INSERT INTO studies (id, name, randomization_config) VALUES ($1,'Synthetic','{}')",
+        )
+        .bind(study_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        let redis = Arc::new(RedisPool::new("redis://127.0.0.1:1").unwrap());
+        let sink = PocrSink::new(pool.clone(), redis);
+        let mut rec = Randomization::simple(
+            &study_id,
+            Environment::Production,
+            &Unit::Simple(SimpleUnit::EncounterId("enc".into())),
+            &Arm::new("A", 1),
+        );
+        rec.context.insert("fhir_encounter_id".into(), "enc".into());
+        rec.context.insert("epic_csn".into(), "00123".into());
+        sink.write_randomization(&rec).await.unwrap();
+        let context: serde_json::Value = sqlx::query_scalar("SELECT COALESCE(jsonb_object_agg(context_key,context_value),'{}') FROM randomization_context WHERE randomization_id=$1").bind(rec.id).fetch_one(&pool).await.unwrap();
+        assert_eq!(
+            context,
+            serde_json::json!({"fhir_encounter_id":"enc", "epic_csn":"00123"})
+        );
+        let original: serde_json::Value =
+            sqlx::query_scalar("SELECT to_jsonb(r) FROM randomizations r WHERE id=$1")
+                .bind(rec.id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let original_id = rec.id;
+        rec.id = Uuid::now_v7();
+        rec.arm = Arm::new("different", 1);
+        rec.context.remove("epic_csn");
+        rec.context
+            .insert("fhir_encounter_id".into(), "changed".into());
+        sink.write_randomization(&rec).await.unwrap();
+        let after: serde_json::Value =
+            sqlx::query_scalar("SELECT to_jsonb(r) FROM randomizations r WHERE id=$1")
+                .bind(original_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(original, after);
+        let after_context: serde_json::Value = sqlx::query_scalar("SELECT jsonb_object_agg(context_key,context_value) FROM randomization_context WHERE randomization_id=$1").bind(original_id).fetch_one(&pool).await.unwrap();
+        assert_eq!(context, after_context);
     }
 }

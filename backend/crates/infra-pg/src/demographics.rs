@@ -118,8 +118,7 @@ impl DemographicsRepository for PgDemographicsRepository {
     /// Fetch demographics for all randomized patients in a study, joined
     /// with their arm assignment.
     ///
-    /// Join `patient_demographics.patient_id = randomizations.epic_patient_id`
-    /// where `randomizations.study_id = study_id`. Extract the arm UUID
+    /// Join the `epic_patient_id` context value directly. Extract the arm UUID
     /// from the JSONB `arm` column's `id` field.
     ///
     /// # Errors
@@ -144,7 +143,9 @@ impl DemographicsRepository for PgDemographicsRepository {
                    pd.synced_at,
                    (r.arm->>'id')::UUID AS arm_id
                FROM patient_demographics pd
-               JOIN randomizations r ON r.epic_patient_id = pd.patient_id
+               JOIN randomization_context c ON c.context_key = 'epic_patient_id'
+                   AND c.context_value #>> '{}' = pd.patient_id
+               JOIN randomizations r ON r.id = c.randomization_id
                WHERE r.study_id = $1"#,
         )
         .bind(study_id)

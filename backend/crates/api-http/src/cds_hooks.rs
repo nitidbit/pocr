@@ -122,6 +122,7 @@ pub async fn randomize(
         patient_id: request.context.patient_id.clone(),
         encounter_id: request.context.encounter_id.clone(),
         user_id: request.context.user_id.clone(),
+        fhir_server: request.fhir_server.clone(),
         context: request.prefetch.clone(),
     };
 

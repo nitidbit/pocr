@@ -143,6 +143,7 @@ mod tests {
             patient_id: None,
             encounter_id: None,
             user_id: None,
+            fhir_server: None,
             context: Some(json!({
                 "Patient": {
                     "gender": "male",
@@ -182,6 +183,7 @@ mod tests {
             patient_id: None,
             encounter_id: None,
             user_id: None,
+            fhir_server: None,
             context: None,
         };
 

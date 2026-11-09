@@ -2,6 +2,7 @@ use crate::environment::Environment;
 use crate::random::{Arm, Strata, Unit};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 /// A recorded randomization assignment — the outcome of placing a
@@ -24,15 +25,9 @@ pub struct Randomization {
     pub arm: Arm,
     /// Timestamp when the assignment was issued.
     pub issued_at: DateTime<Utc>,
-    /// Epic-native patient identifier (PatientEpicId), used as join key for Caboodle.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub epic_patient_id: Option<String>,
-    /// Epic Contact Serial Number (encounter ID in Epic).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub epic_csn: Option<String>,
-    /// Epic user (provider) identifier.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub epic_user_id: Option<String>,
+    /// Selected context captured at assignment, never refreshed by a repeat request.
+    #[serde(default)]
+    pub context: BTreeMap<String, serde_json::Value>,
 }
 
 impl Randomization {
@@ -46,9 +41,7 @@ impl Randomization {
             unit: unit.clone(),
             arm: arm.clone(),
             issued_at: Utc::now(),
-            epic_patient_id: None,
-            epic_csn: None,
-            epic_user_id: None,
+            context: BTreeMap::new(),
         }
     }
 
@@ -68,9 +61,7 @@ impl Randomization {
             unit: unit.clone(),
             arm: arm.clone(),
             issued_at: Utc::now(),
-            epic_patient_id: None,
-            epic_csn: None,
-            epic_user_id: None,
+            context: BTreeMap::new(),
         }
     }
 }

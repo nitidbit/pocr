@@ -1,5 +1,6 @@
 //! Randomization history HTTP handlers.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use axum::Json;
@@ -51,12 +52,7 @@ pub struct RandomizationResponse {
     pub unit: Unit,
     pub arm: Arm,
     pub issued_at: chrono::DateTime<chrono::Utc>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub epic_patient_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub epic_csn: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub epic_user_id: Option<String>,
+    pub context: BTreeMap<String, serde_json::Value>,
 }
 
 impl From<Randomization> for RandomizationResponse {
@@ -69,9 +65,7 @@ impl From<Randomization> for RandomizationResponse {
             unit: r.unit,
             arm: r.arm,
             issued_at: r.issued_at,
-            epic_patient_id: r.epic_patient_id,
-            epic_csn: r.epic_csn,
-            epic_user_id: r.epic_user_id,
+            context: r.context,
         }
     }
 }
@@ -156,6 +150,19 @@ mod tests {
         let arm = Arm::new("Treatment A", 1);
         let unit = Unit::Simple(SimpleUnit::PatientId("P-001".to_string()));
         Randomization::simple(&Uuid::now_v7(), Environment::Production, &unit, &arm)
+    }
+
+    #[test]
+    fn response_exposes_identifiers_only_in_context() {
+        let mut record = make_randomization();
+        record.context.insert("epic_csn".into(), "000123".into());
+        record
+            .context
+            .insert("fhir_encounter_id".into(), "enc".into());
+        let value = serde_json::to_value(RandomizationResponse::from(record)).unwrap();
+        assert!(value.get("epicCsn").is_none());
+        assert_eq!(value["context"]["epic_csn"], "000123");
+        assert_eq!(value["context"]["fhir_encounter_id"], "enc");
     }
 
     #[test]

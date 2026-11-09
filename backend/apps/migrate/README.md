@@ -8,8 +8,6 @@ real `pocr-core` models, and writes new Postgres rows and Redis block state.
 Runs are **idempotent**: a persisted `migration-manifest.json` records the
 old→new UUID maps so a re-run reuses the same IDs rather than re-minting them.
 
-Full design, rationale, cutover runbook, and validation steps live in the spec:
-[`docs/superpowers/specs/2026-07-15-live-study-redis-to-postgres-migration-design.md`](../../../docs/superpowers/specs/2026-07-15-live-study-redis-to-postgres-migration-design.md).
 
 ## What it does
 
@@ -20,6 +18,8 @@ Full design, rationale, cutover runbook, and validation steps live in the spec:
   state under `block:production:{study_id}:{stratum_key}`.
 - Preserves in-flight permuted-block state (`index`/`values`) byte-for-byte so
   allocation balance is not perturbed at cutover.
+- Captures typed unit context for new assignments. Existing assignments and context
+  are preserved on rerun, including manually backfilled Epic identifiers.
 
 ## Configuration
 

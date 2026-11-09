@@ -1,5 +1,8 @@
+use crate::error::PgError;
 use async_trait::async_trait;
 use sqlx::PgPool;
+use sqlx::types::Json;
+use std::collections::BTreeMap;
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -24,7 +27,9 @@ impl PgRandomizationRepository {
 /// string, not the full [`Strata`](pocr_core::random::Strata) object, and is
 /// never rehydrated on read.
 const RANDOMIZATION_COLUMNS: &str =
-    "id, study_id, environment, unit_hash, arm, issued_at, epic_patient_id, epic_csn, epic_user_id";
+    "id, study_id, environment, unit_hash, arm, issued_at,
+     COALESCE((SELECT jsonb_object_agg(c.context_key, c.context_value)
+               FROM randomization_context c WHERE c.randomization_id = randomizations.id), '{}') AS context";
 
 #[derive(sqlx::FromRow)]
 struct RandomizationRow {
@@ -34,9 +39,7 @@ struct RandomizationRow {
     unit_hash: String,
     arm: serde_json::Value,
     issued_at: chrono::DateTime<chrono::Utc>,
-    epic_patient_id: Option<String>,
-    epic_csn: Option<String>,
-    epic_user_id: Option<String>,
+    context: Json<BTreeMap<String, serde_json::Value>>,
 }
 
 #[async_trait]
@@ -48,9 +51,10 @@ impl RandomizationRepository for PgRandomizationRepository {
         let arm_json = serde_json::to_value(&randomization.arm)
             .map_err(|e| RepositoryError::Internal(e.to_string()))?;
 
+        let mut tx = self.pool.begin().await.map_err(PgError::from)?;
         sqlx::query(
-            r#"INSERT INTO randomizations (id, study_id, environment, unit_hash, strata_key, arm, issued_at, epic_patient_id, epic_csn, epic_user_id)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"#,
+            r#"INSERT INTO randomizations (id, study_id, environment, unit_hash, strata_key, arm, issued_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)"#,
         )
         .bind(randomization.id)
         .bind(randomization.study_id)
@@ -59,13 +63,14 @@ impl RandomizationRepository for PgRandomizationRepository {
         .bind(&strata_key)
         .bind(&arm_json)
         .bind(randomization.issued_at)
-        .bind(&randomization.epic_patient_id)
-        .bind(&randomization.epic_csn)
-        .bind(&randomization.epic_user_id)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
-        .map_err(|e| RepositoryError::Internal(e.to_string()))?;
-
+        .map_err(PgError::from)?;
+        sqlx::query("INSERT INTO randomization_context (randomization_id, context_key, context_value) SELECT $1, key, value FROM jsonb_each($2)")
+            .bind(randomization.id)
+            .bind(Json(&randomization.context))
+            .execute(&mut *tx).await.map_err(PgError::from)?;
+        tx.commit().await.map_err(PgError::from)?;
         Ok(randomization.clone())
     }
 
@@ -185,8 +190,6 @@ fn row_to_randomization(row: RandomizationRow) -> Result<Randomization, Reposito
         unit,
         arm,
         issued_at: row.issued_at,
-        epic_patient_id: row.epic_patient_id,
-        epic_csn: row.epic_csn,
-        epic_user_id: row.epic_user_id,
+        context: row.context.0,
     })
 }

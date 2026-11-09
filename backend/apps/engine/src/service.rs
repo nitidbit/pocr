@@ -163,7 +163,6 @@ impl Engine {
             .ok_or(RandomizationError::Unknown)?
             .clone();
 
-        let epic_ids = request.extract_epic_ids();
         let mut randomization = match config.strategy {
             RandomizationStrategy::Simple => {
                 Randomization::simple(&study.id, environment, &unit, &arm)
@@ -172,9 +171,7 @@ impl Engine {
                 Randomization::block(&study.id, environment, strata.as_ref(), &unit, &arm)
             }
         };
-        randomization.epic_patient_id = epic_ids.patient_id;
-        randomization.epic_csn = epic_ids.csn;
-        randomization.epic_user_id = epic_ids.user_id;
+        randomization.context = request.extract_context();
 
         let saved = self
             .randomization_repo
@@ -455,8 +452,55 @@ mod tests {
             patient_id: Some(patient_id.to_string()),
             encounter_id: None,
             user_id: None,
+            fhir_server: None,
             context: None,
         }
+    }
+
+    #[tokio::test]
+    async fn captures_context_once_including_non_key_identifiers() {
+        let repo = Arc::new(InMemoryRandomizationRepo::default());
+        let cache = Arc::new(InMemoryBlockCache::default());
+        let engine = Engine::new(repo, cache);
+        let study = test_study(RandomizationStrategy::Simple);
+        let mut request = test_request("fhir-patient");
+        request.encounter_id = Some("fhir-encounter".into());
+        request.user_id = Some("Practitioner/fhir-user".into());
+        request.fhir_server = Some("https://synthetic.example/FHIR/R4".into());
+        request.context = Some(serde_json::json!({
+            "patient": {"identifier": [{"type": {"text": "EXTERNAL"}, "value": "000123"}]},
+            "encounter": {"identifier": [{"system": "urn:oid:1.7.3.698084.8", "value": "000456"}]},
+            "unrelated": {"secret": "never persist entire prefetch"}
+        }));
+        let first = engine
+            .randomize(&study, Environment::Production, &request)
+            .await
+            .unwrap();
+        let value = serde_json::to_value(&first).unwrap();
+        assert_eq!(value["context"]["fhir_patient_id"], "fhir-patient");
+        assert_eq!(value["context"]["fhir_encounter_id"], "fhir-encounter");
+        assert_eq!(
+            value["context"]["fhir_user_reference"],
+            "Practitioner/fhir-user"
+        );
+        assert_eq!(value["context"]["epic_patient_id"], "000123");
+        assert_eq!(value["context"]["epic_csn"], "000456");
+        assert_eq!(
+            value["context"]["fhir_server"],
+            "https://synthetic.example/FHIR/R4"
+        );
+        assert!(value["context"].get("unrelated").is_none());
+        assert!(value["context"].get("epic_user_id").is_none());
+        request.encounter_id = Some("later-encounter".into());
+        let second = engine
+            .randomize(&study, Environment::Production, &request)
+            .await
+            .unwrap();
+        assert_eq!(first.id, second.id);
+        assert_eq!(
+            value["context"],
+            serde_json::to_value(second).unwrap()["context"]
+        );
     }
 
     #[tokio::test]
@@ -556,6 +600,7 @@ mod tests {
             patient_id: None,
             encounter_id: None,
             user_id: None,
+            fhir_server: None,
             context: None,
         };
 

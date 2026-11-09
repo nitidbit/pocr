@@ -171,7 +171,7 @@ pub fn transform_study(
 ///
 /// `new_id` is the record's minted v7 id, `new_study_id` the study's, and
 /// `new_arm_id` the remapped id of the assigned arm. Every migrated record is
-/// tagged [`Environment::Production`]. Epic identifiers are `None` (the legacy
+/// tagged [`Environment::Production`]. Epic identifiers are absent (the legacy
 /// engine never captured them).
 pub fn transform_randomization(
     legacy: &LegacyRandomization,
@@ -187,10 +187,31 @@ pub fn transform_randomization(
         unit: legacy.unit.clone(),
         arm: transform_arm(&legacy.arm, new_arm_id),
         issued_at: legacy.issued_at,
-        epic_patient_id: None,
-        epic_csn: None,
-        epic_user_id: None,
+        context: unit_context(&legacy.unit),
     }
+}
+
+/// Preserve typed identifiers from legacy records; never decode a persisted hash.
+fn unit_context(
+    unit: &pocr_core::random::Unit,
+) -> std::collections::BTreeMap<String, serde_json::Value> {
+    use pocr_core::random::{SimpleUnit, Unit};
+    let units = match unit {
+        Unit::Simple(unit) => std::slice::from_ref(unit),
+        Unit::Composite(units) => units.as_slice(),
+    };
+    units
+        .iter()
+        .filter_map(|unit| {
+            let (key, value) = match unit {
+                SimpleUnit::PatientId(value) => ("fhir_patient_id", value),
+                SimpleUnit::EncounterId(value) => ("fhir_encounter_id", value),
+                SimpleUnit::ProviderId(value) => ("fhir_user_reference", value),
+                SimpleUnit::FhirPath(_) => return None,
+            };
+            Some((key.into(), serde_json::Value::String(value.clone())))
+        })
+        .collect()
 }
 
 /// Translate a legacy `block:*` record into a core [`RandomPermutedBlock`].
@@ -396,7 +417,11 @@ mod tests {
         assert_eq!(rec.environment, Environment::Production);
         assert_eq!(rec.arm.id, new_arm_id);
         assert_eq!(rec.arm.locator, Some(5802));
-        assert!(rec.epic_patient_id.is_none());
+        assert!(!rec.context.contains_key("epic_patient_id"));
+        assert_eq!(
+            rec.context.get("fhir_patient_id"),
+            Some(&serde_json::json!("eaYQYiGc3dMeGffKe8qGUow3"))
+        );
         assert!(matches!(
             rec.unit,
             Unit::Simple(SimpleUnit::PatientId(ref id)) if id == "eaYQYiGc3dMeGffKe8qGUow3"
