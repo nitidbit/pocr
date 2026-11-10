@@ -1,0 +1,400 @@
+{
+  "base": {
+    "dataset": {
+      "version": 1,
+      "name": "outcomes",
+      "title": "Outcomes",
+      "description": "Study outcomes",
+      "source": "caboodle",
+      "stored_procedure": {
+        "schema": "pocr",
+        "name": "Outcomes"
+      },
+      "fields": [
+        {
+          "name": "los",
+          "type": "number",
+          "column": "LOS"
+        },
+        {
+          "name": "readmitted",
+          "type": "boolean",
+          "column": "READMITTED"
+        },
+        {
+          "name": "disposition",
+          "type": "string",
+          "column": "DISPOSITION"
+        }
+      ]
+    },
+    "report": {
+      "version": 1,
+      "name": "outcomes-report",
+      "dataset": "outcomes",
+      "title": "Outcomes",
+      "description": "By arm",
+      "variables": [
+        {
+          "field": "los",
+          "label": "LOS",
+          "analysis": "continuous",
+          "decimals": 1,
+          "note": null,
+          "category_order": [],
+          "include_when": {
+            "field": "readmitted",
+            "equals": true
+          },
+          "unit": "days"
+        },
+        {
+          "field": "readmitted",
+          "label": "Readmission",
+          "analysis": "categorical",
+          "decimals": null,
+          "note": null,
+          "category_order": [],
+          "include_when": null,
+          "unit": null
+        },
+        {
+          "field": "disposition",
+          "label": "Disposition",
+          "analysis": "categorical",
+          "decimals": null,
+          "note": null,
+          "category_order": [
+            "home",
+            "snf"
+          ],
+          "include_when": null,
+          "unit": null
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "name": "v1 valid",
+      "target": "dataset",
+      "pointer": "/version",
+      "value": 1,
+      "valid": true,
+      "schema_valid": true
+    },
+    {
+      "name": "unsupported version",
+      "target": "dataset",
+      "pointer": "/version",
+      "value": 2,
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "blank title",
+      "target": "dataset",
+      "pointer": "/title",
+      "value": "   ",
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "procedure injection",
+      "target": "dataset",
+      "pointer": "/stored_procedure/name",
+      "value": "x]; DROP TABLE x",
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "numeric source ID forbidden",
+      "target": "dataset",
+      "pointer": "/fields/0/name",
+      "value": "randomization_id",
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "system column reserved",
+      "target": "dataset",
+      "pointer": "/fields/0/column",
+      "value": "randomization_id",
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "UUID field unsupported",
+      "target": "dataset",
+      "pointer": "/fields/0/type",
+      "value": "uuid",
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "empty fields",
+      "target": "dataset",
+      "pointer": "/fields",
+      "value": [],
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "duplicate field names",
+      "target": "dataset",
+      "pointer": "/fields/1/name",
+      "value": "los",
+      "valid": false,
+      "schema_valid": true
+    },
+    {
+      "name": "duplicate column names",
+      "target": "dataset",
+      "pointer": "/fields/1/column",
+      "value": "LOS",
+      "valid": false,
+      "schema_valid": true
+    },
+    {
+      "name": "duplicate field object",
+      "target": "dataset",
+      "pointer": "/fields",
+      "value": [
+        {
+          "name": "los",
+          "type": "number",
+          "column": "LOS"
+        },
+        {
+          "name": "los",
+          "type": "number",
+          "column": "LOS"
+        }
+      ],
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "valid report",
+      "target": "report",
+      "pointer": "/version",
+      "value": 1,
+      "valid": true,
+      "schema_valid": true
+    },
+    {
+      "name": "report unsupported version",
+      "target": "report",
+      "pointer": "/version",
+      "value": 2,
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "invalid report name",
+      "target": "report",
+      "pointer": "/name",
+      "value": "Bad_Name",
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "invalid report dataset reference",
+      "target": "report",
+      "pointer": "/dataset",
+      "value": "Bad Name",
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "missing report dataset reference",
+      "target": "report",
+      "pointer": "/dataset",
+      "value": null,
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "report for undeployed dataset",
+      "target": "report",
+      "pointer": "/dataset",
+      "value": "other",
+      "valid": false,
+      "schema_valid": true
+    },
+    {
+      "name": "blank report label",
+      "target": "report",
+      "pointer": "/variables/0/label",
+      "value": " ",
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "too many decimals",
+      "target": "report",
+      "pointer": "/variables/0/decimals",
+      "value": 7,
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "fractional decimals",
+      "target": "report",
+      "pointer": "/variables/0/decimals",
+      "value": 1.5,
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "duplicate category order",
+      "target": "report",
+      "pointer": "/variables/2/category_order",
+      "value": [
+        "home",
+        "home"
+      ],
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "continuous categories forbidden",
+      "target": "report",
+      "pointer": "/variables/0/category_order",
+      "value": [
+        "true"
+      ],
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "boolean category order forbidden",
+      "target": "report",
+      "pointer": "/variables/1/category_order",
+      "value": [
+        "true"
+      ],
+      "valid": false,
+      "schema_valid": true
+    },
+    {
+      "name": "categorical decimals forbidden",
+      "target": "report",
+      "pointer": "/variables/1/decimals",
+      "value": 2,
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "categorical filter forbidden",
+      "target": "report",
+      "pointer": "/variables/1/include_when",
+      "value": {
+        "field": "los",
+        "equals": 1
+      },
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "unknown report field",
+      "target": "report",
+      "pointer": "/variables/0/field",
+      "value": "unknown",
+      "valid": false,
+      "schema_valid": true
+    },
+    {
+      "name": "wrong filter type",
+      "target": "report",
+      "pointer": "/variables/0/include_when/equals",
+      "value": 1,
+      "valid": false,
+      "schema_valid": true
+    },
+    {
+      "name": "duplicate variable reference",
+      "target": "report",
+      "pointer": "/variables/1/field",
+      "value": "los",
+      "valid": false,
+      "schema_valid": true
+    },
+    {
+      "name": "SQL text forbidden",
+      "target": "dataset",
+      "pointer": "",
+      "value": {
+        "version": 1,
+        "name": "outcomes",
+        "title": "Outcomes",
+        "description": "Study outcomes",
+        "source": "caboodle",
+        "stored_procedure": {
+          "schema": "pocr",
+          "name": "Outcomes"
+        },
+        "fields": [
+          {
+            "name": "los",
+            "type": "number",
+            "column": "LOS"
+          },
+          {
+            "name": "readmitted",
+            "type": "boolean",
+            "column": "READMITTED"
+          }
+        ],
+        "query": "SELECT 1"
+      },
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "dataset units rejected",
+      "target": "dataset",
+      "pointer": "/fields/0",
+      "value": {
+        "name": "los",
+        "type": "number",
+        "column": "LOS",
+        "unit": "days"
+      },
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "report display unit",
+      "target": "report",
+      "pointer": "/variables/0/unit",
+      "value": "days",
+      "valid": true,
+      "schema_valid": true
+    },
+    {
+      "name": "blank display unit",
+      "target": "report",
+      "pointer": "/variables/0/unit",
+      "value": " ",
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "null display unit",
+      "target": "report",
+      "pointer": "/variables/0/unit",
+      "value": null,
+      "valid": true,
+      "schema_valid": true
+    },
+    {
+      "name": "categorical display unit rejected",
+      "target": "report",
+      "pointer": "/variables/1/unit",
+      "value": "days",
+      "valid": false,
+      "schema_valid": false
+    }
+  ]
+}

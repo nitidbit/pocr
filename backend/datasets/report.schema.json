@@ -1,0 +1,172 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "POCR report definition v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "name",
+    "dataset",
+    "title",
+    "description",
+    "variables"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "maxLength": 128
+    },
+    "dataset": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "maxLength": 128
+    },
+    "title": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "description": {
+      "type": "string"
+    },
+    "variables": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "field",
+          "label",
+          "analysis"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "pattern": "\\S"
+          },
+          "analysis": {
+            "enum": [
+              "categorical",
+              "continuous"
+            ]
+          },
+          "decimals": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 6
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "category_order": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            }
+          },
+          "include_when": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "field",
+                  "equals"
+                ],
+                "properties": {
+                  "field": {
+                    "type": "string"
+                  },
+                  "equals": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "\\S"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "analysis": {
+                  "const": "categorical"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "include_when": {
+                  "type": "null"
+                },
+                "unit": {
+                  "type": "null"
+                },
+                "decimals": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "analysis": {
+                  "const": "continuous"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "category_order": {
+                  "maxItems": 0
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
