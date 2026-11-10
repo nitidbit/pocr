@@ -296,7 +296,7 @@ mod tests {
         assert!(Role::Owner >= Role::Member);
         assert!(Role::Owner >= Role::Owner);
         assert!(Role::Member >= Role::Member);
-        assert!(!(Role::Member >= Role::Owner));
+        assert!(Role::Member < Role::Owner);
     }
 
     #[test]
