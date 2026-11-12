@@ -14,7 +14,7 @@ use serde::Deserialize;
 use tracing::info;
 use uuid::Uuid;
 
-use pocr_core::ports::StudyMember;
+use pocr_core::ports::{StudyMember, UserStudyRepository};
 
 use crate::AppState;
 use crate::error::ApiError;
@@ -87,6 +87,23 @@ fn would_orphan(members: &[StudyMember], target_email: &str) -> bool {
     owners.len() == 1 && owners[0].user_id == target_email
 }
 
+/// Fetch the caller's role in a study.
+///
+/// A caller with no membership, or a stored role this build does not
+/// recognize, yields [`ApiError::NotFound`] so inaccessible studies stay hidden.
+pub(crate) async fn caller_role(
+    members: &dyn UserStudyRepository,
+    study_id: &Uuid,
+    user: &AuthUser,
+) -> Result<Role, ApiError> {
+    members
+        .get_role(user.id(), study_id)
+        .await?
+        .as_deref()
+        .and_then(parse_role)
+        .ok_or(ApiError::NotFound)
+}
+
 /// Fetch the caller's role and authorize against `min_role`.
 async fn require_role(
     state: &AppState,
@@ -94,13 +111,8 @@ async fn require_role(
     user: &AuthUser,
     min_role: Role,
 ) -> Result<(), ApiError> {
-    let current = state
-        .user_study_repo
-        .get_role(user.id(), study_id)
-        .await?
-        .as_deref()
-        .and_then(parse_role);
-    decide_access(current, min_role)
+    let role = caller_role(state.user_study_repo.as_ref(), study_id, user).await?;
+    decide_access(Some(role), min_role)
 }
 
 /// Request body for adding a member or changing their role.
