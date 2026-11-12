@@ -1,15 +1,13 @@
-use std::borrow::Borrow;
 use std::collections::BTreeSet;
 use std::fmt;
 
+use derive_more::{AsRef, Display, Into};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use super::column::SystemColumn;
 use super::record::{self, ContextRecord, DatasetRecord, ResultRow, ResultsError};
 use super::report::MAX_DECIMALS;
-
-pub(super) const ROW_KEY: &str = "randomization_id";
-const RESERVED_FIELDS: [&str; 3] = [ROW_KEY, "arm_id", "arm_name"];
 
 /// Longest SQL Server identifier: `sysname` is `nvarchar(128)`.
 ///
@@ -116,7 +114,10 @@ pub(super) fn is_catalog_name(raw: &str) -> bool {
 /// Dataset identifier: 1-128 characters of `[a-z0-9-]`.
 ///
 /// Serializes as a plain string.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Display, AsRef, Into, Serialize, Deserialize,
+)]
+#[as_ref(str)]
 #[serde(try_from = "String", into = "String")]
 pub struct DatasetName(String);
 
@@ -135,11 +136,6 @@ impl DatasetName {
             Err(DefinitionError::InvalidDatasetName { value: raw })
         }
     }
-
-    /// Returns the name as a string slice.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
 }
 
 impl TryFrom<String> for DatasetName {
@@ -150,20 +146,9 @@ impl TryFrom<String> for DatasetName {
     }
 }
 
-impl From<DatasetName> for String {
-    fn from(name: DatasetName) -> Self {
-        name.0
-    }
-}
-
-impl fmt::Display for DatasetName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
 /// Bare SQL identifier: `[A-Za-z_][A-Za-z0-9_]{0,127}`.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Display, AsRef, Into)]
+#[as_ref(str)]
 pub struct SqlIdentifier(String);
 
 impl SqlIdentifier {
@@ -187,31 +172,15 @@ impl SqlIdentifier {
             Err(DefinitionError::InvalidIdentifier { role, value: raw })
         }
     }
-
-    /// Returns the identifier as a string slice.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl From<SqlIdentifier> for String {
-    fn from(identifier: SqlIdentifier) -> Self {
-        identifier.0
-    }
-}
-
-impl fmt::Display for SqlIdentifier {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
 }
 
 /// Dataset field name: a [`SqlIdentifier`] that avoids the system columns
 /// `randomization_id`, `arm_id`, and `arm_name`.
-///
-/// Serializes as a plain string and borrows as `str`, so maps keyed by
-/// field name can be read with string keys.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Display, AsRef, Into, Serialize, Deserialize,
+)]
+#[as_ref(str)]
+#[into(String)]
 #[serde(try_from = "String", into = "String")]
 pub struct FieldName(SqlIdentifier);
 
@@ -225,17 +194,12 @@ impl FieldName {
     /// column name.
     pub fn parse(raw: impl Into<String>) -> Result<Self, DefinitionError> {
         let identifier = SqlIdentifier::parse(IdentifierRole::FieldName, raw)?;
-        if RESERVED_FIELDS.contains(&identifier.as_str()) {
+        if SystemColumn::from_name(identifier.as_ref()).is_some() {
             return Err(DefinitionError::ReservedField {
                 name: identifier.into(),
             });
         }
         Ok(Self(identifier))
-    }
-
-    /// Returns the name as a string slice.
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
     }
 }
 
@@ -247,28 +211,13 @@ impl TryFrom<String> for FieldName {
     }
 }
 
-impl From<FieldName> for String {
-    fn from(name: FieldName) -> Self {
-        name.0.into()
-    }
-}
-
-impl Borrow<str> for FieldName {
-    fn borrow(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl fmt::Display for FieldName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
 /// Name of a column in the procedure's result set; never blank.
 ///
 /// Serializes as a plain string.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Display, AsRef, Into, Serialize, Deserialize,
+)]
+#[as_ref(str)]
 #[serde(try_from = "String", into = "String")]
 pub struct ColumnName(String);
 
@@ -286,14 +235,9 @@ impl ColumnName {
         Ok(Self(raw))
     }
 
-    /// Returns the name as a string slice.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
     /// Returns the system column that keys every result row.
     pub(super) fn row_key() -> Self {
-        Self(ROW_KEY.to_owned())
+        Self(SystemColumn::RandomizationId.to_string())
     }
 }
 
@@ -302,18 +246,6 @@ impl TryFrom<String> for ColumnName {
 
     fn try_from(raw: String) -> Result<Self, Self::Error> {
         Self::parse(raw)
-    }
-}
-
-impl From<ColumnName> for String {
-    fn from(name: ColumnName) -> Self {
-        name.0
-    }
-}
-
-impl fmt::Display for ColumnName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
     }
 }
 
@@ -328,25 +260,18 @@ pub enum Source {
 /// Declared type of a dataset field.
 ///
 /// Displays as its lowercase definition keyword.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Display, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum FieldType {
     /// Free-form text.
+    #[display("string")]
     String,
     /// JSON number.
+    #[display("number")]
     Number,
     /// JSON boolean.
+    #[display("boolean")]
     Boolean,
-}
-
-impl fmt::Display for FieldType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::String => "string",
-            Self::Number => "number",
-            Self::Boolean => "boolean",
-        })
-    }
 }
 
 /// Stored procedure that produces a dataset, named by validated identifiers.
@@ -719,7 +644,7 @@ mod tests {
 
         assert!(matches!(
             error,
-            DefinitionError::DuplicateField { name } if name.as_str() == "los"
+            DefinitionError::DuplicateField { name } if name.as_ref() == "los"
         ));
     }
 
@@ -736,7 +661,7 @@ mod tests {
 
         assert!(matches!(
             error,
-            DefinitionError::DuplicateColumn { column } if column.as_str() == "LOS"
+            DefinitionError::DuplicateColumn { column } if column.as_ref() == "LOS"
         ));
     }
 

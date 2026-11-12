@@ -48,7 +48,7 @@ fn parse_results_keys_values_by_field_name_and_accepts_nulls() {
         .parse_results(&[record(ID_A)], vec![null_row(ID_A)])
         .expect("nulls are accepted");
 
-    let keys: Vec<&str> = records[0].values().keys().map(|k| k.as_str()).collect();
+    let keys: Vec<&str> = records[0].values().keys().map(|k| k.as_ref()).collect();
     assert_eq!(records[0].randomization_id(), ID_A);
     assert_eq!(keys, ["disposition", "los", "readmission"]);
 }
@@ -110,7 +110,7 @@ fn parse_results_names_missing_column() {
     assert!(matches!(
         result,
         Err(ResultsError::ColumnSet { missing, .. })
-            if missing.len() == 1 && missing[0].as_str() == "LOS"
+            if missing.len() == 1 && missing[0].as_ref() == "LOS"
     ));
 }
 
@@ -174,7 +174,7 @@ fn parse_results_rejects_value_of_wrong_type() {
     assert!(matches!(
         result,
         Err(ResultsError::TypeMismatch { field, expected: FieldType::Boolean })
-            if field.as_str() == "readmission"
+            if field.as_ref() == "readmission"
     ));
 }
 

@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::fmt;
 
+use derive_more::{AsRef, Display, Into};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -22,7 +23,10 @@ pub(super) const MAX_DECIMALS: u8 = 6;
 ///
 /// Report names and dataset names are separate namespaces. Serializes as a
 /// plain string.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Display, AsRef, Into, Serialize, Deserialize,
+)]
+#[as_ref(str)]
 #[serde(try_from = "String", into = "String")]
 pub struct ReportName(String);
 
@@ -41,11 +45,6 @@ impl ReportName {
             Err(DefinitionError::InvalidReportName { value: raw })
         }
     }
-
-    /// Returns the name as a string slice.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
 }
 
 impl TryFrom<String> for ReportName {
@@ -53,18 +52,6 @@ impl TryFrom<String> for ReportName {
 
     fn try_from(raw: String) -> Result<Self, Self::Error> {
         Self::parse(raw)
-    }
-}
-
-impl From<ReportName> for String {
-    fn from(name: ReportName) -> Self {
-        name.0
-    }
-}
-
-impl fmt::Display for ReportName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
     }
 }
 
@@ -475,7 +462,7 @@ impl Condition {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::{Value, json};
+    use serde_json::json;
 
     use super::*;
 
@@ -575,7 +562,7 @@ mod tests {
 
         assert!(matches!(
             error,
-            DefinitionError::DuplicateReportField { field } if field.as_str() == "disposition"
+            DefinitionError::DuplicateReportField { field } if field.as_ref() == "disposition"
         ));
     }
 
@@ -585,7 +572,7 @@ mod tests {
 
         assert!(matches!(
             error,
-            DefinitionError::BlankLabel { field } if field.as_str() == "los"
+            DefinitionError::BlankLabel { field } if field.as_ref() == "los"
         ));
     }
 
@@ -595,7 +582,7 @@ mod tests {
 
         assert!(matches!(
             error,
-            DefinitionError::BlankUnit { field } if field.as_str() == "los"
+            DefinitionError::BlankUnit { field } if field.as_ref() == "los"
         ));
     }
 
@@ -605,7 +592,7 @@ mod tests {
 
         assert!(matches!(
             error,
-            DefinitionError::UnitOnCategorical { field } if field.as_str() == "readmitted"
+            DefinitionError::UnitOnCategorical { field } if field.as_ref() == "readmitted"
         ));
     }
 
@@ -635,7 +622,7 @@ mod tests {
 
         assert!(matches!(
             error,
-            DefinitionError::DecimalsOnCategorical { field } if field.as_str() == "readmitted"
+            DefinitionError::DecimalsOnCategorical { field } if field.as_ref() == "readmitted"
         ));
     }
 
@@ -657,7 +644,7 @@ mod tests {
 
         assert!(matches!(
             error,
-            DefinitionError::ConditionOnCategorical { field } if field.as_str() == "readmitted"
+            DefinitionError::ConditionOnCategorical { field } if field.as_ref() == "readmitted"
         ));
     }
 }

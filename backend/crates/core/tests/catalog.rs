@@ -69,7 +69,7 @@ fn duplicate_dataset_is_rejected() {
 
     assert!(matches!(
         error,
-        CatalogError::DuplicateDataset { name } if name.as_str() == "outcomes"
+        CatalogError::DuplicateDataset { name } if name.as_ref() == "outcomes"
     ));
     assert_eq!(registry.iter().count(), 1);
 }
@@ -85,7 +85,7 @@ fn report_for_undeployed_dataset_is_rejected() {
     assert!(matches!(
         error,
         CatalogError::UnknownDataset { report, dataset }
-            if report.as_str() == "r" && dataset.as_str() == "missing"
+            if report.as_ref() == "r" && dataset.as_ref() == "missing"
     ));
 }
 
@@ -105,7 +105,7 @@ fn incompatible_report_is_rejected_with_its_cause() {
         CatalogError::Incompatible {
             report,
             source: IncompatibleReport::UnknownField { .. },
-        } if report.as_str() == "r"
+        } if report.as_ref() == "r"
     ));
     assert_eq!(catalog.reports().count(), 0);
 }
@@ -123,11 +123,11 @@ fn duplicate_report_is_rejected_and_catalog_is_unchanged() {
 
     assert!(matches!(
         error,
-        CatalogError::DuplicateReport { name } if name.as_str() == "r"
+        CatalogError::DuplicateReport { name } if name.as_ref() == "r"
     ));
     assert_eq!(catalog.reports().count(), 1);
     assert_eq!(
-        catalog.reports().next().map(|r| r.dataset().as_str()),
+        catalog.reports().next().map(|r| r.dataset().as_ref()),
         Some("outcomes")
     );
 }
@@ -144,7 +144,7 @@ fn reports_for_returns_only_that_datasets_reports_in_name_order() {
 
     let names: Vec<_> = catalog
         .reports_for(&outcomes)
-        .map(|r| r.name().as_str())
+        .map(|r| r.name().as_ref())
         .collect();
 
     assert_eq!(names, ["a", "b"]);

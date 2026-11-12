@@ -18,8 +18,8 @@ fn report_json() -> Value {
 fn valid_report_exposes_its_identity() {
     let report: ReportDefinition = serde_json::from_value(report_json()).expect("valid report");
 
-    assert_eq!(report.name().as_str(), "outcomes");
-    assert_eq!(report.dataset().as_str(), "outcomes-data");
+    assert_eq!(report.name().as_ref(), "outcomes");
+    assert_eq!(report.dataset().as_ref(), "outcomes-data");
     assert_eq!(report.variables().len(), 1);
 }
 

@@ -69,7 +69,7 @@ fn matching_definition_binds() {
 
     let bound = report.bind(&dataset).expect("binds");
 
-    assert_eq!(bound.definition().name().as_str(), "outcomes");
+    assert_eq!(bound.definition().name().as_ref(), "outcomes");
 }
 
 #[test]
@@ -78,9 +78,9 @@ fn unknown_variable_field_is_incompatible() {
 
     assert!(matches!(
         &error,
-        IncompatibleReport::UnknownField { field } if field.as_str() == "disposition"
+        IncompatibleReport::UnknownField { field } if field.as_ref() == "disposition"
     ));
-    assert_eq!(error.field().as_str(), "disposition");
+    assert_eq!(error.field().as_ref(), "disposition");
     assert_eq!(error.kind(), IncompatibilityKind::UnknownField);
 }
 
@@ -90,9 +90,9 @@ fn unknown_condition_field_names_the_condition_field() {
 
     assert!(matches!(
         &error,
-        IncompatibleReport::UnknownField { field } if field.as_str() == "readmitted"
+        IncompatibleReport::UnknownField { field } if field.as_ref() == "readmitted"
     ));
-    assert_eq!(error.field().as_str(), "readmitted");
+    assert_eq!(error.field().as_ref(), "readmitted");
     assert_eq!(error.kind(), IncompatibilityKind::UnknownField);
 }
 
@@ -108,7 +108,7 @@ fn continuous_analysis_of_a_field_changed_to_string_is_incompatible() {
             ..
         }
     ));
-    assert_eq!(error.field().as_str(), "los");
+    assert_eq!(error.field().as_ref(), "los");
     assert_eq!(error.kind(), IncompatibilityKind::IncompatibleType);
 }
 
@@ -123,9 +123,9 @@ fn category_order_on_a_field_changed_to_boolean_is_incompatible() {
 
     assert!(matches!(
         &error,
-        IncompatibleReport::CategoryOrderOnBoolean { field } if field.as_str() == "disposition"
+        IncompatibleReport::CategoryOrderOnBoolean { field } if field.as_ref() == "disposition"
     ));
-    assert_eq!(error.field().as_str(), "disposition");
+    assert_eq!(error.field().as_ref(), "disposition");
     assert_eq!(error.kind(), IncompatibilityKind::IncompatibleType);
 }
 
@@ -140,7 +140,7 @@ fn condition_field_type_change_is_incompatible() {
             ..
         }
     ));
-    assert_eq!(error.field().as_str(), "readmitted");
+    assert_eq!(error.field().as_ref(), "readmitted");
     assert_eq!(error.kind(), IncompatibilityKind::IncompatibleType);
 }
 

@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use super::definition::{ColumnName, DatasetDefinition, Field, FieldName, FieldType, ROW_KEY};
+use super::column::SystemColumn;
+use super::definition::{ColumnName, DatasetDefinition, Field, FieldName, FieldType};
 
 /// Maximum context records in one procedure call.
 pub const MAX_BATCH_RECORDS: usize = 1000;
@@ -146,7 +147,7 @@ pub(super) fn check_columns<'a>(
     remaining.push(&row_key);
     let mut unexpected = Vec::new();
     for column in columns {
-        match remaining.iter().position(|name| name.as_str() == column) {
+        match remaining.iter().position(|name| name.as_ref() == column) {
             Some(index) => {
                 remaining.swap_remove(index);
             }
@@ -195,7 +196,7 @@ fn parse_row(
     seen: &mut BTreeSet<Uuid>,
 ) -> Result<DatasetRecord, ResultsError> {
     let randomization_id = row
-        .get(ROW_KEY)
+        .get(SystemColumn::RandomizationId.as_str())
         .ok_or(ResultsError::MissingRowId)?
         .as_str()
         .and_then(|raw| Uuid::parse_str(raw).ok())
@@ -222,7 +223,7 @@ fn parse_row(
 fn take_value(field: &Field, row: &mut ResultRow) -> Result<(FieldName, Value), ResultsError> {
     let column = field.column();
     let value = row
-        .remove(column.as_str())
+        .remove(column.as_ref())
         .unwrap_or_else(|| panic!("column {column} is present after the column set check"));
     let is_valid = value.is_null()
         || match field.kind() {

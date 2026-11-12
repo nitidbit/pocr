@@ -28,6 +28,7 @@
 //! dataset names its procedure only by validated [`SqlIdentifier`]s.
 
 mod catalog;
+mod column;
 mod definition;
 mod record;
 mod report;
@@ -35,6 +36,7 @@ mod repository;
 mod summary;
 
 pub use catalog::{Catalog, CatalogError, DatasetRegistry};
+pub use column::SystemColumn;
 pub use definition::{
     ColumnName, DatasetDefinition, DatasetName, DefinitionError, Field, FieldName, FieldType,
     IdentifierRole, Procedure, Source, SqlIdentifier,
