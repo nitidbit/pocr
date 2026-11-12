@@ -5,6 +5,7 @@
 
 pub mod config;
 pub mod connection;
+pub mod datasets;
 pub mod error;
 pub mod queries;
 

@@ -21,6 +21,18 @@ pub enum CaboodleError {
     /// Missing or conflicting connection configuration.
     #[error("configuration error: {0}")]
     Config(String),
+
+    /// A dataset procedure did not finish within its time limit.
+    #[error("dataset execution timed out")]
+    Timeout,
+
+    /// A dataset procedure returned zero or several result sets instead of one.
+    #[error("dataset procedure returned {actual} result sets, expected one")]
+    ResultSetCount { actual: usize },
+
+    /// A dataset procedure returned a result that violates the dataset contract.
+    #[error("dataset result contract violated: {0}")]
+    Contract(#[from] pocr_core::dataset::ResultsError),
 }
 
 /// Preserve diagnostic categories/codes without retaining server messages or data.
