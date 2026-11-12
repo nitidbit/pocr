@@ -1,0 +1,18 @@
+[package]
+name = "infra-datasets"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+pocr-core = { path = "../core" }
+serde.workspace = true
+serde_yaml_ng.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["apps/engine", "apps/migrate", "apps/sync", "crates/api-grpc", "crates/api-http", "crates/core", "crates/infra-caboodle", "crates/infra-pg", "crates/infra-redis", "crates/observability"]
+members = ["apps/engine", "apps/migrate", "apps/sync", "crates/api-grpc", "crates/api-http", "crates/core", "crates/infra-caboodle", "crates/infra-pg", "crates/infra-datasets", "crates/infra-redis", "crates/observability"]
 
 [workspace.dependencies]
 tokio = { version = "1.49.0", features = ["full"] }
@@ -33,6 +33,8 @@ tiberius = { version = "0.12", default-features = false, features = ["chrono", "
 tokio-util = { version = "0.7", features = ["compat"] }
 sha2 = "0.10"
 derive_more = { version = "2.1.1", features = ["as_ref", "display", "into"] }
+serde_yaml_ng = "0.10"
+tempfile = "3"
 
 [workspace.lints.rust]
 ambiguous_negative_literals = "warn"

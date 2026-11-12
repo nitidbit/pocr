@@ -1,0 +1,68 @@
+version: 1
+name: sample-outcomes
+dataset: sample-outcomes
+title: Sample Outcomes
+description: Admission characteristics, discharge details, and post-discharge outcomes by study arm.
+variables:
+  - field: disposition
+    label: Disposition
+    analysis: categorical
+  - field: discharge_day
+    label: Discharge Day
+    analysis: categorical
+    category_order:
+      - Monday
+      - Tuesday
+      - Wednesday
+      - Thursday
+      - Friday
+      - Saturday
+      - Sunday
+  - field: discharge_before_noon
+    label: Discharge Before Noon
+    analysis: categorical
+  - field: los
+    label: LOS
+    analysis: continuous
+    unit: days
+    decimals: 1
+  - field: admission_type
+    label: Admission Type
+    analysis: categorical
+  - field: admission_source
+    label: Admission Source
+    analysis: categorical
+  - field: discharge_department
+    label: Discharge Dept
+    analysis: categorical
+  - field: mychart_status
+    label: MyChart Status
+    analysis: categorical
+  - field: drg_weight
+    label: DRG Weight
+    analysis: continuous
+    decimals: 2
+  - field: readmission
+    label: Readmission
+    analysis: categorical
+  - field: days_to_readmission
+    label: Readmission
+    analysis: continuous
+    unit: days
+    decimals: 1
+    include_when:
+      field: readmission
+      equals: true
+    note: Readmitted encounters with a recorded interval only
+  - field: return_to_ed
+    label: Return to ED
+    analysis: categorical
+  - field: days_to_return_to_ed
+    label: Return to ED
+    analysis: continuous
+    unit: days
+    decimals: 1
+    include_when:
+      field: return_to_ed
+      equals: true
+    note: ED returns with a recorded interval only

@@ -1,0 +1,48 @@
+version: 1
+name: sample-outcomes
+title: Sample Outcomes
+description: Admission characteristics, discharge details, and post-discharge outcomes.
+source: caboodle
+stored_procedure:
+  schema: pocr
+  name: SampleOutcomes
+fields:
+  - name: disposition
+    type: string
+    column: DISPOSITION_DESC
+  - name: discharge_day
+    type: string
+    column: DISCHARGE_DAY
+  - name: discharge_before_noon
+    type: boolean
+    column: DISCHARGE_B4_NOON
+  - name: los
+    type: number
+    column: LOS
+  - name: admission_type
+    type: string
+    column: ADMIT_TYPE_DESC
+  - name: admission_source
+    type: string
+    column: ADMIT_SOURCE_DESC
+  - name: discharge_department
+    type: string
+    column: DISCHARGE_DEPT_DESC
+  - name: mychart_status
+    type: string
+    column: MYCHART_STATUS
+  - name: drg_weight
+    type: number
+    column: DRG_WEIGHT
+  - name: readmission
+    type: boolean
+    column: READMIT_IND
+  - name: days_to_readmission
+    type: number
+    column: Days_to_Readmit
+  - name: return_to_ed
+    type: boolean
+    column: RETURN_TO_ED_IND
+  - name: days_to_return_to_ed
+    type: number
+    column: Days_to_RTED
