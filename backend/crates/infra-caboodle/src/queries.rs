@@ -51,9 +51,9 @@ pub async fn fetch_demographics(
             .join(", ");
 
         let query = format!(
-            r#"SELECT PatientEpicId, PatientKey, BirthDate, Sex, Ethnicity, FirstLanguage, SmokingStatus
+            r"SELECT PatientEpicId, PatientKey, BirthDate, Sex, Ethnicity, FirstLanguage, SmokingStatus
                FROM PatientDim
-               WHERE PatientEpicId IN ({params})"#
+               WHERE PatientEpicId IN ({params})"
         );
 
         let mut q = tiberius::Query::new(query);
@@ -125,10 +125,10 @@ pub async fn fetch_races(
             .join(", ");
 
         let query = format!(
-            r#"SELECT prb.PatientKey, rd.RaceName
+            r"SELECT prb.PatientKey, rd.RaceName
                FROM PatientRaceBridge prb
                INNER JOIN RaceDim rd ON prb.RaceKey = rd.RaceKey
-               WHERE prb.PatientKey IN ({params})"#
+               WHERE prb.PatientKey IN ({params})"
         );
 
         let mut q = tiberius::Query::new(query);
@@ -183,14 +183,14 @@ pub async fn fetch_insurance(
             .join(", ");
 
         let query = format!(
-            r#"SELECT c.PatientKey, c.FinancialClass
+            r"SELECT c.PatientKey, c.FinancialClass
                FROM (
                    SELECT PatientKey, FinancialClass,
                           ROW_NUMBER() OVER (PARTITION BY PatientKey ORDER BY EffectiveDate DESC) as rn
                    FROM CoverageDim
                    WHERE PatientKey IN ({params}) AND CoverageStatus = 'Active'
                ) c
-               WHERE c.rn = 1"#
+               WHERE c.rn = 1"
         );
 
         let mut q = tiberius::Query::new(query);
@@ -236,7 +236,7 @@ pub async fn fetch_bmi(
     let mut result: HashMap<String, f64> = HashMap::new();
 
     for (patient_id, randomization_date) in patients {
-        let query = r#"
+        let query = r"
             SELECT TOP 1 fvf.Value
             FROM FlowsheetValueFact fvf
             INNER JOIN FlowsheetRowDim frd ON fvf.FlowsheetRowKey = frd.FlowsheetRowKey
@@ -245,7 +245,7 @@ pub async fn fetch_bmi(
               AND frd.FlowsheetRowEpicId = '14'
               AND fvf.InstantDts <= @P2
             ORDER BY fvf.InstantDts DESC
-        "#;
+        ";
 
         let mut q = tiberius::Query::new(query);
         q.bind(patient_id.as_str());

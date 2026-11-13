@@ -111,7 +111,7 @@ mod tests {
             1444
         );
         for value in ["", "0", "invalid", "65536"] {
-            assert!(config(&[("CABOODLE_PORT", Some(value))]).is_err());
+            config(&[("CABOODLE_PORT", Some(value))]).unwrap_err();
         }
     }
 

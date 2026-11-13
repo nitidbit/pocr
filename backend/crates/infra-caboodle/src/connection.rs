@@ -1,3 +1,4 @@
+use std::fmt;
 use std::time::Duration;
 
 use secrecy::ExposeSecret;
@@ -12,6 +13,12 @@ use crate::error::{CaboodleError, CaboodleResult, DriverFailure};
 /// Connected client for the Caboodle MS-SQL database.
 pub struct CaboodleClient {
     pub(crate) client: Client<tokio_util::compat::Compat<TcpStream>>,
+}
+
+impl fmt::Debug for CaboodleClient {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CaboodleClient").finish_non_exhaustive()
+    }
 }
 
 impl CaboodleClient {
