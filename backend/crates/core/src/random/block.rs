@@ -102,7 +102,7 @@ impl RandomPermutedBlock {
 
 /// Sum of all arm ratios — the minimum valid block size.
 fn block_size_minima(arms: &[Arm]) -> u32 {
-    arms.iter().map(|arm| arm.ratio).sum::<u32>()
+    arms.iter().map(|arm| arm.ratio).sum()
 }
 
 /// Calculate how many slots in a block belong to a single arm.

@@ -61,13 +61,13 @@ pub async fn fetch_demographics(
             .map_err(|e| CaboodleError::Query(format!("fetch_demographics results: {e}")))?;
 
         for row in &rows {
-            let patient_epic_id: &str = row.get::<&str, _>("PatientEpicId").unwrap_or_default();
-            let patient_key: i64 = row.get::<i64, _>("PatientKey").unwrap_or_default();
-            let birth_date: Option<NaiveDate> = row.get::<NaiveDate, _>("BirthDate");
-            let sex: Option<&str> = row.get::<&str, _>("Sex");
-            let ethnicity: Option<&str> = row.get::<&str, _>("Ethnicity");
-            let primary_language: Option<&str> = row.get::<&str, _>("FirstLanguage");
-            let smoking_status: Option<&str> = row.get::<&str, _>("SmokingStatus");
+            let patient_epic_id: &str = row.get("PatientEpicId").unwrap_or_default();
+            let patient_key: i64 = row.get("PatientKey").unwrap_or_default();
+            let birth_date: Option<NaiveDate> = row.get("BirthDate");
+            let sex: Option<&str> = row.get("Sex");
+            let ethnicity: Option<&str> = row.get("Ethnicity");
+            let primary_language: Option<&str> = row.get("FirstLanguage");
+            let smoking_status: Option<&str> = row.get("SmokingStatus");
 
             all_results.push(CaboodleDemographics {
                 patient_epic_id: patient_epic_id.to_string(),
@@ -131,8 +131,8 @@ pub async fn fetch_races(
             .map_err(|e| CaboodleError::Query(format!("fetch_races results: {e}")))?;
 
         for row in &rows {
-            let patient_key: i64 = row.get::<i64, _>("PatientKey").unwrap_or_default();
-            let race_name: &str = row.get::<&str, _>("RaceName").unwrap_or("Unknown");
+            let patient_key: i64 = row.get("PatientKey").unwrap_or_default();
+            let race_name: &str = row.get("RaceName").unwrap_or("Unknown");
             result
                 .entry(patient_key)
                 .or_default()
@@ -188,7 +188,7 @@ pub async fn fetch_insurance(
             .map_err(|e| CaboodleError::Query(format!("fetch_insurance results: {e}")))?;
 
         for row in &rows {
-            let patient_key: i64 = row.get::<i64, _>("PatientKey").unwrap_or_default();
+            let patient_key: i64 = row.get("PatientKey").unwrap_or_default();
             if let Some(financial_class) = row.get::<&str, _>("FinancialClass") {
                 result.insert(patient_key, financial_class.to_string());
             }
