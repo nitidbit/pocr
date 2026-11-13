@@ -12,19 +12,27 @@ use pocr_core::study::StudyError;
 /// Errors returned by API handlers, mapped to HTTP status codes.
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
+    /// The resource does not exist, or the caller may not know it exists (404).
     #[error("not found")]
     NotFound,
+    /// A precondition for the request is unmet (412).
     #[error("precondition failed: {0}")]
     PreconditionFailed(String),
+    /// The request is malformed or semantically invalid (400).
     #[error("bad request: {0}")]
     BadRequest(String),
+    /// The caller is known but lacks the required role (403).
     #[error("forbidden: {0}")]
     Forbidden(String),
+    /// The request conflicts with the resource's current state (409).
     #[error("conflict: {0}")]
     Conflict(String),
+    /// The request body failed validation, with one message per failure (422).
     #[error("validation failed")]
     ValidationFailed(Vec<String>),
-    /// An unexpected failure. The cause is logged server-side and never sent to clients.
+    /// An unexpected failure (500).
+    ///
+    /// The cause is logged server-side and never sent to clients.
     #[error("internal error")]
     Internal(#[source] Box<dyn std::error::Error + Send + Sync>),
 }

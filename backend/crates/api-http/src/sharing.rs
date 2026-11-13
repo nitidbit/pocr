@@ -35,6 +35,7 @@ struct ShareResponse {
 /// Request body when joining via a share token.
 #[derive(Debug, Deserialize)]
 pub struct JoinRequest {
+    /// Share token issued by the share endpoint.
     pub token: String,
 }
 

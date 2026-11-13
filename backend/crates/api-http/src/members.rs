@@ -24,7 +24,9 @@ use crate::extractors::{AuthUser, normalize_email};
 /// privilege, [`Role::Owner`] the higher.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Role {
+    /// Read-only access to the study.
     Member,
+    /// Full access, including membership management.
     Owner,
 }
 
@@ -117,7 +119,9 @@ async fn require_role(
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AddMemberRequest {
+    /// Email of the member; normalized before use.
     pub email: String,
+    /// Role to grant: `member` or `owner`.
     pub role: String,
 }
 
@@ -125,6 +129,7 @@ pub struct AddMemberRequest {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateRoleRequest {
+    /// Role to assign: `member` or `owner`.
     pub role: String,
 }
 

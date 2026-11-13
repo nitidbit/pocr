@@ -20,11 +20,13 @@ pub(crate) fn normalize_email(raw: &str) -> String {
 /// successful OAuth/OIDC auth — requests without it are rejected with 401.
 /// In debug builds, falls back to `"system"` for local development.
 ///
-/// The identity is normalized ([`normalize_email`]) so downstream comparisons
+/// The identity is lowercased and trimmed so downstream comparisons
 /// against stored membership rows use one canonical form.
 pub struct AuthUser(pub String);
 
 impl AuthUser {
+    /// The normalized user ID.
+    #[must_use]
     pub fn id(&self) -> &str {
         &self.0
     }

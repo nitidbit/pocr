@@ -18,41 +18,60 @@ use crate::AppState;
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemStatus {
+    /// Aggregate health across services and TLS.
     pub status: OverallStatus,
+    /// Seconds since the server started.
     pub uptime_seconds: u64,
+    /// Server clock at the time of the check.
     pub server_time: DateTime<Utc>,
+    /// Per-service health.
     pub services: ServiceStatuses,
+    /// TLS certificate status.
     pub tls: TlsStatus,
 }
 
+/// Aggregate health of the deployment.
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum OverallStatus {
+    /// Every service is up and TLS is fine.
     Healthy,
+    /// Either the services or TLS are unhealthy, not both.
     Degraded,
+    /// Both the services and TLS are unhealthy.
     Unhealthy,
 }
 
+/// Health of each backing service.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServiceStatuses {
+    /// PostgreSQL probe result.
     pub postgres: ServiceHealth,
+    /// Redis probe result.
     pub redis: ServiceHealth,
 }
 
+/// Result of probing one service.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServiceHealth {
+    /// Whether the service answered.
     pub status: ServiceStatus,
+    /// Round-trip time of the probe in milliseconds.
     pub latency_ms: u64,
+    /// Failure reported by the probe; omitted when the service is up.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
 
+/// Whether a service answered its probe.
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ServiceStatus {
+    /// The probe succeeded.
     Up,
+    /// The probe failed.
     Down,
 }
 
@@ -66,7 +85,10 @@ pub enum TlsStatus {
     NotConfigured,
     /// A cert path was configured but could not be read or parsed. This is a
     /// deployment problem worth surfacing, not a benign "off" state.
-    Error { message: String },
+    Error {
+        /// What went wrong reading or parsing the certificate.
+        message: String,
+    },
     /// The certificate chain was read successfully.
     Ok(TlsInfo),
 }

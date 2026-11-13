@@ -6,6 +6,7 @@
 
 mod export;
 
+use std::fmt;
 use std::sync::Arc;
 
 use axum::{
@@ -51,6 +52,12 @@ pub struct DatasetsState {
     pub studies: Arc<dyn StudyRepository>,
 }
 
+impl fmt::Debug for DatasetsState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DatasetsState").finish_non_exhaustive()
+    }
+}
+
 /// Builds the dataset routes under `/studies/{study_id}`.
 ///
 /// Merge the result into the authenticated API router of any state that
@@ -75,6 +82,7 @@ where
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Scope {
+    /// Environment whose snapshots are read.
     pub environment: Environment,
 }
 

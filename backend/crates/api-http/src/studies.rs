@@ -46,29 +46,43 @@ pub(crate) async fn record_audit(
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateStudyRequest {
+    /// Display name; non-blank and at most 200 characters.
     pub name: String,
+    /// Free-text description.
     pub description: String,
+    /// Allocation algorithm.
     pub strategy: RandomizationStrategy,
+    /// Treatment arms; at least two.
     pub arms: Vec<CreateArmRequest>,
+    /// Identifiers extracted from incoming requests to key a randomization.
     #[serde(default)]
     pub keys: Vec<KeyVariant>,
+    /// Stratification factors.
     #[serde(default)]
     pub strata: Vec<CreateStratumRequest>,
+    /// Fixed block size; a multiple of the arm ratio sum. Chosen randomly when absent.
     pub block_size: Option<u32>,
 }
 
+/// One arm of a study being created.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateArmRequest {
+    /// Display name; must be non-blank.
     pub name: String,
+    /// Relative allocation weight; must be positive.
     pub ratio: u32,
 }
 
+/// One stratification factor of a study being created.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateStratumRequest {
+    /// Human-readable label.
     pub name: String,
+    /// FHIR resource type to look up in the request context (e.g. `"Patient"`).
     pub context: String,
+    /// JSON pointer path within the resource (e.g. `"/gender"`).
     pub path: String,
 }
 
@@ -79,7 +93,9 @@ pub struct CreateStratumRequest {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateStudyRequest {
+    /// New name; unchanged when absent.
     pub name: Option<String>,
+    /// New description; unchanged when absent.
     pub description: Option<String>,
 }
 
@@ -87,6 +103,7 @@ pub struct UpdateStudyRequest {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransitionStudyRequest {
+    /// Status to move the study to.
     pub status: StudyStatus,
 }
 
@@ -436,6 +453,7 @@ pub async fn delete_study(
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SetLocatorRequest {
+    /// Epic locator ID the arm is bound to.
     pub locator: u64,
 }
 
@@ -492,7 +510,9 @@ pub async fn set_arm_locator(
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArmRatioUpdate {
+    /// Arm whose ratio changes.
     pub arm_id: Uuid,
+    /// New relative allocation weight.
     pub ratio: u32,
 }
 
@@ -500,6 +520,7 @@ pub struct ArmRatioUpdate {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateRatiosRequest {
+    /// Ratio changes, at most one per arm.
     pub arms: Vec<ArmRatioUpdate>,
 }
 
@@ -524,7 +545,7 @@ pub struct UpdateRatiosRequest {
 ///
 /// Returns [`ApiError::NotFound`] if the study does not exist.
 /// Returns [`ApiError::ValidationFailed`] if the updates are invalid
-/// (see [`validate_ratio_updates`]).
+/// (see `validate_ratio_updates`).
 /// Returns [`ApiError::Internal`] if the audit event or study cannot be saved.
 pub async fn update_ratios(
     State(state): State<AppState>,

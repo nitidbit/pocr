@@ -15,11 +15,14 @@ use pocr_core::random::{Arm, Randomization, Strata, Unit};
 use crate::AppState;
 use crate::error::ApiError;
 
+/// Query parameters for paginated, environment-scoped reads.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PaginationParams {
+    /// Maximum records per page. Defaults to 50.
     #[serde(default = "default_limit")]
     pub limit: u32,
+    /// Records to skip. Defaults to 0.
     #[serde(default)]
     pub offset: u32,
     /// Which environment's records to list. Defaults to production.
@@ -31,26 +34,29 @@ fn default_limit() -> u32 {
     50
 }
 
-/// camelCase HTTP view of a [`Randomization`].
+/// HTTP view of a [`Randomization`] with `camelCase` top-level field names.
 ///
-/// The core [`Randomization`] serializes its fields as snake_case
-/// (`study_id`, `issued_at`), but the frontend consumes camelCase. Rather than
-/// change the shared core wire format — which the PostgreSQL repository and
-/// gRPC layer also round-trip — this DTO is local to the HTTP layer and only
-/// remaps the top-level field names. `unit`, `strata`, and `arm` delegate to
-/// their existing serde impls, which already emit the shapes the frontend
-/// expects.
+/// The core type serializes `snake_case` fields shared with the repository and
+/// gRPC layers. `unit`, `strata`, and `arm` keep their core serde shapes.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RandomizationResponse {
+    /// Randomization ID.
     pub id: Uuid,
+    /// Study the record belongs to.
     pub study_id: Uuid,
+    /// Environment the record was issued in.
     pub environment: Environment,
+    /// Stratification values; omitted when the study is unstratified.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub strata: Option<Strata>,
+    /// Randomized unit.
     pub unit: Unit,
+    /// Assigned arm.
     pub arm: Arm,
+    /// When the assignment was issued.
     pub issued_at: chrono::DateTime<chrono::Utc>,
+    /// Request context captured with the assignment.
     pub context: BTreeMap<String, serde_json::Value>,
 }
 
@@ -87,7 +93,7 @@ pub async fn list_randomizations(
     Ok(Json(response))
 }
 
-/// Query params for environment-scoped reads that don't paginate.
+/// Query parameters for environment-scoped reads that don't paginate.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EnvironmentParams {
@@ -96,12 +102,13 @@ pub struct EnvironmentParams {
     pub environment: Option<Environment>,
 }
 
-/// Per-arm tally plus the study-wide total, both spanning every record in the
-/// environment (not just a paginated page).
+/// Number of randomizations issued to one arm.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArmCountResponse {
+    /// Arm the count belongs to.
     pub arm_id: Uuid,
+    /// Randomizations issued to the arm.
     pub count: u64,
 }
 
@@ -114,10 +121,14 @@ impl From<ArmTally> for ArmCountResponse {
     }
 }
 
+/// Per-arm tallies plus the study-wide total, both spanning every record in
+/// the environment (not just a paginated page).
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RandomizationCountsResponse {
+    /// Randomizations across all arms.
     pub total: u64,
+    /// Tally for each arm.
     pub arms: Vec<ArmCountResponse>,
 }
 
