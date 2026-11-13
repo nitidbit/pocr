@@ -11,6 +11,7 @@ pub struct PgLocatorRepository {
 }
 
 impl PgLocatorRepository {
+    /// Creates a repository that runs against `pool`.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
@@ -47,7 +48,7 @@ impl LocatorRepository for PgLocatorRepository {
     }
 }
 
-/// Convert an Epic locator to the `i64` PostgreSQL column type.
+/// Converts an Epic locator to the `i64` PostgreSQL column type.
 ///
 /// # Errors
 ///

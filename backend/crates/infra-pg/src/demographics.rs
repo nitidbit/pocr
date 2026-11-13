@@ -22,6 +22,7 @@ pub struct PgDemographicsRepository {
 }
 
 impl PgDemographicsRepository {
+    /// Creates a repository that runs against `pool`.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
@@ -29,9 +30,9 @@ impl PgDemographicsRepository {
 
 #[async_trait]
 impl DemographicsRepository for PgDemographicsRepository {
-    /// Bulk upsert patient demographics from a Caboodle sync batch.
+    /// Bulk upserts patient demographics from a Caboodle sync batch.
     ///
-    /// Use `ON CONFLICT DO UPDATE` to refresh all fields and bump
+    /// Uses `ON CONFLICT DO UPDATE` to refresh all fields and bump
     /// `synced_at` on each upsert. An empty batch is a no-op.
     ///
     /// # Errors
@@ -85,7 +86,7 @@ impl DemographicsRepository for PgDemographicsRepository {
         Ok(())
     }
 
-    /// Fetch demographics for a set of patient IDs.
+    /// Fetches demographics for a set of patient IDs.
     ///
     /// An empty `patient_ids` slice returns an empty vector without querying.
     ///
@@ -115,11 +116,11 @@ impl DemographicsRepository for PgDemographicsRepository {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    /// Fetch demographics for all randomized patients in a study, joined
+    /// Fetches demographics for all randomized patients in a study, joined
     /// with their arm assignment.
     ///
-    /// Join the `epic_patient_id` context value directly. Extract the arm UUID
-    /// from the JSONB `arm` column's `id` field.
+    /// Joins the `epic_patient_id` context value directly and extracts the arm
+    /// UUID from the JSONB `arm` column's `id` field.
     ///
     /// # Errors
     ///

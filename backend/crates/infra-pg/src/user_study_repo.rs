@@ -11,6 +11,7 @@ pub struct PgUserStudyRepository {
 }
 
 impl PgUserStudyRepository {
+    /// Creates a repository that runs against `pool`.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }

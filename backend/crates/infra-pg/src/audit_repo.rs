@@ -21,6 +21,7 @@ pub struct PgAuditRepository {
 }
 
 impl PgAuditRepository {
+    /// Creates a repository that runs against `pool`.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
@@ -28,7 +29,7 @@ impl PgAuditRepository {
 
 #[async_trait]
 impl AuditRepository for PgAuditRepository {
-    /// Append a new audit event.
+    /// Appends a new audit event.
     ///
     /// # Errors
     ///
@@ -51,7 +52,7 @@ impl AuditRepository for PgAuditRepository {
         Ok(())
     }
 
-    /// List a study's audit events, newest-first.
+    /// Lists a study's audit events, newest-first.
     ///
     /// # Errors
     ///

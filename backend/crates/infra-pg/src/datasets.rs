@@ -33,7 +33,7 @@ pub struct PgDatasetRepository {
 }
 
 impl PgDatasetRepository {
-    /// Create a repository over `pool`.
+    /// Creates a repository over `pool`.
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
@@ -161,7 +161,7 @@ fn status_from_row(row: &sqlx::postgres::PgRow) -> Result<DatasetStatus, sqlx::E
         .ok_or_else(|| sqlx::Error::Decode(format!("invalid dataset status {status:?}").into()))
 }
 
-/// Decode run metadata; `rows` is filled by the caller.
+/// Decodes run metadata; `rows` is filled by the caller.
 fn snapshot_from_row(row: &sqlx::postgres::PgRow) -> Result<Snapshot, RepositoryError> {
     let decode = || database_error("read snapshot");
     let run_id: Uuid = row.try_get("id").map_err(decode())?;

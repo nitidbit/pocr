@@ -30,7 +30,6 @@ enum FailureKind {
 
 impl DatabaseFailure {
     /// SQLSTATE reported by the server, if the failure came from the database.
-    #[must_use]
     pub fn sqlstate(&self) -> Option<&str> {
         match &self.0 {
             FailureKind::Sqlstate(code) => Some(code),
@@ -74,16 +73,22 @@ pub enum RefreshStoreError {
     },
     /// The run was detached, purged, superseded, or already finished.
     #[error("run {run_id} is no longer current")]
-    StaleRun { run_id: Uuid },
+    StaleRun {
+        /// Run that is no longer current.
+        run_id: Uuid,
+    },
     /// A staged record is not an unstaged row of the run's captured cohort.
     #[error("randomization {randomization_id} is not an unstaged row of run {run_id}")]
     OutsideCohort {
+        /// Run the record was staged against.
         run_id: Uuid,
+        /// Randomization the record belongs to.
         randomization_id: Uuid,
     },
     /// Stored dataset definition of a run cannot be decoded.
     #[error("stored definition for run {run_id} cannot be decoded")]
     CorruptRun {
+        /// Run whose stored definition is unreadable.
         run_id: Uuid,
         /// Why the stored definition was rejected.
         #[source]
@@ -91,11 +96,14 @@ pub enum RefreshStoreError {
     },
     /// An attachment holds a dataset name that is not valid.
     #[error("attachment {attachment_id} has an invalid dataset name")]
-    CorruptTarget { attachment_id: Uuid },
+    CorruptTarget {
+        /// Attachment holding the invalid name.
+        attachment_id: Uuid,
+    },
 }
 
 impl RefreshStoreError {
-    /// Wrap a driver error, keeping only its sanitized category.
+    /// Wraps a driver error, keeping only its sanitized category.
     pub(crate) fn database(operation: &'static str, error: &sqlx::Error) -> Self {
         Self::Database {
             operation,

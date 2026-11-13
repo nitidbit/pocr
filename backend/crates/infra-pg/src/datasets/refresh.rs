@@ -28,7 +28,7 @@ pub struct RefreshTarget {
 }
 
 impl PgDatasetRepository {
-    /// List every attachment, ordered by ID.
+    /// Lists every attachment, ordered by ID.
     ///
     /// An attachment with an invalid stored name yields
     /// [`RefreshStoreError::CorruptTarget`] in its own slot, so the rest can
@@ -51,7 +51,7 @@ impl PgDatasetRepository {
             .collect())
     }
 
-    /// Try to take the refresh lock for an attachment in one environment.
+    /// Tries to take the refresh lock for an attachment in one environment.
     ///
     /// The lock lives on a dedicated connection and is released when the
     /// returned session is dropped, published, or failed.
@@ -87,7 +87,6 @@ impl PgDatasetRepository {
 }
 
 /// Exclusive right to refresh one attachment in one environment.
-#[derive(Debug)]
 pub struct RefreshLock {
     connection: PgConnection,
     attachment_id: Uuid,
@@ -95,7 +94,7 @@ pub struct RefreshLock {
 }
 
 impl RefreshLock {
-    /// Start a run: discard abandoned runs, record `definition`, and capture the cohort.
+    /// Starts a run: discards abandoned runs, records `definition`, and captures the cohort.
     ///
     /// The lock proves no earlier runner is alive, so runs left `running` or
     /// `failed` are deleted. The cohort is every randomization in the
@@ -162,7 +161,6 @@ impl RefreshLock {
 /// Dropping a run without [`publish`](Self::publish) or [`fail`](Self::fail)
 /// releases the lock and leaves a `running` row that the next
 /// [`RefreshLock::begin`] discards.
-#[derive(Debug)]
 pub struct RefreshRun {
     connection: PgConnection,
     run_id: Uuid,
@@ -177,7 +175,7 @@ impl RefreshRun {
         self.run_id
     }
 
-    /// Read the next page of at most [`MAX_BATCH_RECORDS`] cohort records,
+    /// Reads the next page of at most [`MAX_BATCH_RECORDS`] cohort records,
     /// ordered by randomization ID.
     ///
     /// Returns an empty page once the cohort is exhausted, or when the run
@@ -187,6 +185,10 @@ impl RefreshRun {
     /// # Errors
     ///
     /// Returns [`RefreshStoreError::Database`] if the query or decoding fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if [`MAX_BATCH_RECORDS`] exceeds `i64::MAX`.
     pub async fn next_page(&mut self) -> Result<Vec<ContextRecord>, RefreshStoreError> {
         let limit = i64::try_from(MAX_BATCH_RECORDS).expect("batch size fits in i64");
         let rows = sqlx::query(include_str!("page_cohort.sql"))
@@ -215,7 +217,7 @@ impl RefreshRun {
         Ok(page)
     }
 
-    /// Stage procedure results for cohort rows, all or nothing.
+    /// Stages procedure results for cohort rows, all or nothing.
     ///
     /// # Errors
     ///
@@ -252,8 +254,8 @@ impl RefreshRun {
             .map_err(|e| RefreshStoreError::database("stage results", &e))
     }
 
-    /// Make the run's snapshot visible, replacing the previous one, and
-    /// return the published row count.
+    /// Makes the run's snapshot visible, replacing the previous one, and
+    /// returns the published row count.
     ///
     /// Older runs are pruned in the same transaction. Consumes the run and
     /// releases the lock.
@@ -275,7 +277,7 @@ impl RefreshRun {
         })
     }
 
-    /// Mark the run failed, keeping the previous snapshot visible.
+    /// Marks the run failed, keeping the previous snapshot visible.
     ///
     /// Consumes the run and releases the lock.
     ///
