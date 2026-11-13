@@ -14,6 +14,7 @@ import {
 	useRandomizations,
 	useStudy,
 } from "#/api/queries";
+import { DatasetReports } from "#/components/studies/dataset-reports";
 import { ENVIRONMENTS, useEnvironment } from "#/lib/environment";
 import { Button } from "@/components/ui/button";
 
@@ -52,6 +53,7 @@ function StudyMonitorPage() {
 			) : (
 				<DemographicBalance balance={balance} isLoading={balanceLoading} />
 			)}
+			<DatasetReports studyId={studyId} environment={environment} />
 			<RecentRandomizations
 				randomizations={randomizations}
 				total={counts?.total}

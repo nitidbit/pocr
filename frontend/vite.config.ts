@@ -24,6 +24,7 @@ const config = defineConfig({
 	},
 	test: {
 		globals: true,
+		env: { VITE_API_URL: "http://localhost/api/v1" },
 		environment: "jsdom",
 		setupFiles: ["./src/test/setup.ts"],
 		include: ["**/*.test.{ts,tsx}"],

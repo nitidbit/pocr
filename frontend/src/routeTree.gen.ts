@@ -21,6 +21,7 @@ import { Route as AppStudiesNewRouteImport } from './routes/_app/studies/new'
 import { Route as AppStudiesStudyIdRouteImport } from './routes/_app/studies/$studyId'
 import { Route as AppStudiesStudyIdIndexRouteImport } from './routes/_app/studies/$studyId/index'
 import { Route as AppStudiesStudyIdMonitorRouteImport } from './routes/_app/studies/$studyId/monitor'
+import { Route as AppStudiesStudyIdDatasetsRouteImport } from './routes/_app/studies/$studyId/datasets'
 import { Route as AppStudiesStudyIdConfigRouteImport } from './routes/_app/studies/$studyId/config'
 import { Route as AppStudiesStudyIdAuditRouteImport } from './routes/_app/studies/$studyId/audit'
 import { Route as AppStudiesStudyIdAccessRouteImport } from './routes/_app/studies/$studyId/access'
@@ -85,6 +86,12 @@ const AppStudiesStudyIdMonitorRoute =
     path: '/monitor',
     getParentRoute: () => AppStudiesStudyIdRoute,
   } as any)
+const AppStudiesStudyIdDatasetsRoute =
+  AppStudiesStudyIdDatasetsRouteImport.update({
+    id: '/datasets',
+    path: '/datasets',
+    getParentRoute: () => AppStudiesStudyIdRoute,
+  } as any)
 const AppStudiesStudyIdConfigRoute = AppStudiesStudyIdConfigRouteImport.update({
   id: '/config',
   path: '/config',
@@ -114,6 +121,7 @@ export interface FileRoutesByFullPath {
   '/studies/$studyId/access': typeof AppStudiesStudyIdAccessRoute
   '/studies/$studyId/audit': typeof AppStudiesStudyIdAuditRoute
   '/studies/$studyId/config': typeof AppStudiesStudyIdConfigRoute
+  '/studies/$studyId/datasets': typeof AppStudiesStudyIdDatasetsRoute
   '/studies/$studyId/monitor': typeof AppStudiesStudyIdMonitorRoute
   '/studies/$studyId/': typeof AppStudiesStudyIdIndexRoute
 }
@@ -129,6 +137,7 @@ export interface FileRoutesByTo {
   '/studies/$studyId/access': typeof AppStudiesStudyIdAccessRoute
   '/studies/$studyId/audit': typeof AppStudiesStudyIdAuditRoute
   '/studies/$studyId/config': typeof AppStudiesStudyIdConfigRoute
+  '/studies/$studyId/datasets': typeof AppStudiesStudyIdDatasetsRoute
   '/studies/$studyId/monitor': typeof AppStudiesStudyIdMonitorRoute
   '/studies/$studyId': typeof AppStudiesStudyIdIndexRoute
 }
@@ -147,6 +156,7 @@ export interface FileRoutesById {
   '/_app/studies/$studyId/access': typeof AppStudiesStudyIdAccessRoute
   '/_app/studies/$studyId/audit': typeof AppStudiesStudyIdAuditRoute
   '/_app/studies/$studyId/config': typeof AppStudiesStudyIdConfigRoute
+  '/_app/studies/$studyId/datasets': typeof AppStudiesStudyIdDatasetsRoute
   '/_app/studies/$studyId/monitor': typeof AppStudiesStudyIdMonitorRoute
   '/_app/studies/$studyId/': typeof AppStudiesStudyIdIndexRoute
 }
@@ -165,6 +175,7 @@ export interface FileRouteTypes {
     | '/studies/$studyId/access'
     | '/studies/$studyId/audit'
     | '/studies/$studyId/config'
+    | '/studies/$studyId/datasets'
     | '/studies/$studyId/monitor'
     | '/studies/$studyId/'
   fileRoutesByTo: FileRoutesByTo
@@ -180,6 +191,7 @@ export interface FileRouteTypes {
     | '/studies/$studyId/access'
     | '/studies/$studyId/audit'
     | '/studies/$studyId/config'
+    | '/studies/$studyId/datasets'
     | '/studies/$studyId/monitor'
     | '/studies/$studyId'
   id:
@@ -197,6 +209,7 @@ export interface FileRouteTypes {
     | '/_app/studies/$studyId/access'
     | '/_app/studies/$studyId/audit'
     | '/_app/studies/$studyId/config'
+    | '/_app/studies/$studyId/datasets'
     | '/_app/studies/$studyId/monitor'
     | '/_app/studies/$studyId/'
   fileRoutesById: FileRoutesById
@@ -291,6 +304,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStudiesStudyIdMonitorRouteImport
       parentRoute: typeof AppStudiesStudyIdRoute
     }
+    '/_app/studies/$studyId/datasets': {
+      id: '/_app/studies/$studyId/datasets'
+      path: '/datasets'
+      fullPath: '/studies/$studyId/datasets'
+      preLoaderRoute: typeof AppStudiesStudyIdDatasetsRouteImport
+      parentRoute: typeof AppStudiesStudyIdRoute
+    }
     '/_app/studies/$studyId/config': {
       id: '/_app/studies/$studyId/config'
       path: '/config'
@@ -319,6 +339,7 @@ interface AppStudiesStudyIdRouteChildren {
   AppStudiesStudyIdAccessRoute: typeof AppStudiesStudyIdAccessRoute
   AppStudiesStudyIdAuditRoute: typeof AppStudiesStudyIdAuditRoute
   AppStudiesStudyIdConfigRoute: typeof AppStudiesStudyIdConfigRoute
+  AppStudiesStudyIdDatasetsRoute: typeof AppStudiesStudyIdDatasetsRoute
   AppStudiesStudyIdMonitorRoute: typeof AppStudiesStudyIdMonitorRoute
   AppStudiesStudyIdIndexRoute: typeof AppStudiesStudyIdIndexRoute
 }
@@ -327,6 +348,7 @@ const AppStudiesStudyIdRouteChildren: AppStudiesStudyIdRouteChildren = {
   AppStudiesStudyIdAccessRoute: AppStudiesStudyIdAccessRoute,
   AppStudiesStudyIdAuditRoute: AppStudiesStudyIdAuditRoute,
   AppStudiesStudyIdConfigRoute: AppStudiesStudyIdConfigRoute,
+  AppStudiesStudyIdDatasetsRoute: AppStudiesStudyIdDatasetsRoute,
   AppStudiesStudyIdMonitorRoute: AppStudiesStudyIdMonitorRoute,
   AppStudiesStudyIdIndexRoute: AppStudiesStudyIdIndexRoute,
 }

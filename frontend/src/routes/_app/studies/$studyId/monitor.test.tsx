@@ -13,6 +13,10 @@ import type { RandomizationResponse } from "#/api/client";
 import { MOCK_STUDIES } from "#/lib/mocks/studies";
 import { armDisplayName, Route as MonitorRoute } from "./monitor";
 
+vi.mock("#/components/studies/dataset-reports", () => ({
+	DatasetReports: () => null,
+}));
+
 vi.mock("#/api/queries", () => ({
 	useStudy: vi.fn(),
 	useRandomizations: vi.fn(),

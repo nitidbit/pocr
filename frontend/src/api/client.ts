@@ -2,7 +2,7 @@ import type { Environment } from "#/lib/environment";
 
 export type { Environment };
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "/api/v1";
+export const API_BASE = import.meta.env.VITE_API_URL ?? "/api/v1";
 
 export class ApiError extends Error {
 	status: number;
@@ -15,20 +15,19 @@ export class ApiError extends Error {
 	}
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-	const url = `${API_BASE}${path}`;
+async function send(path: string, init?: RequestInit): Promise<Response> {
 	const devHeaders: Record<string, string> = {};
 	if (import.meta.env.DEV) {
 		devHeaders["X-Vouch-User"] =
 			import.meta.env.VITE_DEV_USER ?? "dev@localhost";
 	}
-	const response = await fetch(url, {
+	const response = await fetch(`${API_BASE}${path}`, {
+		...init,
 		headers: {
 			"Content-Type": "application/json",
 			...devHeaders,
-			...options?.headers,
+			...init?.headers,
 		},
-		...options,
 	});
 	if (!response.ok) {
 		throw new ApiError(
@@ -36,10 +35,22 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 			await response.json().catch(() => null),
 		);
 	}
+	return response;
+}
+
+export async function request<T>(
+	path: string,
+	options?: RequestInit,
+): Promise<T> {
+	const response = await send(path, options);
 	if (response.status === 204) {
 		return undefined as T;
 	}
 	return response.json();
+}
+
+export async function requestBlob(path: string): Promise<Blob> {
+	return (await send(path)).blob();
 }
 
 export type KeyVariant = "patientId" | "encounterId" | "providerId";

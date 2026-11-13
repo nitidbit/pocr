@@ -23,6 +23,11 @@ export const studyKeys = {
 		["studies", studyId, "balance", environment] as const,
 	members: (id: string) => ["studies", id, "members"] as const,
 	audit: (id: string) => ["studies", id, "audit"] as const,
+	datasetsAll: (studyId: string) => ["studies", studyId, "datasets"] as const,
+	datasets: (studyId: string, environment: Environment) =>
+		["studies", studyId, "datasets", environment] as const,
+	datasetReports: (studyId: string, environment: Environment) =>
+		["studies", studyId, "datasets", "reports", environment] as const,
 };
 
 export function useStudies() {

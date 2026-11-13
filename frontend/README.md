@@ -54,3 +54,6 @@ Path aliases `#/*` and `@/*` both resolve to `src/`. Prefer `#/` for application
 ## Deployment
 
 A multi-stage Docker build compiles the app with `vite build` and serves the static output from `nginx:alpine` on port 8080. In production the app sits behind an nginx reverse proxy with Vouch for OAuth/OIDC authentication. See the repository root for full-stack orchestration (engine, Redis, nginx, Vouch).
+
+Dataset component tests run against Mock Service Worker with a real `QueryClient`
+(`src/test/msw.tsx`).
