@@ -80,7 +80,7 @@ async fn internal_error_hides_the_cause_from_the_client() {
 
     let (_, body) = render(error).await;
 
-    assert!(!body.to_string().contains("secret-connection-string"));
+    assert_eq!(body["detail"], "internal error");
 }
 
 #[tokio::test]

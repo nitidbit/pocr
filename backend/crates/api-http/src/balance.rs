@@ -383,7 +383,6 @@ fn round_pct(value: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::NaiveDate;
 
     // Core's `PatientDemographicsWithArm` is `#[non_exhaustive]`; build fixtures
     // through its `Deserialize` impl rather than a struct literal.
@@ -409,10 +408,54 @@ mod tests {
         .expect("valid demographics fixture")
     }
 
-    const TODAY: &str = "2026-06-29";
-
     fn today() -> NaiveDate {
-        TODAY.parse().unwrap()
+        NaiveDate::from_ymd_opt(2026, 6, 29).expect("valid date")
+    }
+
+    /// Two arms with every sex count at or above the small-cell threshold.
+    fn sex_fixture(arm_a: Uuid, arm_b: Uuid) -> Vec<PatientDemographicsWithArm> {
+        let mut records = Vec::new();
+        records.extend((0..6).map(|_| make_record(arm_a, None, Some("Female"), None)));
+        records.extend((0..4).map(|_| make_record(arm_a, None, Some("Male"), None)));
+        records.extend((0..8).map(|_| make_record(arm_b, None, Some("Female"), None)));
+        records.extend((0..2).map(|_| make_record(arm_b, None, Some("Male"), None)));
+        records
+    }
+
+    fn continuous<'a>(response: &'a BalanceResponse, variable: &str) -> &'a [ContinuousArmData] {
+        response
+            .variables
+            .iter()
+            .find_map(|v| match v {
+                BalanceVariable::Continuous { name, arms, .. } if name == variable => {
+                    Some(arms.as_slice())
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("continuous variable {variable} should exist"))
+    }
+
+    fn categorical<'a>(response: &'a BalanceResponse, variable: &str) -> (&'a [CategoryData], f64) {
+        response
+            .variables
+            .iter()
+            .find_map(|v| match v {
+                BalanceVariable::Categorical {
+                    name,
+                    categories,
+                    smd,
+                } if name == variable => Some((categories.as_slice(), *smd)),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("categorical variable {variable} should exist"))
+    }
+
+    fn arm_data(level: &CategoryData, arm_id: Uuid) -> &CategoricalArmData {
+        level
+            .arms
+            .iter()
+            .find(|a| a.arm_id == arm_id)
+            .expect("arm present in every category")
     }
 
     #[test]
@@ -426,10 +469,9 @@ mod tests {
     }
 
     #[test]
-    fn continuous_variable_computes_mean_and_sd() {
+    fn continuous_variable_computes_mean_per_arm() {
         let arm_a = Uuid::now_v7();
         let arm_b = Uuid::now_v7();
-
         let records = vec![
             make_record(arm_a, None, None, Some(25.0)),
             make_record(arm_a, None, None, Some(27.0)),
@@ -439,140 +481,84 @@ mod tests {
 
         let response = build_balance_response(Uuid::now_v7(), &records, today());
 
-        let bmi_var = response
-            .variables
-            .iter()
-            .find(|v| matches!(v, BalanceVariable::Continuous { name, .. } if name == "bmi"))
-            .expect("bmi variable should exist");
-
-        if let BalanceVariable::Continuous { arms, .. } = bmi_var {
-            let arm_a_data = arms.iter().find(|a| a.arm_id == arm_a).unwrap();
-            assert!((arm_a_data.mean - 26.0).abs() < 1e-10);
-
-            let arm_b_data = arms.iter().find(|a| a.arm_id == arm_b).unwrap();
-            assert!((arm_b_data.mean - 31.0).abs() < 1e-10);
-        }
+        let bmi = continuous(&response, "bmi");
+        let mean_a = bmi.iter().find(|a| a.arm_id == arm_a).expect("arm a").mean;
+        let mean_b = bmi.iter().find(|a| a.arm_id == arm_b).expect("arm b").mean;
+        assert!((mean_a - 26.0).abs() < 1e-10);
+        assert!((mean_b - 31.0).abs() < 1e-10);
     }
 
     #[test]
     fn age_derived_from_birth_date() {
-        let arm_a = Uuid::now_v7();
-        let bd = NaiveDate::from_ymd_opt(1990, 1, 1).unwrap();
-
-        let records = vec![make_record(arm_a, Some(bd), None, None)];
+        let birth_date = NaiveDate::from_ymd_opt(1990, 1, 1).expect("valid date");
+        let records = vec![make_record(Uuid::now_v7(), Some(birth_date), None, None)];
 
         let response = build_balance_response(Uuid::now_v7(), &records, today());
 
-        let age_var = response
-            .variables
-            .iter()
-            .find(|v| matches!(v, BalanceVariable::Continuous { name, .. } if name == "age"))
-            .expect("age variable should exist");
-
-        if let BalanceVariable::Continuous { arms, .. } = age_var {
-            // Born 1990-01-01, today is 2026-06-29 => 36 years
-            assert!((arms[0].mean - 36.0).abs() < 1e-10);
-        }
+        // Born 1990-01-01, today is 2026-06-29 => 36 years
+        assert!((continuous(&response, "age")[0].mean - 36.0).abs() < 1e-10);
     }
 
     #[test]
-    fn categorical_variable_counts_and_proportions() {
+    fn categorical_variable_reports_counts_and_percentages() {
         let arm_a = Uuid::now_v7();
         let arm_b = Uuid::now_v7();
-
-        // All counts >= 5 to avoid small-cell suppression
-        let mut records = Vec::new();
-        for _ in 0..6 {
-            records.push(make_record(arm_a, None, Some("Female"), None));
-        }
-        for _ in 0..4 {
-            records.push(make_record(arm_a, None, Some("Male"), None));
-        }
-        for _ in 0..8 {
-            records.push(make_record(arm_b, None, Some("Female"), None));
-        }
-        for _ in 0..2 {
-            records.push(make_record(arm_b, None, Some("Male"), None));
-        }
+        let records = sex_fixture(arm_a, arm_b);
 
         let response = build_balance_response(Uuid::now_v7(), &records, today());
 
-        let sex_var = response
-            .variables
-            .iter()
-            .find(|v| matches!(v, BalanceVariable::Categorical { name, .. } if name == "sex"))
-            .expect("sex variable should exist");
+        let (levels, _) = categorical(&response, "sex");
+        let female = levels.iter().find(|c| c.value == "Female").expect("Female");
+        assert_eq!(arm_data(female, arm_a).count, serde_json::json!(6));
+        assert_eq!(arm_data(female, arm_a).pct, serde_json::json!(60.0));
+        assert_eq!(arm_data(female, arm_b).count, serde_json::json!(8));
+        assert_eq!(arm_data(female, arm_b).pct, serde_json::json!(80.0));
+    }
 
-        if let BalanceVariable::Categorical {
-            categories, smd, ..
-        } = sex_var
-        {
-            let female = categories.iter().find(|c| c.value == "Female").unwrap();
-            let arm_a_female = female.arms.iter().find(|a| a.arm_id == arm_a).unwrap();
-            // 6 out of 10 = 60%
-            assert_eq!(arm_a_female.count, serde_json::json!(6));
-            assert_eq!(arm_a_female.pct, serde_json::json!(60.0));
+    #[test]
+    fn categorical_smd_is_positive_for_imbalanced_arms() {
+        let arm_a = Uuid::now_v7();
+        let arm_b = Uuid::now_v7();
+        let records = sex_fixture(arm_a, arm_b);
 
-            let arm_b_female = female.arms.iter().find(|a| a.arm_id == arm_b).unwrap();
-            // 8 out of 10 = 80%
-            assert_eq!(arm_b_female.count, serde_json::json!(8));
-            assert_eq!(arm_b_female.pct, serde_json::json!(80.0));
+        let response = build_balance_response(Uuid::now_v7(), &records, today());
 
-            assert!(*smd > 0.0, "SMD should be non-zero for imbalanced arms");
-        }
+        let (_, smd) = categorical(&response, "sex");
+        assert!(smd > 0.0);
     }
 
     #[test]
     fn small_cell_suppression_redacts_counts_below_threshold() {
         let arm_a = Uuid::now_v7();
         let arm_b = Uuid::now_v7();
-
-        // arm_a has 3 Female (below threshold of 5)
         let mut records: Vec<PatientDemographicsWithArm> = (0..3)
             .map(|_| make_record(arm_a, None, Some("Female"), None))
             .collect();
-        // arm_b has 10 Female
         records.extend((0..10).map(|_| make_record(arm_b, None, Some("Female"), None)));
 
         let response = build_balance_response(Uuid::now_v7(), &records, today());
 
-        let sex_var = response
-            .variables
-            .iter()
-            .find(|v| matches!(v, BalanceVariable::Categorical { name, .. } if name == "sex"))
-            .expect("sex variable should exist");
-
-        if let BalanceVariable::Categorical { categories, .. } = sex_var {
-            let female = categories.iter().find(|c| c.value == "Female").unwrap();
-            // Both arms should be redacted since arm_a's count is below threshold
-            for arm_data in &female.arms {
-                assert_eq!(arm_data.count, serde_json::json!("<5"));
-                assert_eq!(arm_data.pct, serde_json::json!("<5"));
-            }
+        // arm_a is below the threshold, so every arm's cell is redacted.
+        let (levels, _) = categorical(&response, "sex");
+        let female = levels.iter().find(|c| c.value == "Female").expect("Female");
+        for arm in &female.arms {
+            assert_eq!(arm.count, serde_json::json!("<5"));
+            assert_eq!(arm.pct, serde_json::json!("<5"));
         }
     }
 
     #[test]
     fn missing_continuous_values_tracked() {
         let arm_a = Uuid::now_v7();
-
         let records = vec![
             make_record(arm_a, None, None, Some(25.0)),
-            make_record(arm_a, None, None, None), // missing bmi
+            make_record(arm_a, None, None, None),
             make_record(arm_a, None, None, Some(27.0)),
         ];
 
         let response = build_balance_response(Uuid::now_v7(), &records, today());
 
-        let bmi_var = response
-            .variables
-            .iter()
-            .find(|v| matches!(v, BalanceVariable::Continuous { name, .. } if name == "bmi"))
-            .expect("bmi variable should exist");
-
-        if let BalanceVariable::Continuous { arms, .. } = bmi_var {
-            assert_eq!(arms[0].missing, 1);
-        }
+        assert_eq!(continuous(&response, "bmi")[0].missing, 1);
     }
 
     #[test]
