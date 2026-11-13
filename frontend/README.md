@@ -55,5 +55,15 @@ Path aliases `#/*` and `@/*` both resolve to `src/`. Prefer `#/` for application
 
 A multi-stage Docker build compiles the app with `vite build` and serves the static output from `nginx:alpine` on port 8080. In production the app sits behind an nginx reverse proxy with Vouch for OAuth/OIDC authentication. See the repository root for full-stack orchestration (engine, Redis, nginx, Vouch).
 
+## Dataset demo
+
+Run `just fe-demo` from the repository root and open
+[the demo study](http://127.0.0.1:3011/studies/dataset-demo/monitor).
+A Mock Service Worker serves a read-only study with an Encounter Outcomes report
+below demographic balance. The worker starts only in `vite dev` with the flag set,
+and the fixtures in `src/mocks` are not bundled. `public/mockServiceWorker.js` ships
+with the build but stays inert, because production never registers it; `npm install`
+keeps it in sync with `msw` through `msw.workerDirectory`.
+
 Dataset component tests run against Mock Service Worker with a real `QueryClient`
 (`src/test/msw.tsx`).

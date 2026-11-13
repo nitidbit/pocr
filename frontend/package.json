@@ -57,5 +57,10 @@
       "esbuild",
       "lightningcss"
     ]
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
   }
 }

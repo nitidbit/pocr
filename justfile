@@ -67,6 +67,11 @@ fe-install:
 fe-dev:
     npm --prefix {{frontend}} run dev
 
+# Start the MSW dataset demo (mocked API, no backend) on port 3011.
+[group('frontend')]
+fe-demo:
+    VITE_DATASET_DEMO=true npm --prefix {{frontend}} run dev -- --host 127.0.0.1 --port 3011
+
 # Production build (typechecks as part of the build).
 [group('frontend')]
 fe-build:
