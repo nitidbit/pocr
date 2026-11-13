@@ -1,4 +1,4 @@
-//! Execute only approved, predeployed procedures with bound context JSON.
+//! Executes only approved, predeployed procedures with bound context JSON.
 //!
 //! No SQL text is taken from definitions: the only statement ever executed is
 //! `EXEC [schema].[name] @context_json = @P1`, built from the procedure's
@@ -17,7 +17,7 @@ use pocr_core::dataset::{
 
 use crate::{CaboodleClient, CaboodleError, CaboodleResult};
 
-/// Run a dataset's stored procedure for `input` and parse the result.
+/// Runs a dataset's stored procedure for `input` and parses the result.
 ///
 /// Binds `input` as one JSON array to the procedure's `@context_json`
 /// parameter and requires exactly one result set that matches `definition`.

@@ -9,13 +9,13 @@ use tracing::{info, instrument};
 use crate::config::CaboodleConfig;
 use crate::error::{CaboodleError, CaboodleResult, DriverFailure};
 
-/// A connected client to the Caboodle MS-SQL database.
+/// Connected client for the Caboodle MS-SQL database.
 pub struct CaboodleClient {
     pub(crate) client: Client<tokio_util::compat::Compat<TcpStream>>,
 }
 
 impl CaboodleClient {
-    /// Establish a connection to Caboodle using SQL Server authentication.
+    /// Establishes a connection to Caboodle using SQL Server authentication.
     ///
     /// # Errors
     ///
@@ -54,15 +54,15 @@ impl CaboodleClient {
         Ok(Self { client })
     }
 
-    /// Round-trip a trivial query to confirm the connection is live.
+    /// Round-trips a trivial query to confirm the connection is live.
     ///
     /// Intended for connectivity smoke tests, not the sync pipeline itself.
+    /// Consumes the connection so a timed-out protocol stream cannot be reused.
     ///
     /// # Errors
     ///
     /// Returns [`CaboodleError::Query`] if the query fails and
     /// [`CaboodleError::QueryTimeout`] if it exceeds 15 seconds.
-    /// The connection is consumed so a timed-out protocol stream cannot be reused.
     pub async fn ping(mut self) -> CaboodleResult<()> {
         tokio::time::timeout(Duration::from_secs(15), async {
             Query::new("SELECT 1")

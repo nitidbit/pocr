@@ -10,20 +10,31 @@ use crate::error::{CaboodleError, CaboodleResult};
 /// Demographics data for a single patient from Caboodle.
 #[derive(Debug, Clone)]
 pub struct CaboodleDemographics {
+    /// Epic patient identifier (`PatientEpicId`).
     pub patient_epic_id: String,
+    /// Caboodle surrogate key (`PatientKey`) for joins to other dimensions.
     pub patient_key: i64,
+    /// Date of birth, if recorded.
     pub birth_date: Option<NaiveDate>,
+    /// Recorded sex, if any.
     pub sex: Option<String>,
+    /// Recorded ethnicity, if any.
     pub ethnicity: Option<String>,
+    /// Primary language (`FirstLanguage`), if recorded.
     pub primary_language: Option<String>,
+    /// Smoking status, if recorded.
     pub smoking_status: Option<String>,
 }
 
-/// Fetch core demographics from PatientDim for a batch of Epic patient IDs.
+/// Fetches core demographics from `PatientDim` for a batch of Epic patient IDs.
 ///
-/// Return demographics keyed by `PatientEpicId` along with the `PatientKey`
-/// for subsequent joins. Results are batched in chunks of 1000 to stay within
-/// MS-SQL parameter limits.
+/// Returns demographics with the `PatientKey` for subsequent joins. Queries
+/// run in chunks of 1000 IDs to stay within MS-SQL parameter limits.
+///
+/// # Errors
+///
+/// Returns [`CaboodleError::Query`] if a query fails or its results cannot be
+/// read.
 #[instrument(skip(client, patient_epic_ids), fields(batch_size = patient_epic_ids.len()))]
 pub async fn fetch_demographics(
     client: &mut CaboodleClient,
@@ -90,9 +101,14 @@ pub async fn fetch_demographics(
     Ok(all_results)
 }
 
-/// Fetch race information from PatientRaceBridge joined with RaceDim.
+/// Fetches race names from `PatientRaceBridge` joined with `RaceDim`.
 ///
-/// Return a map of `PatientKey` to list of race names.
+/// Returns a map of `PatientKey` to its race names.
+///
+/// # Errors
+///
+/// Returns [`CaboodleError::Query`] if a query fails or its results cannot be
+/// read.
 #[instrument(skip(client, patient_keys), fields(batch_size = patient_keys.len()))]
 pub async fn fetch_races(
     client: &mut CaboodleClient,
@@ -143,9 +159,14 @@ pub async fn fetch_races(
     Ok(result)
 }
 
-/// Fetch insurance (financial class) from CoverageDim.
+/// Fetches insurance (financial class) from `CoverageDim`.
 ///
-/// Return the most recent active financial class for each patient key.
+/// Returns the most recent active financial class for each patient key.
+///
+/// # Errors
+///
+/// Returns [`CaboodleError::Query`] if a query fails or its results cannot be
+/// read.
 #[instrument(skip(client, patient_keys), fields(batch_size = patient_keys.len()))]
 pub async fn fetch_insurance(
     client: &mut CaboodleClient,
@@ -198,10 +219,15 @@ pub async fn fetch_insurance(
     Ok(result)
 }
 
-/// Fetch most recent BMI value before each patient's randomization timestamp.
+/// Fetches the most recent BMI before each patient's randomization timestamp.
 ///
-/// Accept `(PatientEpicId, randomization_issued_at)` pairs and return
-/// `PatientEpicId` to BMI value.
+/// Takes `(PatientEpicId, randomization_issued_at)` pairs and returns a map
+/// of `PatientEpicId` to BMI. Non-numeric values are logged and skipped.
+///
+/// # Errors
+///
+/// Returns [`CaboodleError::Query`] if a query fails or its results cannot be
+/// read.
 #[instrument(skip(client, patients), fields(batch_size = patients.len()))]
 pub async fn fetch_bmi(
     client: &mut CaboodleClient,

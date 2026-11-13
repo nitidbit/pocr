@@ -1,7 +1,8 @@
 //! Caboodle (Epic MS-SQL data warehouse) integration layer.
 //!
-//! Provide connection management and query functions for pulling
-//! patient demographics from Caboodle's dimensional model.
+//! Provides connection management, dataset procedure execution, and query
+//! functions for pulling patient demographics from Caboodle's dimensional
+//! model.
 
 mod config;
 mod connection;

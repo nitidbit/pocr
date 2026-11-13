@@ -5,21 +5,27 @@ use crate::error::{CaboodleError, CaboodleResult};
 /// SQL Server service-account configuration for Caboodle.
 #[derive(Debug, Clone)]
 pub struct CaboodleConfig {
+    /// Server host name or address.
     pub host: String,
+    /// TCP port of the SQL Server instance.
     pub port: u16,
+    /// Database to connect to.
     pub database: String,
+    /// SQL Server authentication login.
     pub username: String,
+    /// Password for `username`; redacted in `Debug` output.
     pub password: SecretString,
 }
 
 impl CaboodleConfig {
-    /// Read required `CABOODLE_HOST`, `CABOODLE_DATABASE`, `CABOODLE_USERNAME`,
-    /// and `CABOODLE_PASSWORD`. Only SQL Server authentication is supported.
-    /// `CABOODLE_PORT` defaults to 1433 when absent.
+    /// Reads required `CABOODLE_HOST`, `CABOODLE_DATABASE`, `CABOODLE_USERNAME`,
+    /// and `CABOODLE_PASSWORD`, with `CABOODLE_PORT` defaulting to 1433.
+    ///
+    /// Only SQL Server authentication is supported.
     ///
     /// # Errors
     ///
-    /// Return [`CaboodleError::Config`] for missing or blank required values,
+    /// Returns [`CaboodleError::Config`] for missing or blank required values,
     /// or an invalid or zero port.
     pub fn from_env() -> CaboodleResult<Self> {
         Self::from_lookup(|name| std::env::var(name).ok())
