@@ -6,9 +6,9 @@ use std::sync::Arc;
 
 use axum::serve;
 use pocr_core::environment::{Environment, EnvironmentMap};
-use pocr_engine::error::{EngineError, EngineResult};
-use pocr_engine::health::{PgHealthCheck, RedisHealthCheck};
-use pocr_engine::service::Engine;
+use pocr_engine::Engine;
+use pocr_engine::{EngineError, EngineResult};
+use pocr_engine::{PgHealthCheck, RedisHealthCheck};
 use tokio::net::TcpListener;
 use tracing::{error, info};
 
@@ -98,7 +98,7 @@ async fn run() -> EngineResult<()> {
     let cert_path = env::var_os("CERT_PATH").map(|path| PathBuf::from(path).into());
 
     // Build app state
-    let datasets = api_http::datasets::DatasetsState {
+    let datasets = api_http::DatasetsState {
         catalog: Arc::new(
             infra_datasets::from_env()
                 .map_err(EngineError::Catalog)?

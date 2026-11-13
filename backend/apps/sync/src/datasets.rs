@@ -8,11 +8,8 @@ use std::num::NonZeroUsize;
 use std::time::Duration;
 
 use futures::{StreamExt, stream};
-use infra_caboodle::{CaboodleClient, CaboodleConfig, CaboodleError, datasets::execute_dataset};
-use infra_pg::{
-    PgDatasetRepository,
-    datasets::{RefreshRun, RefreshStoreError, RefreshTarget},
-};
+use infra_caboodle::{CaboodleClient, CaboodleConfig, CaboodleError, execute_dataset};
+use infra_pg::{PgDatasetRepository, RefreshRun, RefreshStoreError, RefreshTarget};
 use pocr_core::{
     dataset::{BatchError, DatasetDefinition, DatasetRegistry, batches},
     environment::Environment,

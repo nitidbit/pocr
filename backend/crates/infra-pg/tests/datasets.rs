@@ -3,10 +3,7 @@
 
 use std::time::Duration;
 
-use infra_pg::{
-    PgDatasetRepository,
-    datasets::{DatabaseFailure, RefreshLock, RefreshRun, RefreshStoreError},
-};
+use infra_pg::{DatabaseFailure, PgDatasetRepository, RefreshLock, RefreshRun, RefreshStoreError};
 use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;

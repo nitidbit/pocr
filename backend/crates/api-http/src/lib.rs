@@ -1,17 +1,17 @@
 //! HTTP API routes and handlers for the POCR engine.
 
-pub mod balance;
-pub mod cds_hooks;
-pub mod datasets;
-pub mod error;
-pub mod extractors;
+mod balance;
+mod cds_hooks;
+mod datasets;
+mod error;
+mod extractors;
 mod health;
-pub mod members;
-pub mod randomizations;
-pub mod sharing;
-pub mod smd;
-pub mod studies;
-pub mod system;
+mod members;
+mod randomizations;
+mod sharing;
+mod smd;
+mod studies;
+mod system;
 
 use std::path::Path;
 use std::sync::Arc;
@@ -28,10 +28,13 @@ use pocr_core::ports::{
     UserStudyRepository,
 };
 
+pub use datasets::{DatasetsState, router as datasets_router};
+pub use error::ApiError;
+
 use crate::balance::get_balance;
 use crate::randomizations::{count_randomizations, list_randomizations};
 use crate::studies::{create_study, get_study, list_studies};
-pub mod me;
+mod me;
 
 /// Shared application state passed to all handlers.
 ///

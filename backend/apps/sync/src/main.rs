@@ -109,8 +109,7 @@ async fn sync_demographics(pg_pool: sqlx::PgPool) -> Result<(), SyncError> {
 
     let patient_ids: Vec<String> = patients.iter().map(|p| p.epic_patient_id.clone()).collect();
 
-    let demographics =
-        infra_caboodle::queries::fetch_demographics(&mut caboodle, &patient_ids).await?;
+    let demographics = infra_caboodle::fetch_demographics(&mut caboodle, &patient_ids).await?;
     info!(
         found = demographics.len(),
         total = patient_ids.len(),
@@ -133,8 +132,8 @@ async fn sync_demographics(pg_pool: sqlx::PgPool) -> Result<(), SyncError> {
     // Collect patient_keys for secondary queries
     let patient_keys: Vec<i64> = demographics.iter().map(|d| d.patient_key).collect();
 
-    let races = infra_caboodle::queries::fetch_races(&mut caboodle, &patient_keys).await?;
-    let insurance = infra_caboodle::queries::fetch_insurance(&mut caboodle, &patient_keys).await?;
+    let races = infra_caboodle::fetch_races(&mut caboodle, &patient_keys).await?;
+    let insurance = infra_caboodle::fetch_insurance(&mut caboodle, &patient_keys).await?;
 
     // BMI needs (epic_id, randomization_date) pairs for patients found in Caboodle
     let bmi_patients: Vec<(String, DateTime<Utc>)> = patients
@@ -142,7 +141,7 @@ async fn sync_demographics(pg_pool: sqlx::PgPool) -> Result<(), SyncError> {
         .filter(|p| demo_by_id.contains_key(p.epic_patient_id.as_str()))
         .map(|p| (p.epic_patient_id.clone(), p.issued_at))
         .collect();
-    let bmi = infra_caboodle::queries::fetch_bmi(&mut caboodle, &bmi_patients).await?;
+    let bmi = infra_caboodle::fetch_bmi(&mut caboodle, &bmi_patients).await?;
 
     let now = Utc::now();
     let mut batch: Vec<PatientDemographics> = Vec::with_capacity(demographics.len());
@@ -217,7 +216,7 @@ enum SyncError {
     Upsert(#[from] pocr_core::ports::RepositoryError),
 
     #[error("dataset store error: {0}")]
-    DatasetStore(#[from] infra_pg::datasets::RefreshStoreError),
+    DatasetStore(#[from] infra_pg::RefreshStoreError),
 
     #[error("{failed} dataset refreshes failed")]
     DatasetRefresh { failed: usize },

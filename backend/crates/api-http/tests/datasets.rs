@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use api_http::datasets::{DatasetsState, router};
+use api_http::{DatasetsState, datasets_router};
 use axum::{
     Router,
     body::Body,
@@ -104,7 +104,7 @@ impl Harness {
     }
 
     fn router_with(&self, catalog: Catalog) -> Router {
-        router().with_state(DatasetsState {
+        datasets_router().with_state(DatasetsState {
             catalog: Arc::new(catalog),
             datasets: self.repository.clone(),
             members: self.members.clone(),

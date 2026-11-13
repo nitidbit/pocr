@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use infra_caboodle::{CaboodleClient, CaboodleConfig, datasets::execute_dataset};
+use infra_caboodle::{CaboodleClient, CaboodleConfig, execute_dataset};
 use serde_json::json;
 
 use pocr_core::dataset::{ContextRecord, DatasetDefinition, FieldName};
