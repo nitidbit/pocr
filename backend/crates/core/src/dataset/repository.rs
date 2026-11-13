@@ -22,6 +22,7 @@ pub enum DatasetStatus {
 
 impl DatasetStatus {
     /// Parses the lowercase stored form, returning `None` for any other string.
+    #[must_use]
     pub fn parse(value: &str) -> Option<Self> {
         match value {
             "pending" => Some(Self::Pending),
@@ -80,6 +81,7 @@ pub struct Snapshot {
 
 impl Snapshot {
     /// Fingerprint of the definition the snapshot was produced under.
+    #[must_use]
     pub fn fingerprint(&self) -> &str {
         self.definition.fingerprint()
     }
