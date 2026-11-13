@@ -17,9 +17,6 @@ pub use arm::Arm;
 pub use block::RandomPermutedBlock;
 pub use key::{FhirPath, KeyVariant};
 pub use randomization::Randomization;
-pub use request::RandomizationRequest;
+pub use request::{EpicIds, RandomizationRequest};
 pub use stratum::{SimpleStratum, Strata, Stratum};
 pub use unit::{FhirPathValue, SimpleUnit, Unit};
-
-#[cfg(test)]
-mod tests {}
