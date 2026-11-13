@@ -1,0 +1,14 @@
+# Transitive duplicates we cannot unify from this workspace:
+# thiserror 1 via tiberius/async-native-tls; rand 0.8 and the rest via sqlx-postgres and platform crates.
+allowed-duplicate-crates = [
+    "cpufeatures",
+    "foldhash",
+    "hashbrown",
+    "rand",
+    "rand_core",
+    "redox_syscall",
+    "thiserror",
+    "thiserror-impl",
+    "windows-sys",
+    "wit-bindgen",
+]
