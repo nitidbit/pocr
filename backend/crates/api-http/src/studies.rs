@@ -729,7 +729,10 @@ mod tests {
             },
         ];
 
-        assert!(validate_ratio_updates(&config, &updates).is_empty());
+        assert_eq!(
+            validate_ratio_updates(&config, &updates),
+            Vec::<String>::new()
+        );
     }
 
     #[test]
@@ -740,7 +743,10 @@ mod tests {
             ratio: 0,
         }];
 
-        assert!(validate_ratio_updates(&config, &updates).is_empty());
+        assert_eq!(
+            validate_ratio_updates(&config, &updates),
+            Vec::<String>::new()
+        );
     }
 
     #[test]
@@ -749,22 +755,21 @@ mod tests {
 
         let errors = validate_ratio_updates(&config, &[]);
 
-        assert_eq!(errors.len(), 1);
-        assert!(errors[0].contains("at least one arm ratio"));
+        assert_eq!(errors, ["at least one arm ratio is required"]);
     }
 
     #[test]
     fn validate_ratio_updates_rejects_unknown_arm() {
         let config = config(vec![arm(1), arm(1)], None);
+        let unknown = Uuid::now_v7();
         let updates = vec![ArmRatioUpdate {
-            arm_id: Uuid::now_v7(),
+            arm_id: unknown,
             ratio: 2,
         }];
 
         let errors = validate_ratio_updates(&config, &updates);
 
-        assert_eq!(errors.len(), 1);
-        assert!(errors[0].starts_with("unknown arm"));
+        assert_eq!(errors, [format!("unknown arm {unknown}")]);
     }
 
     #[test]
@@ -783,8 +788,7 @@ mod tests {
 
         let errors = validate_ratio_updates(&config, &updates);
 
-        assert_eq!(errors.len(), 1);
-        assert!(errors[0].starts_with("duplicate arm"));
+        assert_eq!(errors, [format!("duplicate arm {}", config.arms[0].id)]);
     }
 
     #[test]
@@ -803,8 +807,7 @@ mod tests {
 
         let errors = validate_ratio_updates(&config, &updates);
 
-        assert_eq!(errors.len(), 1);
-        assert!(errors[0].contains("positive ratio"));
+        assert_eq!(errors, ["at least one arm must have a positive ratio"]);
     }
 
     #[test]
@@ -817,8 +820,10 @@ mod tests {
 
         let errors = validate_ratio_updates(&config, &updates);
 
-        assert_eq!(errors.len(), 1);
-        assert!(errors[0].contains("block_size"));
+        assert_eq!(
+            errors,
+            ["block_size (6) must be a multiple of the sum of arm ratios (4)"]
+        );
     }
 
     #[test]
@@ -829,6 +834,9 @@ mod tests {
             ratio: 2,
         }];
 
-        assert!(validate_ratio_updates(&config, &updates).is_empty());
+        assert_eq!(
+            validate_ratio_updates(&config, &updates),
+            Vec::<String>::new()
+        );
     }
 }
