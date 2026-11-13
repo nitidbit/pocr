@@ -86,8 +86,7 @@ impl Engine {
         if let Some(existing) = self
             .randomization_repo
             .exists_for_unit(&study.id, environment, &unit_key)
-            .await
-            .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?
+            .await?
         {
             info!(unit = %unit_key, "existing randomization returned");
             return Ok(existing);
@@ -120,8 +119,7 @@ impl Engine {
                     if let Some(existing) = self
                         .randomization_repo
                         .exists_for_unit(&study.id, environment, &unit_key)
-                        .await
-                        .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?
+                        .await?
                     {
                         return Ok(existing);
                     }
@@ -173,11 +171,7 @@ impl Engine {
         };
         randomization.context = request.extract_context();
 
-        let saved = self
-            .randomization_repo
-            .save(&randomization)
-            .await
-            .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?;
+        let saved = self.randomization_repo.save(&randomization).await?;
 
         guard.defused = true;
         self.inflight.remove(&guard.key);
@@ -218,8 +212,7 @@ impl Engine {
         if let Some(arm_index) = self
             .block_cache
             .consume_next(environment, study_id, stratum_key)
-            .await
-            .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?
+            .await?
         {
             return Ok(arm_index);
         }
@@ -243,10 +236,7 @@ impl Engine {
             (arm_index, block)
         };
 
-        self.block_cache
-            .save_block(environment, &block)
-            .await
-            .map_err(|e| RandomizationError::Infrastructure(e.to_string()))?;
+        self.block_cache.save_block(environment, &block).await?;
 
         Ok(arm_index)
     }

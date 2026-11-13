@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::ports::RepositoryError;
+
 /// Convenience alias for results within the randomization core.
 pub type RandomizationResult<T> = Result<T, RandomizationError>;
 
@@ -37,9 +39,9 @@ pub enum RandomizationError {
     #[error("not implemented: {0}")]
     NotImplemented(String),
 
-    /// An infrastructure/IO error (database, cache, network).
-    #[error("infrastructure error: {0}")]
-    Infrastructure(String),
+    /// A repository or cache failed.
+    #[error("infrastructure error")]
+    Infrastructure(#[from] RepositoryError),
 
     /// Study configuration is invalid (e.g., all arm ratios are zero).
     #[error("invalid configuration: {0}")]
