@@ -2,6 +2,7 @@
 
 use std::borrow::Cow;
 
+use pocr_core::dataset::DefinitionError;
 use uuid::Uuid;
 
 /// Sanitized category of a database failure.
@@ -100,6 +101,9 @@ pub enum RefreshStoreError {
     CorruptTarget {
         /// Attachment holding the invalid name.
         attachment_id: Uuid,
+        /// Why the stored name was rejected.
+        #[source]
+        source: DefinitionError,
     },
 }
 

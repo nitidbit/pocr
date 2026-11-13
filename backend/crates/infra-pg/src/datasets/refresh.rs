@@ -336,8 +336,12 @@ impl RefreshRun {
 fn parse_target(attachment_id: Uuid, name: String) -> Result<RefreshTarget, RefreshStoreError> {
     Ok(RefreshTarget {
         attachment_id,
-        dataset_name: DatasetName::parse(name)
-            .map_err(|_| RefreshStoreError::CorruptTarget { attachment_id })?,
+        dataset_name: DatasetName::parse(name).map_err(|source| {
+            RefreshStoreError::CorruptTarget {
+                attachment_id,
+                source,
+            }
+        })?,
     })
 }
 
@@ -384,7 +388,7 @@ mod tests {
 
         assert!(matches!(
             error,
-            RefreshStoreError::CorruptTarget { attachment_id } if attachment_id == id
+            RefreshStoreError::CorruptTarget { attachment_id, .. } if attachment_id == id
         ));
     }
 }
