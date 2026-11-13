@@ -3,6 +3,7 @@ resolver = "3"
 members = ["apps/engine", "apps/migrate", "apps/sync", "crates/api-grpc", "crates/api-http", "crates/core", "crates/infra-caboodle", "crates/infra-pg", "crates/infra-datasets", "crates/infra-redis", "crates/observability"]
 
 [workspace.dependencies]
+jsonschema = { version = "0.61.2", default-features = false }
 tokio = { version = "1.49.0", features = ["full"] }
 serde = { version = "1.0.228", features = ["derive"] }
 thiserror = "2.0.18"
