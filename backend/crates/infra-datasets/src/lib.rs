@@ -30,14 +30,18 @@ pub enum LoadError {
     /// The catalog directory or one of its entries cannot be read.
     #[error("cannot read directory {}", path.display())]
     ReadDirectory {
+        /// Directory that could not be read.
         path: PathBuf,
+        /// Underlying I/O failure.
         #[source]
         source: io::Error,
     },
     /// A definition file cannot be read.
     #[error("cannot read file {}", path.display())]
     ReadFile {
+        /// File that could not be read.
         path: PathBuf,
+        /// Underlying I/O failure.
         #[source]
         source: io::Error,
     },
@@ -46,7 +50,9 @@ pub enum LoadError {
     /// another definition. The source carries the line and column.
     #[error("invalid YAML in {}", path.display())]
     Yaml {
+        /// File that failed to parse.
         path: PathBuf,
+        /// Parser failure.
         #[source]
         source: serde_yaml_ng::Error,
     },
@@ -55,31 +61,46 @@ pub enum LoadError {
     /// `path` is the offending `dataset.yaml` or `report.yaml`.
     #[error("cannot add {} to the catalog", path.display())]
     Catalog {
+        /// The offending `dataset.yaml` or `report.yaml`.
         path: PathBuf,
+        /// Reason the definition cannot join the catalog.
         #[source]
         source: CatalogError,
     },
     /// A dataset package directory has no `dataset.yaml`.
     #[error("package directory {} has no {DATASET_FILE}", directory.display())]
-    MissingDefinition { directory: PathBuf },
+    MissingDefinition {
+        /// Package directory lacking `dataset.yaml`.
+        directory: PathBuf,
+    },
     /// A dataset package directory name differs from the dataset it defines.
     #[error("package directory {} defines dataset {name}", directory.display())]
     DirectoryNameMismatch {
+        /// Package directory whose name differs.
         directory: PathBuf,
+        /// Name the definition declares.
         name: DatasetName,
     },
     /// A report directory has no `report.yaml`.
     #[error("report directory {} has no {REPORT_FILE}", directory.display())]
-    MissingReport { directory: PathBuf },
+    MissingReport {
+        /// Report directory lacking `report.yaml`.
+        directory: PathBuf,
+    },
     /// A report directory name differs from the report it defines.
     #[error("report directory {} defines report {name}", directory.display())]
     ReportDirectoryNameMismatch {
+        /// Report directory whose name differs.
         directory: PathBuf,
+        /// Name the definition declares.
         name: ReportName,
     },
     /// An environment variable is not valid Unicode.
     #[error("environment variable {variable} is not valid Unicode")]
-    InvalidEnvironment { variable: &'static str },
+    InvalidEnvironment {
+        /// Name of the offending variable.
+        variable: &'static str,
+    },
 }
 
 fn read_text(path: &Path) -> Result<String, LoadError> {
@@ -172,7 +193,8 @@ fn load_report(directory: &Path) -> Result<ReportDefinition, LoadError> {
 ///
 /// Returns a [`LoadError`] naming the offending path if a directory cannot
 /// be read, a package lacks its YAML file, a file is invalid, a directory
-/// name differs from its definition's name or a definition cannot join the catalog.
+/// name differs from its definition's name, or a definition cannot join the
+/// catalog.
 pub fn load(path: &Path) -> Result<Catalog, LoadError> {
     let catalog_error = |path: PathBuf| move |source| LoadError::Catalog { path, source };
     let mut datasets = DatasetRegistry::default();
