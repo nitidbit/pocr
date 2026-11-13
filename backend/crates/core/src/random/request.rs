@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 ///
 /// Fields are optional because different studies use different keys
 /// to identify the randomization unit. The study's configured
-/// [`Key`](super::Key) determines which field is required.
+/// [`KeyVariant`](super::KeyVariant) determines which field is required.
 #[derive(Debug)]
 pub struct RandomizationRequest {
     /// Caller-supplied locator for correlating the request with an
