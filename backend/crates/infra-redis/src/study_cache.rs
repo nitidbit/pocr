@@ -12,7 +12,7 @@ use crate::connection::RedisPool;
 
 /// Redis cache for study configs on the CDS Hooks hot path.
 ///
-/// Caches locator → study_id mappings and full study configs with TTL.
+/// Caches locator → `study_id` mappings and full study configs with a TTL.
 pub struct RedisStudyCache {
     pool: Arc<RedisPool>,
 }
@@ -20,11 +20,12 @@ pub struct RedisStudyCache {
 const STUDY_CACHE_TTL_SECS: u64 = 300; // 5 minutes
 
 impl RedisStudyCache {
+    /// Creates a study cache that shares `pool` for all Redis access.
     pub fn new(pool: Arc<RedisPool>) -> Self {
         Self { pool }
     }
 
-    /// Cache a locator → study_id mapping (no TTL — persists until overwritten).
+    /// Caches a locator → `study_id` mapping with no TTL; it persists until overwritten.
     ///
     /// # Errors
     ///
@@ -49,7 +50,7 @@ impl RedisStudyCache {
         Ok(())
     }
 
-    /// Look up a cached study_id for a locator.
+    /// Looks up the cached `study_id` for a locator.
     ///
     /// Returns `None` if the locator is not cached.
     ///
@@ -83,7 +84,7 @@ impl RedisStudyCache {
         }
     }
 
-    /// Cache a full study config with TTL.
+    /// Caches a full study config with a TTL.
     ///
     /// # Errors
     ///
@@ -107,7 +108,7 @@ impl RedisStudyCache {
         Ok(())
     }
 
-    /// Retrieve a cached study config.
+    /// Retrieves a cached study config.
     ///
     /// Returns `None` if the study is not cached or its entry has expired.
     ///
@@ -140,7 +141,7 @@ impl RedisStudyCache {
         }
     }
 
-    /// Remove a study from cache (used on update/delete).
+    /// Removes a study from the cache on update or delete.
     ///
     /// # Errors
     ///

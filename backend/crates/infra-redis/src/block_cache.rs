@@ -21,6 +21,7 @@ pub struct RedisBlockCache {
 }
 
 impl RedisBlockCache {
+    /// Creates a block cache that shares `pool` for all Redis access.
     pub fn new(pool: Arc<RedisPool>) -> Self {
         Self { pool }
     }
@@ -31,7 +32,8 @@ impl RedisBlockCache {
 }
 
 /// Lua script for atomically consuming the next value from a block.
-/// Returns the arm index or nil if block is exhausted/missing.
+///
+/// Returns the arm index, or nil if the block is exhausted or missing.
 const CONSUME_NEXT_SCRIPT: &str = r#"
 local key = KEYS[1]
 local data = redis.call('GET', key)
