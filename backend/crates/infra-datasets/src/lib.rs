@@ -7,7 +7,6 @@
 //! directory and [`from_env`] locates it through `DATASETS_DIR`; any invalid
 //! package fails the load so startup surfaces the problem.
 
-use std::error::Error;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -81,20 +80,6 @@ pub enum LoadError {
     /// An environment variable is not valid Unicode.
     #[error("environment variable {variable} is not valid Unicode")]
     InvalidEnvironment { variable: &'static str },
-}
-
-impl LoadError {
-    /// Render the error followed by its full source chain, separated by `: `.
-    pub fn display_chain(&self) -> String {
-        let mut rendered = self.to_string();
-        let mut source = self.source();
-        while let Some(cause) = source {
-            rendered.push_str(": ");
-            rendered.push_str(&cause.to_string());
-            source = cause.source();
-        }
-        rendered
-    }
 }
 
 fn read_text(path: &Path) -> Result<String, LoadError> {
@@ -441,7 +426,7 @@ variables:
     }
 
     #[test]
-    fn load_reports_yaml_path_and_position() {
+    fn load_locates_yaml_error_by_path_and_position() {
         let root = catalog(&[(
             "sample",
             &[("dataset.yaml", "version: one\nname: sample\n")],
@@ -449,10 +434,11 @@ variables:
 
         let error = load(root.path()).expect_err("type error is rejected");
 
-        let rendered = error.display_chain();
-        assert!(matches!(error, LoadError::Yaml { .. }));
-        assert!(rendered.contains("dataset.yaml"), "{rendered}");
-        assert!(rendered.contains("line 1"), "{rendered}");
+        let LoadError::Yaml { path, source } = error else {
+            panic!("expected a YAML error, got {error:?}");
+        };
+        assert!(path.ends_with("dataset.yaml"));
+        assert_eq!(source.location().map(|location| location.line()), Some(1));
     }
 
     #[test]
@@ -467,14 +453,13 @@ variables:
     }
 
     #[test]
-    fn load_reports_contract_violation_with_cause() {
+    fn load_rejects_contract_violation_as_yaml_error() {
         let invalid = DATASET_YAML.replace("title: Sample", "title: ' '");
         let root = catalog(&[("sample", &[("dataset.yaml", invalid.as_str())])]);
 
         let error = load(root.path()).expect_err("blank title is rejected");
 
         assert!(matches!(error, LoadError::Yaml { .. }));
-        assert!(error.display_chain().contains("title is blank"));
     }
 
     #[test]

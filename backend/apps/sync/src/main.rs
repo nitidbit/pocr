@@ -36,7 +36,7 @@ async fn run() -> Result<(), SyncError> {
     infra_pg::run_migrations(&pg_pool).await?;
     info!("connected to PostgreSQL");
 
-    let catalog = infra_datasets::from_env().map_err(|e| SyncError::Config(e.display_chain()))?;
+    let catalog = infra_datasets::from_env().map_err(SyncError::Catalog)?;
     let dataset_result = match catalog {
         Some(catalog) => refresh_datasets(&pg_pool, catalog.datasets()).await,
         None => Ok(()),
@@ -53,27 +53,24 @@ async fn refresh_datasets(
     let environment = env::var("DATASET_ENVIRONMENT")
         .ok()
         .and_then(|s| pocr_core::environment::Environment::parse(&s))
-        .ok_or_else(|| {
-            SyncError::Config("DATASET_ENVIRONMENT must be production or nonproduction".into())
-        })?;
-    let caboodle = infra_caboodle::CaboodleConfig::from_env()
-        .map_err(|e| SyncError::Config(format!("missing Caboodle env vars: {e}")))?;
+        .ok_or(SyncError::InvalidEnvironment)?;
+    let caboodle = infra_caboodle::CaboodleConfig::from_env().map_err(SyncError::CaboodleConfig)?;
     let concurrency = match env::var("DATASET_REFRESH_CONCURRENCY") {
-        Ok(raw) => raw.parse::<NonZeroUsize>().map_err(|e| {
-            SyncError::Config(format!(
-                "DATASET_REFRESH_CONCURRENCY must be a positive integer: {e}"
-            ))
-        })?,
+        Ok(raw) => raw
+            .parse::<NonZeroUsize>()
+            .map_err(|source| SyncError::InvalidSetting {
+                variable: "DATASET_REFRESH_CONCURRENCY",
+                source,
+            })?,
         Err(_) => NonZeroUsize::MIN,
     };
     let procedure_timeout = match env::var("DATASET_PROCEDURE_TIMEOUT_SECS") {
         Ok(raw) => raw
             .parse::<NonZeroU64>()
             .map(|secs| Duration::from_secs(secs.get()))
-            .map_err(|e| {
-                SyncError::Config(format!(
-                    "DATASET_PROCEDURE_TIMEOUT_SECS must be a positive integer: {e}"
-                ))
+            .map_err(|source| SyncError::InvalidSetting {
+                variable: "DATASET_PROCEDURE_TIMEOUT_SECS",
+                source,
             })?,
         Err(_) => DEFAULT_PROCEDURE_TIMEOUT,
     };
@@ -91,8 +88,8 @@ async fn refresh_datasets(
 }
 
 async fn sync_demographics(pg_pool: sqlx::PgPool) -> Result<(), SyncError> {
-    let caboodle_config = infra_caboodle::CaboodleConfig::from_env()
-        .map_err(|e| SyncError::Config(format!("missing Caboodle env vars: {e}")))?;
+    let caboodle_config =
+        infra_caboodle::CaboodleConfig::from_env().map_err(SyncError::CaboodleConfig)?;
     let mut caboodle = infra_caboodle::CaboodleClient::connect(&caboodle_config).await?;
     info!("connected to Caboodle");
 
@@ -191,8 +188,21 @@ struct PatientRow {
 /// Errors from the sync pipeline.
 #[derive(Debug, thiserror::Error)]
 enum SyncError {
-    #[error("configuration error: {0}")]
-    Config(String),
+    #[error("failed to load dataset catalog")]
+    Catalog(#[source] infra_datasets::LoadError),
+
+    #[error("DATASET_ENVIRONMENT must be production or nonproduction")]
+    InvalidEnvironment,
+
+    #[error("{variable} must be a positive integer")]
+    InvalidSetting {
+        variable: &'static str,
+        #[source]
+        source: std::num::ParseIntError,
+    },
+
+    #[error("missing or invalid Caboodle environment variables")]
+    CaboodleConfig(#[source] infra_caboodle::CaboodleError),
 
     #[error("PostgreSQL error: {0}")]
     Postgres(#[from] sqlx::Error),
