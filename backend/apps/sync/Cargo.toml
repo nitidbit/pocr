@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+infra-datasets = { path = "../../crates/infra-datasets" }
 infra-caboodle = { path = "../../crates/infra-caboodle" }
+futures.workspace = true
 infra-pg = { path = "../../crates/infra-pg" }
 observability = { path = "../../crates/observability" }
 pocr-core = { path = "../../crates/core" }
@@ -13,6 +15,11 @@ sqlx.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+secrecy.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true

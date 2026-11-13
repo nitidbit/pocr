@@ -137,6 +137,8 @@ DATASETS_DIR="$PWD/datasets" DATASET_ENVIRONMENT=nonproduction cargo run -p pocr
 |---|---|---|
 | `DATASETS_DIR` | engine, sync | package directory |
 | `DATASET_ENVIRONMENT` | sync | `production` or `nonproduction`; required when `DATASETS_DIR` is set |
+| `DATASET_REFRESH_CONCURRENCY` | sync | attachments refreshed at once; positive integer, defaults to 1 |
+| `DATASET_PROCEDURE_TIMEOUT_SECS` | sync | time limit per procedure call in seconds; positive integer, defaults to 300 |
 | `DATABASE_URL` | engine, sync | PostgreSQL |
 | `CABOODLE_HOST`, `CABOODLE_DATABASE`, `CABOODLE_USERNAME`, `CABOODLE_PASSWORD` | sync | SQL Server connection |
 | `CABOODLE_PORT` | sync | defaults to 1433 |
@@ -147,9 +149,12 @@ action and no in-process scheduler; invoke the job from the deployment's schedul
 Every run refreshes the full captured cohort: all assignments of the attached study
 in the chosen environment at the moment the run begins. The cohort is read in
 keyset pages and split into batches of at most 1,000 records and 1 MiB of encoded
-JSON. A single oversized context fails the run. A run holds one Caboodle connection;
-each procedure call times out after 120 seconds, and any error abandons the run and
-drops the connection.
+JSON. A single oversized context fails the run. Up to `DATASET_REFRESH_CONCURRENCY`
+attachments refresh at once, each holding one Caboodle connection and one dedicated
+PostgreSQL connection, so size the Caboodle workload and the PostgreSQL server's
+connection limit for that many. Within a run, each procedure call times out after
+`DATASET_PROCEDURE_TIMEOUT_SECS`, and any error abandons the run and drops the
+connection.
 
 Per attachment and environment:
 

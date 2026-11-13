@@ -1,11 +1,17 @@
+mod datasets;
 use std::collections::HashMap;
 use std::env;
+use std::num::{NonZeroU64, NonZeroUsize};
 use std::process::ExitCode;
+use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use pocr_core::demographics::PatientDemographics;
 use pocr_core::ports::DemographicsRepository;
 use tracing::{error, info};
+
+/// Time limit for one dataset procedure call unless `DATASET_PROCEDURE_TIMEOUT_SECS` is set.
+const DEFAULT_PROCEDURE_TIMEOUT: Duration = Duration::from_mins(5);
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -30,6 +36,61 @@ async fn run() -> Result<(), SyncError> {
     infra_pg::run_migrations(&pg_pool).await?;
     info!("connected to PostgreSQL");
 
+    let catalog = infra_datasets::from_env().map_err(|e| SyncError::Config(e.display_chain()))?;
+    let dataset_result = match catalog {
+        Some(catalog) => refresh_datasets(&pg_pool, catalog.datasets()).await,
+        None => Ok(()),
+    };
+    let demographic_result = sync_demographics(pg_pool).await;
+    dataset_result?;
+    demographic_result
+}
+
+async fn refresh_datasets(
+    pg_pool: &sqlx::PgPool,
+    registry: &pocr_core::dataset::DatasetRegistry,
+) -> Result<(), SyncError> {
+    let environment = env::var("DATASET_ENVIRONMENT")
+        .ok()
+        .and_then(|s| pocr_core::environment::Environment::parse(&s))
+        .ok_or_else(|| {
+            SyncError::Config("DATASET_ENVIRONMENT must be production or nonproduction".into())
+        })?;
+    let caboodle = infra_caboodle::CaboodleConfig::from_env()
+        .map_err(|e| SyncError::Config(format!("missing Caboodle env vars: {e}")))?;
+    let concurrency = match env::var("DATASET_REFRESH_CONCURRENCY") {
+        Ok(raw) => raw.parse::<NonZeroUsize>().map_err(|e| {
+            SyncError::Config(format!(
+                "DATASET_REFRESH_CONCURRENCY must be a positive integer: {e}"
+            ))
+        })?,
+        Err(_) => NonZeroUsize::MIN,
+    };
+    let procedure_timeout = match env::var("DATASET_PROCEDURE_TIMEOUT_SECS") {
+        Ok(raw) => raw
+            .parse::<NonZeroU64>()
+            .map(|secs| Duration::from_secs(secs.get()))
+            .map_err(|e| {
+                SyncError::Config(format!(
+                    "DATASET_PROCEDURE_TIMEOUT_SECS must be a positive integer: {e}"
+                ))
+            })?,
+        Err(_) => DEFAULT_PROCEDURE_TIMEOUT,
+    };
+    let settings = datasets::RefreshSettings {
+        environment,
+        concurrency,
+        procedure_timeout,
+    };
+    let repository = infra_pg::PgDatasetRepository::new(pg_pool.clone());
+    let summary = datasets::refresh_all(&repository, registry, &caboodle, settings).await?;
+    match summary.failed {
+        0 => Ok(()),
+        failed => Err(SyncError::DatasetRefresh { failed }),
+    }
+}
+
+async fn sync_demographics(pg_pool: sqlx::PgPool) -> Result<(), SyncError> {
     let caboodle_config = infra_caboodle::CaboodleConfig::from_env()
         .map_err(|e| SyncError::Config(format!("missing Caboodle env vars: {e}")))?;
     let mut caboodle = infra_caboodle::CaboodleClient::connect(&caboodle_config).await?;
@@ -144,4 +205,10 @@ enum SyncError {
 
     #[error("demographics upsert error: {0}")]
     Upsert(#[from] pocr_core::ports::RepositoryError),
+
+    #[error("dataset store error: {0}")]
+    DatasetStore(#[from] infra_pg::datasets::RefreshStoreError),
+
+    #[error("{failed} dataset refreshes failed")]
+    DatasetRefresh { failed: usize },
 }
