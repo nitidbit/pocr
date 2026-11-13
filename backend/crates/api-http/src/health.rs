@@ -1,7 +1,5 @@
 //! Health check endpoints.
 
-use std::sync::Arc;
-
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -28,7 +26,7 @@ pub async fn live() -> impl IntoResponse {
 }
 
 /// Readiness probe — verifies PG and Redis connectivity.
-pub async fn ready(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+pub async fn ready(State(state): State<AppState>) -> impl IntoResponse {
     let pg_ok = state.pg_health.ping().await.is_ok();
     let redis_ok = state.redis_health.ping().await.is_ok();
 

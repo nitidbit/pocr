@@ -1,7 +1,5 @@
 //! CDS Hooks HTTP handlers — the integration point with Epic EHR.
 
-use std::sync::Arc;
-
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -38,7 +36,7 @@ pub async fn discover_services() -> impl IntoResponse {
 
 /// `POST /cds-services/randomization` — Execute randomization via CDS Hooks.
 pub async fn randomize(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Json(request): Json<CdsHookRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     // Resolve the deployment environment from the fhirServer URL. Fails closed:

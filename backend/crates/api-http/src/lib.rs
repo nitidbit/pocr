@@ -12,6 +12,7 @@ pub mod smd;
 pub mod studies;
 pub mod system;
 
+use std::path::Path;
 use std::sync::Arc;
 
 use axum::Router;
@@ -31,6 +32,9 @@ use crate::studies::{create_study, get_study, list_studies};
 pub mod me;
 
 /// Shared application state passed to all handlers.
+///
+/// Cloned per request, so every field is cheap to clone.
+#[derive(Clone)]
 pub struct AppState {
     pub study_repo: Arc<dyn StudyRepository>,
     pub randomization_repo: Arc<dyn RandomizationRepository>,
@@ -43,21 +47,21 @@ pub struct AppState {
     pub study_cache: Arc<dyn StudyCache>,
     /// Maps CDS Hooks `fhirServer` URL prefixes to deployment environments.
     /// Resolution fails closed on unknown/missing URLs.
-    pub environment_map: EnvironmentMap,
+    pub environment_map: Arc<EnvironmentMap>,
     /// PostgreSQL connectivity probe for health checks.
     pub pg_health: Arc<dyn HealthCheckable>,
     /// Redis connectivity probe for health checks.
     pub redis_health: Arc<dyn HealthCheckable>,
     /// JWT secret for study sharing tokens.
-    pub jwt_secret: String,
+    pub jwt_secret: Arc<str>,
     /// Path to TLS certificate PEM file (optional).
-    pub cert_path: Option<String>,
+    pub cert_path: Option<Arc<Path>>,
     /// Server start time for uptime calculation.
     pub started_at: std::time::Instant,
 }
 
 /// Build the full application router with shared state.
-pub fn app(state: Arc<AppState>) -> Router {
+pub fn app(state: AppState) -> Router {
     let api_v1 = Router::new()
         .route("/studies", get(list_studies).post(create_study))
         .route(

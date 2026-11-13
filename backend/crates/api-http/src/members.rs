@@ -4,8 +4,6 @@
 //! is owner-only; any member may view the roster. This is distinct from the
 //! cross-instance JWT federation flow in [`crate::sharing`].
 
-use std::sync::Arc;
-
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -149,7 +147,7 @@ async fn find_member(
 ///
 /// Any member may view the roster.
 pub async fn list(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -164,7 +162,7 @@ pub async fn list(
 /// Demoting the study's last owner to `member` is rejected with `409`.
 /// Returns `201` with the resulting member.
 pub async fn add(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
     Json(req): Json<AddMemberRequest>,
@@ -207,7 +205,7 @@ pub async fn add(
 /// Owner-only. Demoting the study's last owner to `member` is rejected with
 /// `409`. Returns `200` with the updated member.
 pub async fn update_role(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     user: AuthUser,
     Path((id, email)): Path<(Uuid, String)>,
     Json(req): Json<UpdateRoleRequest>,
@@ -250,7 +248,7 @@ pub async fn update_role(
 /// Owner-only. Removing the study's last owner is rejected with `409`.
 /// Returns `204`.
 pub async fn remove(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     user: AuthUser,
     Path((id, email)): Path<(Uuid, String)>,
 ) -> Result<impl IntoResponse, ApiError> {

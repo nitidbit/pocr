@@ -1,7 +1,6 @@
 //! Randomization history HTTP handlers.
 
 use std::collections::BTreeMap;
-use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Path, Query, State};
@@ -75,7 +74,7 @@ impl From<Randomization> for RandomizationResponse {
 /// Defaults to production records; pass `?environment=nonproduction` to view
 /// test data.
 pub async fn list_randomizations(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(study_id): Path<Uuid>,
     Query(params): Query<PaginationParams>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -127,7 +126,7 @@ pub struct RandomizationCountsResponse {
 /// Aggregated in the store so the monitor view's balance summary and total
 /// reflect every record, independent of the paginated list endpoint.
 pub async fn count_randomizations(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(study_id): Path<Uuid>,
     Query(params): Query<EnvironmentParams>,
 ) -> Result<impl IntoResponse, ApiError> {

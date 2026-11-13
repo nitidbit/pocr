@@ -1,5 +1,6 @@
 use std::env;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::serve;
@@ -85,10 +86,10 @@ async fn main() -> EngineResult<()> {
     }
 
     // TLS certificate path (optional — mounted in production)
-    let cert_path = env::var("CERT_PATH").ok();
+    let cert_path = env::var_os("CERT_PATH").map(|path| PathBuf::from(path).into());
 
     // Build app state
-    let state = Arc::new(api_http::AppState {
+    let state = api_http::AppState {
         study_repo,
         randomization_repo,
         block_cache,
@@ -98,13 +99,13 @@ async fn main() -> EngineResult<()> {
         randomization_service,
         demographics_repo,
         study_cache,
-        environment_map,
+        environment_map: Arc::new(environment_map),
         pg_health,
         redis_health,
-        jwt_secret,
+        jwt_secret: jwt_secret.into(),
         cert_path,
         started_at: std::time::Instant::now(),
-    });
+    };
 
     let app = api_http::app(state);
     let listener = TcpListener::bind(addr)

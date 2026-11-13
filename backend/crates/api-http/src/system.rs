@@ -1,6 +1,6 @@
 //! System status endpoint — reports infrastructure health and TLS certificate validity.
 
-use std::sync::Arc;
+use std::path::Path;
 use std::time::Instant;
 
 use axum::Json;
@@ -95,14 +95,14 @@ pub struct TlsInfo {
 }
 
 /// `GET /api/v1/system/status` — comprehensive system health check.
-pub async fn get_system_status(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+pub async fn get_system_status(State(state): State<AppState>) -> impl IntoResponse {
     let now = Utc::now();
 
     let postgres = probe(state.pg_health.as_ref()).await;
     let redis = probe(state.redis_health.as_ref()).await;
 
     // TLS certificate check
-    let tls = read_tls_status(&state.cert_path);
+    let tls = read_tls_status(state.cert_path.as_deref());
 
     // Overall status. A configured-but-broken cert (Error) or one within its
     // final week degrades health; a NotConfigured cert is treated as fine
@@ -157,15 +157,15 @@ async fn probe(service: &dyn HealthCheckable) -> ServiceHealth {
 /// expiring intermediate is not masked by a longer-lived leaf. Distinguishes
 /// "not configured" from genuine read/parse errors so the dashboard can flag
 /// deployment problems rather than silently showing nothing.
-fn read_tls_status(cert_path: &Option<String>) -> TlsStatus {
-    let Some(path) = cert_path.as_ref() else {
+fn read_tls_status(cert_path: Option<&Path>) -> TlsStatus {
+    let Some(path) = cert_path else {
         return TlsStatus::NotConfigured;
     };
 
     let contents = match std::fs::read(path) {
         Ok(c) => c,
         Err(e) => {
-            warn!(path, error = %e, "failed to read TLS certificate");
+            warn!(path = %path.display(), error = %e, "failed to read TLS certificate");
             return TlsStatus::Error {
                 message: format!("cannot read certificate file: {e}"),
             };
@@ -186,7 +186,7 @@ fn read_tls_status(cert_path: &Option<String>) -> TlsStatus {
     let cert_blocks: Vec<_> = blocks.iter().filter(|b| b.tag() == "CERTIFICATE").collect();
 
     if cert_blocks.is_empty() {
-        warn!(path, "PEM contained no CERTIFICATE blocks");
+        warn!(path = %path.display(), "PEM contained no CERTIFICATE blocks");
         return TlsStatus::Error {
             message: "no certificates found in PEM file".to_owned(),
         };
@@ -275,12 +275,12 @@ mod tests {
 
     #[test]
     fn unconfigured_path_is_not_configured() {
-        assert!(matches!(read_tls_status(&None), TlsStatus::NotConfigured));
+        assert!(matches!(read_tls_status(None), TlsStatus::NotConfigured));
     }
 
     #[test]
     fn missing_file_is_an_error() {
-        let status = read_tls_status(&Some("/nonexistent/cert.pem".to_owned()));
+        let status = read_tls_status(Some(Path::new("/nonexistent/cert.pem")));
         assert!(matches!(status, TlsStatus::Error { .. }));
     }
 
@@ -289,7 +289,7 @@ mod tests {
         let dir = std::env::temp_dir();
         let path = dir.join("pocr-test-garbage.pem");
         std::fs::write(&path, b"not a pem file").unwrap();
-        let status = read_tls_status(&Some(path.to_string_lossy().into_owned()));
+        let status = read_tls_status(Some(&path));
         let _ = std::fs::remove_file(&path);
         assert!(matches!(status, TlsStatus::Error { .. }));
     }

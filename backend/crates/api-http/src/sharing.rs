@@ -1,7 +1,5 @@
 //! JWT-based study sharing — token generation and join flow.
 
-use std::sync::Arc;
-
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -50,7 +48,7 @@ struct JoinResponse {
 
 /// Generate a share token for a study. Token is valid for 7 days.
 pub async fn share_study(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -88,7 +86,7 @@ pub async fn share_study(
 
 /// Join a study using a share token.
 pub async fn join_study(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     user: AuthUser,
     Json(req): Json<JoinRequest>,
 ) -> Result<impl IntoResponse, ApiError> {

@@ -5,7 +5,6 @@
 //! to display a balance table for study investigators.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Path, State};
@@ -93,7 +92,7 @@ pub struct CategoricalArmData {
 /// Returns an empty `variables` array when no demographics have been synced.
 #[instrument(name = "balance.get", skip(state), fields(%study_id))]
 pub async fn get_balance(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(study_id): Path<Uuid>,
 ) -> Result<Json<BalanceResponse>, StatusCode> {
     let records = state

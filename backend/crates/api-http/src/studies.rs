@@ -1,7 +1,5 @@
 //! Study CRUD HTTP handlers.
 
-use std::sync::Arc;
-
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -94,7 +92,7 @@ pub struct TransitionStudyRequest {
 
 /// List all studies for the current user.
 pub async fn list_studies(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, ApiError> {
     let studies = state.study_repo.list_for_user(user.id()).await?;
@@ -103,7 +101,7 @@ pub async fn list_studies(
 
 /// Get a single study by ID.
 pub async fn get_study(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
     let study = state
@@ -116,7 +114,7 @@ pub async fn get_study(
 
 /// List a study's audit history, newest-first.
 pub async fn list_audit(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
     let events = state.audit_repo.list_by_study(&id).await?;
@@ -213,7 +211,7 @@ fn validate_ratio_updates(config: &RandomizationConfig, updates: &[ArmRatioUpdat
 
 /// Create a new study.
 pub async fn create_study(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     user: AuthUser,
     Json(req): Json<CreateStudyRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -273,7 +271,7 @@ pub async fn create_study(
 
 /// Update an existing study.
 pub async fn update_study(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateStudyRequest>,
@@ -323,7 +321,7 @@ pub async fn update_study(
 /// transitions and go-live with an invalid config are rejected. Going live
 /// (`Draft → Active`) freezes the allocation configuration.
 pub async fn transition_study(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
     Json(req): Json<TransitionStudyRequest>,
@@ -366,7 +364,7 @@ pub async fn transition_study(
 /// Resets test data so a fresh non-production run starts from a clean
 /// sequence. Production state is never touched.
 pub async fn purge_nonproduction(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -406,7 +404,7 @@ pub async fn purge_nonproduction(
 
 /// Delete a study.
 pub async fn delete_study(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -443,7 +441,7 @@ pub struct SetLocatorRequest {
 
 /// Set the Epic locator ID for a specific arm in a study.
 pub async fn set_arm_locator(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     user: AuthUser,
     Path((id, arm_id)): Path<(Uuid, Uuid)>,
     Json(req): Json<SetLocatorRequest>,
@@ -529,7 +527,7 @@ pub struct UpdateRatiosRequest {
 /// (see [`validate_ratio_updates`]).
 /// Return [`ApiError::Internal`] if the audit event or study cannot be saved.
 pub async fn update_ratios(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateRatiosRequest>,
