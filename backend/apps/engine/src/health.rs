@@ -1,17 +1,21 @@
-//! Health check adapters — implement `HealthCheckable` for PostgreSQL and Redis.
+//! Health check adapters that implement `HealthCheckable` for PostgreSQL and Redis.
 
+use std::fmt;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use infra_redis::RedisPool;
 use sqlx::PgPool;
 
-/// Adapter to check PostgreSQL connectivity via the `HealthCheckable` trait.
+/// Checks PostgreSQL connectivity via the `HealthCheckable` trait.
+#[derive(Debug)]
 pub struct PgHealthCheck {
     pool: PgPool,
 }
 
 impl PgHealthCheck {
+    /// Creates a check that pings through `pool`.
+    #[must_use]
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
@@ -28,12 +32,20 @@ impl pocr_core::ports::HealthCheckable for PgHealthCheck {
     }
 }
 
-/// Adapter to check Redis connectivity via the `HealthCheckable` trait.
+/// Checks Redis connectivity via the `HealthCheckable` trait.
 pub struct RedisHealthCheck {
     pool: Arc<RedisPool>,
 }
 
+impl fmt::Debug for RedisHealthCheck {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RedisHealthCheck").finish_non_exhaustive()
+    }
+}
+
 impl RedisHealthCheck {
+    /// Creates a check that pings through `pool`.
+    #[must_use]
     pub fn new(pool: Arc<RedisPool>) -> Self {
         Self { pool }
     }
