@@ -4,6 +4,7 @@ use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use serde_json::json;
+use tracing::error;
 
 use pocr_core::ports::RepositoryError;
 use pocr_core::study::StudyError;
@@ -23,11 +24,17 @@ pub enum ApiError {
     Conflict(String),
     #[error("validation failed")]
     ValidationFailed(Vec<String>),
-    #[error("internal error: {0}")]
-    Internal(String),
+    /// An unexpected failure. The cause is logged server-side and never sent to clients.
+    #[error("internal error")]
+    Internal(#[source] Box<dyn std::error::Error + Send + Sync>),
 }
 
 impl ApiError {
+    /// Wraps an unexpected failure as a 500, keeping `source` for the server-side log.
+    pub fn internal(source: impl std::error::Error + Send + Sync + 'static) -> Self {
+        Self::Internal(Box::new(source))
+    }
+
     /// The HTTP status this error maps to.
     fn status(&self) -> StatusCode {
         match self {
@@ -60,9 +67,7 @@ impl From<RepositoryError> for ApiError {
         match e {
             RepositoryError::NotFound => ApiError::NotFound,
             RepositoryError::Conflict(msg) => ApiError::BadRequest(msg),
-            RepositoryError::Connection(msg) => ApiError::Internal(msg),
-            RepositoryError::Internal(msg) => ApiError::Internal(msg),
-            _ => ApiError::Internal(e.to_string()),
+            _ => ApiError::internal(e),
         }
     }
 }
@@ -76,7 +81,7 @@ impl From<StudyError> for ApiError {
                 ApiError::Conflict(e.to_string())
             }
             StudyError::InvalidConfiguration(msg) => ApiError::ValidationFailed(vec![msg]),
-            _ => ApiError::Internal(e.to_string()),
+            _ => ApiError::internal(e),
         }
     }
 }
@@ -84,6 +89,7 @@ impl From<StudyError> for ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let code = self.code();
+        let status = self.status();
         let body = match &self {
             ApiError::ValidationFailed(details) => json!({
                 "error": code,
@@ -95,12 +101,20 @@ impl IntoResponse for ApiError {
             }),
         };
 
-        (self.status(), Json(body)).into_response()
+        if matches!(self, ApiError::Internal(_)) {
+            // anyhow renders the whole source chain; the JSON log formatter
+            // records only an error's own Display.
+            error!(error = %format!("{:#}", anyhow::Error::from(self)), "request failed");
+        }
+
+        (status, Json(body)).into_response()
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use http_body_util::BodyExt;
+
     use super::*;
 
     #[test]
@@ -114,6 +128,26 @@ mod tests {
         let err = ApiError::from(RepositoryError::NotFound);
         assert_eq!(err.status(), StatusCode::NOT_FOUND);
         assert_eq!(err.code(), "not_found");
+    }
+
+    #[test]
+    fn repository_storage_failure_maps_to_internal_with_cause() {
+        let err = ApiError::from(RepositoryError::storage(std::io::Error::other("boom")));
+        assert_eq!(err.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(std::error::Error::source(&err).is_some());
+    }
+
+    #[tokio::test]
+    async fn internal_response_hides_the_cause() {
+        let err = ApiError::internal(std::io::Error::other("secret-connection-string"));
+
+        let response = err.into_response();
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["error"], "internal_error");
+        assert!(!body.to_string().contains("secret-connection-string"));
     }
 
     #[test]
@@ -146,7 +180,7 @@ mod tests {
             ApiError::Forbidden("x".into()),
             ApiError::Conflict("x".into()),
             ApiError::ValidationFailed(vec!["x".into()]),
-            ApiError::Internal("x".into()),
+            ApiError::internal(std::io::Error::other("x")),
         ];
         for err in variants {
             assert!(!err.code().is_empty());

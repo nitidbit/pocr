@@ -312,7 +312,7 @@ pub async fn download(
             (header::CONTENT_DISPOSITION, disposition),
             (header::CACHE_CONTROL, "no-store".into()),
         ],
-        export::render(&snapshot).map_err(|error| ApiError::Internal(error.to_string()))?,
+        export::render(&snapshot).map_err(ApiError::internal)?,
     ))
 }
 

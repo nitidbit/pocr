@@ -72,7 +72,7 @@ pub async fn share_study(
         &claims,
         &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
     )
-    .map_err(|e| ApiError::Internal(format!("token generation failed: {e}")))?;
+    .map_err(ApiError::internal)?;
 
     info!(
         event_type = "study.share_token_generated",

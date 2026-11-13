@@ -35,7 +35,7 @@ impl UserStudyRepository for PgUserStudyRepository {
         .bind(role)
         .execute(&self.pool)
         .await
-        .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        .map_err(RepositoryError::storage)?;
         Ok(())
     }
 
@@ -46,7 +46,7 @@ impl UserStudyRepository for PgUserStudyRepository {
             .bind(study_id)
             .execute(&self.pool)
             .await
-            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+            .map_err(RepositoryError::storage)?;
         Ok(())
     }
 
@@ -63,7 +63,7 @@ impl UserStudyRepository for PgUserStudyRepository {
         .bind(study_id)
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        .map_err(RepositoryError::storage)?;
         Ok(role)
     }
 
@@ -78,7 +78,7 @@ impl UserStudyRepository for PgUserStudyRepository {
         .bind(study_id)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        .map_err(RepositoryError::storage)?;
         Ok(rows.into_iter().map(StudyMember::from).collect())
     }
 }

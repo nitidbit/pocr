@@ -32,7 +32,7 @@ impl AuditRepository for PgAuditRepository {
     ///
     /// # Errors
     ///
-    /// Return [`RepositoryError::Internal`] on connection or query failure.
+    /// Returns [`RepositoryError::Storage`] on connection or query failure.
     #[instrument(name = "audit.append", skip(self, event), fields(study_id = %event.study_id, event_type = %event.event_type))]
     async fn append(&self, event: &AuditEvent) -> Result<(), RepositoryError> {
         sqlx::query(
@@ -55,7 +55,7 @@ impl AuditRepository for PgAuditRepository {
     ///
     /// # Errors
     ///
-    /// Return [`RepositoryError::Internal`] on connection or query failure.
+    /// Returns [`RepositoryError::Storage`] on connection or query failure.
     #[instrument(name = "audit.list_by_study", skip(self))]
     async fn list_by_study(&self, study_id: &Uuid) -> Result<Vec<AuditEvent>, RepositoryError> {
         let rows = sqlx::query_as::<_, AuditRow>(

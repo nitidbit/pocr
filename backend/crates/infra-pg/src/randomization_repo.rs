@@ -48,8 +48,8 @@ impl RandomizationRepository for PgRandomizationRepository {
     async fn save(&self, randomization: &Randomization) -> Result<Randomization, RepositoryError> {
         let unit_hash = String::from(&randomization.unit);
         let strata_key = randomization.strata.as_ref().map(String::from);
-        let arm_json = serde_json::to_value(&randomization.arm)
-            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        let arm_json =
+            serde_json::to_value(&randomization.arm).map_err(RepositoryError::storage)?;
 
         let mut tx = self.pool.begin().await.map_err(PgError::from)?;
         sqlx::query(
@@ -94,7 +94,7 @@ impl RandomizationRepository for PgRandomizationRepository {
             .bind(i64::from(offset))
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+            .map_err(RepositoryError::storage)?;
 
         rows.into_iter().map(row_to_randomization).collect()
     }
@@ -118,7 +118,7 @@ impl RandomizationRepository for PgRandomizationRepository {
         .bind(environment.as_str())
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        .map_err(RepositoryError::storage)?;
 
         Ok(rows
             .into_iter()
@@ -146,7 +146,7 @@ impl RandomizationRepository for PgRandomizationRepository {
             .bind(unit_key)
             .fetch_optional(&self.pool)
             .await
-            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+            .map_err(RepositoryError::storage)?;
 
         row.map(row_to_randomization).transpose()
     }
@@ -159,7 +159,7 @@ impl RandomizationRepository for PgRandomizationRepository {
                 .bind(Environment::NonProduction.as_str())
                 .execute(&self.pool)
                 .await
-                .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+                .map_err(RepositoryError::storage)?;
 
         Ok(result.rows_affected())
     }
@@ -167,11 +167,13 @@ impl RandomizationRepository for PgRandomizationRepository {
 
 fn row_to_randomization(row: RandomizationRow) -> Result<Randomization, RepositoryError> {
     let arm = serde_json::from_value(row.arm)
-        .map_err(|e| RepositoryError::Internal(format!("invalid arm JSON: {e}")))?;
+        .map_err(|e| RepositoryError::corrupt("randomization arm", e))?;
 
-    let environment = Environment::parse(&row.environment).ok_or_else(|| {
-        RepositoryError::Internal(format!("invalid environment value: {}", row.environment))
-    })?;
+    let environment =
+        Environment::parse(&row.environment).ok_or_else(|| RepositoryError::UnknownValue {
+            field: "environment",
+            value: row.environment.clone(),
+        })?;
 
     // Lossy reconstruction: the persisted row keeps only the delimiter-joined
     // unit_key and strata_key, not the full Unit/Strata objects. The original

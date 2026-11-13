@@ -28,8 +28,8 @@ impl RedisStudyCache {
     ///
     /// # Errors
     ///
-    /// Return [`RepositoryError::Connection`] if a Redis connection cannot be
-    /// acquired, or [`RepositoryError::Internal`] if the write fails.
+    /// Returns [`RepositoryError::Connection`] if a Redis connection cannot be
+    /// acquired, or [`RepositoryError::Storage`] if the write fails.
     #[instrument(skip(self))]
     pub async fn cache_locator_mapping(
         &self,
@@ -40,23 +40,23 @@ impl RedisStudyCache {
             .pool
             .connection()
             .await
-            .map_err(|e| RepositoryError::Connection(e.to_string()))?;
+            .map_err(RepositoryError::connection)?;
 
         let key = format!("locator:{locator}");
         conn.set::<_, _, ()>(&key, study_id.to_string())
             .await
-            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+            .map_err(RepositoryError::storage)?;
         Ok(())
     }
 
     /// Look up a cached study_id for a locator.
     ///
-    /// Return `None` if the locator is not cached.
+    /// Returns `None` if the locator is not cached.
     ///
     /// # Errors
     ///
-    /// Return [`RepositoryError::Connection`] if a Redis connection cannot be
-    /// acquired, or [`RepositoryError::Internal`] if the read fails or the
+    /// Returns [`RepositoryError::Connection`] if a Redis connection cannot be
+    /// acquired, or [`RepositoryError::Storage`] if the read fails or the
     /// cached value is not a valid UUID.
     #[instrument(skip(self))]
     pub async fn get_study_id_for_locator(
@@ -67,19 +67,16 @@ impl RedisStudyCache {
             .pool
             .connection()
             .await
-            .map_err(|e| RepositoryError::Connection(e.to_string()))?;
+            .map_err(RepositoryError::connection)?;
 
         let key = format!("locator:{locator}");
-        let val: Option<String> = conn
-            .get(&key)
-            .await
-            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        let val: Option<String> = conn.get(&key).await.map_err(RepositoryError::storage)?;
 
         match val {
             Some(s) => {
                 let id = s
                     .parse::<Uuid>()
-                    .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+                    .map_err(|e| RepositoryError::corrupt("cached study ID", e))?;
                 Ok(Some(id))
             }
             None => Ok(None),
@@ -90,8 +87,8 @@ impl RedisStudyCache {
     ///
     /// # Errors
     ///
-    /// Return [`RepositoryError::Connection`] if a Redis connection cannot be
-    /// acquired, or [`RepositoryError::Internal`] if serialization or the write
+    /// Returns [`RepositoryError::Connection`] if a Redis connection cannot be
+    /// acquired, or [`RepositoryError::Storage`] if serialization or the write
     /// fails.
     #[instrument(skip(self, study), fields(study_id = %study.id))]
     pub async fn cache_study(&self, study: &Study) -> Result<(), RepositoryError> {
@@ -99,26 +96,25 @@ impl RedisStudyCache {
             .pool
             .connection()
             .await
-            .map_err(|e| RepositoryError::Connection(e.to_string()))?;
+            .map_err(RepositoryError::connection)?;
 
         let key = format!("study_cache:{}", study.id);
-        let json =
-            serde_json::to_string(study).map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        let json = serde_json::to_string(study).map_err(RepositoryError::storage)?;
 
         conn.set_ex::<_, _, ()>(&key, &json, STUDY_CACHE_TTL_SECS)
             .await
-            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+            .map_err(RepositoryError::storage)?;
         Ok(())
     }
 
     /// Retrieve a cached study config.
     ///
-    /// Return `None` if the study is not cached or its entry has expired.
+    /// Returns `None` if the study is not cached or its entry has expired.
     ///
     /// # Errors
     ///
-    /// Return [`RepositoryError::Connection`] if a Redis connection cannot be
-    /// acquired, or [`RepositoryError::Internal`] if the read or
+    /// Returns [`RepositoryError::Connection`] if a Redis connection cannot be
+    /// acquired, or [`RepositoryError::Storage`] if the read or
     /// deserialization fails.
     #[instrument(skip(self))]
     pub async fn get_cached_study(
@@ -129,18 +125,15 @@ impl RedisStudyCache {
             .pool
             .connection()
             .await
-            .map_err(|e| RepositoryError::Connection(e.to_string()))?;
+            .map_err(RepositoryError::connection)?;
 
         let key = format!("study_cache:{study_id}");
-        let val: Option<String> = conn
-            .get(&key)
-            .await
-            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        let val: Option<String> = conn.get(&key).await.map_err(RepositoryError::storage)?;
 
         match val {
             Some(json) => {
                 let study: Study = serde_json::from_str(&json)
-                    .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+                    .map_err(|e| RepositoryError::corrupt("cached study", e))?;
                 Ok(Some(study))
             }
             None => Ok(None),
@@ -151,20 +144,20 @@ impl RedisStudyCache {
     ///
     /// # Errors
     ///
-    /// Return [`RepositoryError::Connection`] if a Redis connection cannot be
-    /// acquired, or [`RepositoryError::Internal`] if the delete fails.
+    /// Returns [`RepositoryError::Connection`] if a Redis connection cannot be
+    /// acquired, or [`RepositoryError::Storage`] if the delete fails.
     #[instrument(skip(self))]
     pub async fn invalidate_study(&self, study_id: &Uuid) -> Result<(), RepositoryError> {
         let mut conn = self
             .pool
             .connection()
             .await
-            .map_err(|e| RepositoryError::Connection(e.to_string()))?;
+            .map_err(RepositoryError::connection)?;
 
         let key = format!("study_cache:{study_id}");
         conn.del::<_, ()>(&key)
             .await
-            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+            .map_err(RepositoryError::storage)?;
         Ok(())
     }
 }

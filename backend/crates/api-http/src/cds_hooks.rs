@@ -5,7 +5,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use serde_json::json;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 use pocr_core::cds_hooks::{
     Card, CdsHookRequest, CdsHookResponse, CdsServiceDescriptor, CdsServiceDiscovery, Indicator,
@@ -201,8 +201,9 @@ pub async fn randomize(
             Ok((StatusCode::OK, Json(CdsHookResponse { cards: vec![card] })))
         }
         Err(e) => {
-            warn!(error = %e, study_id = %study.id, "Randomization failed");
-            Err(ApiError::Internal(e.to_string()))
+            // The cause is logged with its chain when the 500 is rendered.
+            error!(study_id = %study.id, "randomization failed");
+            Err(ApiError::internal(e))
         }
     }
 }

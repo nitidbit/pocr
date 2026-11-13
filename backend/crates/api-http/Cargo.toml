@@ -5,6 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
+anyhow.workspace = true
 pocr-core = { path = "../core" }
 axum = { workspace = true, features = ["macros"] }
 chrono.workspace = true

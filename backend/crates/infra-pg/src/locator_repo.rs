@@ -30,7 +30,7 @@ impl LocatorRepository for PgLocatorRepository {
         .bind(study_id)
         .execute(&self.pool)
         .await
-        .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        .map_err(RepositoryError::storage)?;
         Ok(())
     }
 
@@ -42,7 +42,7 @@ impl LocatorRepository for PgLocatorRepository {
                 .bind(locator)
                 .fetch_optional(&self.pool)
                 .await
-                .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+                .map_err(RepositoryError::storage)?;
         Ok(row.map(|(id,)| id))
     }
 }
@@ -51,8 +51,10 @@ impl LocatorRepository for PgLocatorRepository {
 ///
 /// # Errors
 ///
-/// Return [`RepositoryError::Internal`] if `locator` exceeds [`i64::MAX`].
+/// Returns [`RepositoryError::OutOfRange`] if `locator` exceeds [`i64::MAX`].
 fn locator_to_i64(locator: u64) -> Result<i64, RepositoryError> {
-    i64::try_from(locator)
-        .map_err(|_| RepositoryError::Internal(format!("locator {locator} exceeds i64")))
+    i64::try_from(locator).map_err(|source| RepositoryError::OutOfRange {
+        field: "locator",
+        source,
+    })
 }

@@ -63,18 +63,15 @@ impl BlockCacheRepository for RedisBlockCache {
             .pool
             .connection()
             .await
-            .map_err(|e| RepositoryError::Connection(e.to_string()))?;
+            .map_err(RepositoryError::connection)?;
 
         let key = Self::block_key(environment, study_id, stratum_key);
-        let data: Option<String> = conn
-            .get(&key)
-            .await
-            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        let data: Option<String> = conn.get(&key).await.map_err(RepositoryError::storage)?;
 
         match data {
             Some(json) => {
                 let block: RandomPermutedBlock = serde_json::from_str(&json)
-                    .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+                    .map_err(|e| RepositoryError::corrupt("cached block", e))?;
                 Ok(Some(block))
             }
             None => Ok(None),
@@ -91,16 +88,15 @@ impl BlockCacheRepository for RedisBlockCache {
             .pool
             .connection()
             .await
-            .map_err(|e| RepositoryError::Connection(e.to_string()))?;
+            .map_err(RepositoryError::connection)?;
 
         let stratum_key = block.stratification.as_deref().unwrap_or("");
         let key = Self::block_key(environment, &block.study_id, stratum_key);
-        let json =
-            serde_json::to_string(block).map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        let json = serde_json::to_string(block).map_err(RepositoryError::storage)?;
 
         conn.set::<_, _, ()>(&key, &json)
             .await
-            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+            .map_err(RepositoryError::storage)?;
 
         Ok(())
     }
@@ -116,7 +112,7 @@ impl BlockCacheRepository for RedisBlockCache {
             .pool
             .connection()
             .await
-            .map_err(|e| RepositoryError::Connection(e.to_string()))?;
+            .map_err(RepositoryError::connection)?;
 
         let key = Self::block_key(environment, study_id, stratum_key);
 
@@ -124,12 +120,13 @@ impl BlockCacheRepository for RedisBlockCache {
             .key(&key)
             .invoke_async(&mut conn)
             .await
-            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+            .map_err(RepositoryError::storage)?;
 
         result
             .map(|v| {
-                u32::try_from(v).map_err(|_| {
-                    RepositoryError::Internal(format!("block arm index {v} out of u32 range"))
+                u32::try_from(v).map_err(|source| RepositoryError::OutOfRange {
+                    field: "block arm index",
+                    source,
                 })
             })
             .transpose()
@@ -141,7 +138,7 @@ impl BlockCacheRepository for RedisBlockCache {
             .pool
             .connection()
             .await
-            .map_err(|e| RepositoryError::Connection(e.to_string()))?;
+            .map_err(RepositoryError::connection)?;
 
         // Match every non-production block for this study across all strata.
         let pattern = format!("block:{}:{study_id}:*", Environment::NonProduction.as_str());
@@ -158,13 +155,10 @@ impl BlockCacheRepository for RedisBlockCache {
                 .arg(100)
                 .query_async(&mut conn)
                 .await
-                .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+                .map_err(RepositoryError::storage)?;
 
             if !keys.is_empty() {
-                let deleted: u64 = conn
-                    .del(&keys)
-                    .await
-                    .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+                let deleted: u64 = conn.del(&keys).await.map_err(RepositoryError::storage)?;
                 removed += deleted;
             }
 

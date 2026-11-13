@@ -3,6 +3,8 @@
 //! These traits define the boundary between domain logic and storage.
 //! Implementations live in `infra-pg` and `infra-redis`.
 
+use std::num::TryFromIntError;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -16,18 +18,79 @@ use crate::error::RandomizationError;
 use crate::random::{RandomPermutedBlock, Randomization, RandomizationRequest};
 use crate::study::Study;
 
+/// Boxed cause carried by [`RepositoryError`], keeping `core` independent of
+/// any driver crate.
+type Cause = Box<dyn std::error::Error + Send + Sync>;
+
 /// Errors that can occur in repository operations.
+///
+/// Driver errors are carried as the [`source`](std::error::Error::source) of
+/// the variant that classifies them; their text is not part of the variant's
+/// message.
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum RepositoryError {
+    /// The requested record does not exist.
     #[error("not found")]
     NotFound,
+    /// The write conflicts with existing state. The message is safe to show clients.
     #[error("conflict: {0}")]
     Conflict(String),
-    #[error("connection error: {0}")]
-    Connection(String),
-    #[error("internal error: {0}")]
-    Internal(String),
+    /// A connection to the store could not be acquired.
+    #[error("store connection failed")]
+    Connection(#[source] Cause),
+    /// A store operation failed after the connection was acquired.
+    #[error("store operation failed")]
+    Storage(#[source] Cause),
+    /// A stored value cannot be decoded into its domain type.
+    #[error("stored {what} is invalid")]
+    Corrupt {
+        /// What was being decoded, for example `"study status"`.
+        what: &'static str,
+        /// Why decoding failed.
+        #[source]
+        source: Cause,
+    },
+    /// A stored column holds a value that is not a known variant.
+    #[error("stored {field} has unrecognized value {value:?}")]
+    UnknownValue {
+        /// Column or field that held the value.
+        field: &'static str,
+        /// The unrecognized value.
+        value: String,
+    },
+    /// A numeric value does not fit the store's column type.
+    #[error("{field} is out of range")]
+    OutOfRange {
+        /// Name of the value that is out of range.
+        field: &'static str,
+        /// The failed conversion.
+        #[source]
+        source: TryFromIntError,
+    },
+}
+
+impl RepositoryError {
+    /// Classifies `source` as a failure to connect to the store.
+    pub fn connection(source: impl std::error::Error + Send + Sync + 'static) -> Self {
+        Self::Connection(Box::new(source))
+    }
+
+    /// Classifies `source` as a failed store operation.
+    pub fn storage(source: impl std::error::Error + Send + Sync + 'static) -> Self {
+        Self::Storage(Box::new(source))
+    }
+
+    /// Classifies `source` as a stored value of kind `what` that cannot be decoded.
+    pub fn corrupt(
+        what: &'static str,
+        source: impl std::error::Error + Send + Sync + 'static,
+    ) -> Self {
+        Self::Corrupt {
+            what,
+            source: Box::new(source),
+        }
+    }
 }
 
 /// Persistence for study aggregates.

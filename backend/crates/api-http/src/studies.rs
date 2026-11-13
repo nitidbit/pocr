@@ -36,7 +36,7 @@ pub(crate) async fn record_audit(
         warn!(
             study_id = %study_id,
             event_type,
-            error = %error,
+            error = %format!("{:#}", anyhow::Error::from(error)),
             "audit event append failed"
         );
     }
@@ -623,7 +623,7 @@ mod tests {
     impl AuditRepository for RecordingAuditRepo {
         async fn append(&self, event: &AuditEvent) -> Result<(), RepositoryError> {
             if self.fail {
-                return Err(RepositoryError::Internal("boom".into()));
+                return Err(RepositoryError::storage(std::io::Error::other("boom")));
             }
             self.appended.lock().unwrap().push(event.clone());
             Ok(())

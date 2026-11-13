@@ -36,7 +36,7 @@ impl DemographicsRepository for PgDemographicsRepository {
     ///
     /// # Errors
     ///
-    /// Return [`RepositoryError::Internal`] on connection or query failure.
+    /// Returns [`RepositoryError::Storage`] on connection or query failure.
     #[instrument(name = "demographics.upsert_batch", skip(self, batch), fields(batch_size = batch.len()))]
     async fn upsert_batch(&self, batch: &[PatientDemographics]) -> Result<(), RepositoryError> {
         if batch.is_empty() {
@@ -91,7 +91,7 @@ impl DemographicsRepository for PgDemographicsRepository {
     ///
     /// # Errors
     ///
-    /// Return [`RepositoryError::Internal`] on connection or query failure.
+    /// Returns [`RepositoryError::Storage`] on connection or query failure.
     #[instrument(name = "demographics.find_by_patient_ids", skip(self, patient_ids), fields(count = patient_ids.len()))]
     async fn find_by_patient_ids(
         &self,
@@ -123,7 +123,7 @@ impl DemographicsRepository for PgDemographicsRepository {
     ///
     /// # Errors
     ///
-    /// Return [`RepositoryError::Internal`] on connection or query failure.
+    /// Returns [`RepositoryError::Storage`] on connection or query failure.
     #[instrument(name = "demographics.find_by_study", skip(self))]
     async fn find_by_study(
         &self,

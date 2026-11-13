@@ -34,9 +34,9 @@ impl TryFrom<StudyRow> for Study {
 
     fn try_from(row: StudyRow) -> Result<Self, Self::Error> {
         let status = serde_json::from_value(serde_json::Value::String(row.status))
-            .map_err(|e| RepositoryError::Internal(format!("invalid status: {e}")))?;
+            .map_err(|e| RepositoryError::corrupt("study status", e))?;
         let randomization_config = serde_json::from_value(row.randomization_config)
-            .map_err(|e| RepositoryError::Internal(format!("invalid config: {e}")))?;
+            .map_err(|e| RepositoryError::corrupt("study configuration", e))?;
 
         Ok(Study {
             id: row.id,
@@ -54,10 +54,10 @@ impl TryFrom<StudyRow> for Study {
 impl StudyRepository for PgStudyRepository {
     #[instrument(skip(self, study), fields(study_id = %study.id))]
     async fn save(&self, study: &Study) -> Result<Study, RepositoryError> {
-        let config_json = serde_json::to_value(&study.randomization_config)
-            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        let config_json =
+            serde_json::to_value(&study.randomization_config).map_err(RepositoryError::storage)?;
         let status_str = serde_json::to_value(study.status)
-            .map_err(|e| RepositoryError::Internal(e.to_string()))?
+            .map_err(RepositoryError::storage)?
             .as_str()
             .expect("StudyStatus serializes as a string")
             .to_string();
@@ -82,7 +82,7 @@ impl StudyRepository for PgStudyRepository {
         .bind(study.updated_at)
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        .map_err(RepositoryError::storage)?;
 
         row.try_into()
     }
@@ -93,15 +93,17 @@ impl StudyRepository for PgStudyRepository {
             .bind(id)
             .fetch_optional(&self.pool)
             .await
-            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+            .map_err(RepositoryError::storage)?;
 
         row.map(Study::try_from).transpose()
     }
 
     #[instrument(skip(self))]
     async fn find_by_locator(&self, locator: u64) -> Result<Option<Study>, RepositoryError> {
-        let locator = i64::try_from(locator)
-            .map_err(|_| RepositoryError::Internal(format!("locator {locator} exceeds i64")))?;
+        let locator = i64::try_from(locator).map_err(|source| RepositoryError::OutOfRange {
+            field: "locator",
+            source,
+        })?;
         let row = sqlx::query_as::<_, StudyRow>(
             r#"SELECT s.* FROM studies s
                JOIN locator_mappings lm ON lm.study_id = s.id
@@ -110,7 +112,7 @@ impl StudyRepository for PgStudyRepository {
         .bind(locator)
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        .map_err(RepositoryError::storage)?;
 
         row.map(Study::try_from).transpose()
     }
@@ -126,7 +128,7 @@ impl StudyRepository for PgStudyRepository {
         .bind(user_id)
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+        .map_err(RepositoryError::storage)?;
 
         rows.into_iter().map(Study::try_from).collect()
     }
@@ -137,7 +139,7 @@ impl StudyRepository for PgStudyRepository {
             .bind(id)
             .execute(&self.pool)
             .await
-            .map_err(|e| RepositoryError::Internal(e.to_string()))?;
+            .map_err(RepositoryError::storage)?;
         Ok(())
     }
 }

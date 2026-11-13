@@ -18,8 +18,8 @@ impl From<PgError> for RepositoryError {
         match e {
             PgError::NotFound => RepositoryError::NotFound,
             PgError::Conflict(msg) => RepositoryError::Conflict(msg),
-            PgError::Database(e) => RepositoryError::Internal(e.to_string()),
-            PgError::Migration(e) => RepositoryError::Internal(e.to_string()),
+            PgError::Database(e) => RepositoryError::storage(e),
+            PgError::Migration(e) => RepositoryError::storage(e),
         }
     }
 }

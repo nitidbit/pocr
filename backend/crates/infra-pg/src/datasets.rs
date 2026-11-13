@@ -39,31 +39,8 @@ impl PgDatasetRepository {
     }
 }
 
-fn repository_error(error: RefreshStoreError) -> RepositoryError {
-    match &error {
-        RefreshStoreError::Database { operation, .. } => {
-            tracing::error!(operation, error_message = %error, "dataset persistence failed");
-        }
-        RefreshStoreError::CorruptRun { run_id, source } => {
-            tracing::error!(
-                %run_id,
-                error_message = %error,
-                error_source = %source,
-                "dataset persistence failed"
-            );
-        }
-        RefreshStoreError::CorruptTarget { attachment_id } => {
-            tracing::error!(%attachment_id, error_message = %error, "dataset persistence failed");
-        }
-        RefreshStoreError::StaleRun { .. } | RefreshStoreError::OutsideCohort { .. } => {
-            tracing::error!(error_message = %error, "dataset persistence failed");
-        }
-    }
-    RepositoryError::Internal("dataset persistence failed".into())
-}
-
 fn database_error(operation: &'static str) -> impl FnOnce(sqlx::Error) -> RepositoryError {
-    move |error| repository_error(RefreshStoreError::database(operation, &error))
+    move |error| RepositoryError::storage(RefreshStoreError::database(operation, &error))
 }
 
 #[async_trait]
@@ -192,8 +169,13 @@ fn snapshot_from_row(row: &sqlx::postgres::PgRow) -> Result<Snapshot, Repository
         .try_get::<sqlx::types::Json<serde_json::Value>, _>("definition")
         .map_err(decode())?
         .0;
-    let definition = serde_json::from_value::<DatasetDefinition>(definition_json)
-        .map_err(|source| repository_error(RefreshStoreError::CorruptRun { run_id, source }))?;
+    let definition =
+        serde_json::from_value::<DatasetDefinition>(definition_json).map_err(|source| {
+            RepositoryError::corrupt(
+                "dataset definition",
+                RefreshStoreError::CorruptRun { run_id, source },
+            )
+        })?;
     let read = || -> Result<Snapshot, sqlx::Error> {
         Ok(Snapshot {
             run_id,

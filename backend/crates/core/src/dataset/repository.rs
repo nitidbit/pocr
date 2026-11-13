@@ -92,7 +92,7 @@ pub trait DatasetRepository: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Returns [`RepositoryError::Internal`] if the store fails.
+    /// Returns [`RepositoryError::Storage`] if the store fails.
     async fn list(
         &self,
         study: Uuid,
@@ -104,7 +104,7 @@ pub trait DatasetRepository: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Returns [`RepositoryError::Internal`] if the store fails.
+    /// Returns [`RepositoryError::Storage`] if the store fails.
     async fn attach(
         &self,
         study: Uuid,
@@ -117,7 +117,7 @@ pub trait DatasetRepository: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Returns [`RepositoryError::Internal`] if the store fails.
+    /// Returns [`RepositoryError::Storage`] if the store fails.
     async fn detach(&self, study: Uuid, name: &DatasetName) -> Result<(), RepositoryError>;
 
     /// Reads the latest published snapshot, or `None` if the dataset has
@@ -125,8 +125,8 @@ pub trait DatasetRepository: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Returns [`RepositoryError::Internal`] if the store fails or the stored
-    /// definition cannot be decoded.
+    /// Returns [`RepositoryError::Storage`] if the store fails, or
+    /// [`RepositoryError::Corrupt`] if the stored definition cannot be decoded.
     async fn snapshot(
         &self,
         study: Uuid,
