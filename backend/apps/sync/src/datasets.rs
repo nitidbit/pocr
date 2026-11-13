@@ -57,7 +57,7 @@ enum RefreshError {
     Batch(#[from] BatchError),
 }
 
-/// Refresh every attachment once in the settings' environment, running at
+/// Refreshes every attachment once in the settings' environment, running at
 /// most `concurrency` refreshes at a time.
 ///
 /// A missing definition is an expected state and counts as skipped. Other
@@ -169,7 +169,7 @@ async fn refresh_target(
     }
 }
 
-/// Stage every cohort page. Caboodle is contacted on the first non-empty page,
+/// Stages every cohort page. Caboodle is contacted on the first non-empty page,
 /// so an empty cohort publishes without a source connection.
 async fn populate(
     run: &mut RefreshRun,

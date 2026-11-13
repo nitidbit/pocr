@@ -1,4 +1,8 @@
+//! The `pocr-sync` binary: one-shot dataset refresh and Caboodle demographics
+//! sync into PostgreSQL.
+
 mod datasets;
+
 use std::collections::HashMap;
 use std::env;
 use std::num::{NonZeroU64, NonZeroUsize};
@@ -29,6 +33,9 @@ async fn main() -> ExitCode {
     }
 }
 
+/// Refreshes datasets when a catalog is configured, then syncs demographics.
+///
+/// Both phases always run; the dataset error takes precedence in the result.
 async fn run() -> Result<(), SyncError> {
     let database_url = env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgres://pocr:pocr@localhost:5432/pocr".into());
@@ -46,6 +53,7 @@ async fn run() -> Result<(), SyncError> {
     demographic_result
 }
 
+/// Refreshes every dataset attachment using settings read from the environment.
 async fn refresh_datasets(
     pg_pool: &sqlx::PgPool,
     registry: &pocr_core::dataset::DatasetRegistry,
@@ -87,6 +95,7 @@ async fn refresh_datasets(
     }
 }
 
+/// Copies demographics for randomized patients from Caboodle into PostgreSQL.
 async fn sync_demographics(pg_pool: sqlx::PgPool) -> Result<(), SyncError> {
     let caboodle_config =
         infra_caboodle::CaboodleConfig::from_env().map_err(SyncError::CaboodleConfig)?;
@@ -187,37 +196,52 @@ struct PatientRow {
 /// Errors from the sync pipeline.
 #[derive(Debug, thiserror::Error)]
 enum SyncError {
+    /// The dataset catalog could not be loaded.
     #[error("failed to load dataset catalog")]
     Catalog(#[source] infra_datasets::LoadError),
 
+    /// `DATASET_ENVIRONMENT` is unset or not a known environment.
     #[error("DATASET_ENVIRONMENT must be production or nonproduction")]
     InvalidEnvironment,
 
+    /// A numeric refresh setting is not a positive integer.
     #[error("{variable} must be a positive integer")]
     InvalidSetting {
+        /// Name of the offending variable.
         variable: &'static str,
+        /// The parse failure.
         #[source]
         source: std::num::ParseIntError,
     },
 
+    /// Caboodle connection settings are missing or invalid.
     #[error("missing or invalid Caboodle environment variables")]
     CaboodleConfig(#[source] infra_caboodle::CaboodleError),
 
+    /// A PostgreSQL query or connection failed.
     #[error("PostgreSQL error")]
     Postgres(#[from] sqlx::Error),
 
+    /// Applying PostgreSQL migrations failed.
     #[error("migration error")]
     Migration(#[from] sqlx::migrate::MigrateError),
 
+    /// A Caboodle query or connection failed.
     #[error("Caboodle error")]
     Caboodle(#[from] infra_caboodle::CaboodleError),
 
+    /// Upserting demographics failed.
     #[error("demographics upsert error")]
     Upsert(#[from] pocr_core::ports::RepositoryError),
 
+    /// The dataset store could not list attachments.
     #[error("dataset store error")]
     DatasetStore(#[from] infra_pg::RefreshStoreError),
 
+    /// One or more attachments failed to refresh.
     #[error("{failed} dataset refreshes failed")]
-    DatasetRefresh { failed: usize },
+    DatasetRefresh {
+        /// Number of failed attachments.
+        failed: usize,
+    },
 }
