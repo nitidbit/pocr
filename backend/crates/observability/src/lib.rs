@@ -1,12 +1,21 @@
+//! Process-wide tracing setup shared by every POCR binary.
+//!
+//! [`init`] installs the global subscriber; hold the returned [`Guard`] for
+//! the lifetime of the process so buffered log output is flushed on exit.
+
 use tracing::{Level, info};
 use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt, util::SubscriberInitExt};
 
+/// Output format for log events.
 #[derive(Clone, Copy, Debug)]
 pub enum LogFormat {
+    /// Human-readable multi-line output.
     Pretty,
+    /// One JSON object per event.
     Json,
 }
 
+/// Tracing configuration for a single process.
 #[derive(Clone, Debug)]
 pub struct Config {
     /// Human-identifiable name for this process (api/worker/migrator/etc).
@@ -26,6 +35,8 @@ pub struct Config {
 }
 
 impl Config {
+    /// Returns the defaults for `service_name`: `info` filter, pretty
+    /// format, no span events, non-blocking writer.
     pub fn for_service(service_name: &'static str) -> Self {
         Self {
             service_name,
@@ -36,11 +47,17 @@ impl Config {
         }
     }
 
-    /// Environment overrides:
-    /// - LOG_JSON: true/false-ish values override cfg.format
-    /// - LOG_SPAN_EVENTS: true/false-ish values override cfg.span_events
+    /// Returns the [`Config::for_service`] defaults with environment overrides.
     ///
-    /// Unset => keep defaults.
+    /// - `LOG_JSON`: a boolean value overrides [`Config::format`].
+    /// - `LOG_SPAN_EVENTS`: a boolean value overrides [`Config::span_events`].
+    ///
+    /// Unset variables keep the defaults.
+    ///
+    /// # Panics
+    ///
+    /// Panics if either variable is set to a value that is not a recognized
+    /// boolean (`1`, `true`, `t`, `yes`, `y`, `on` or their negations).
     pub fn from_env(service_name: &'static str) -> Self {
         let mut cfg = Self::for_service(service_name);
 
@@ -60,12 +77,23 @@ impl Config {
     }
 }
 
-/// Hold guards/resources that must live for the entire process lifetime.
+/// Holds guards and resources that must live for the entire process lifetime.
+///
+/// Dropping the guard flushes the non-blocking writer and exits the root span.
 pub struct Guard {
     _non_blocking: Option<tracing_appender::non_blocking::WorkerGuard>,
     _root: tracing::span::EnteredSpan,
 }
 
+/// Installs the global tracing subscriber described by `cfg`.
+///
+/// `RUST_LOG` takes precedence over [`Config::default_filter`]. Events from
+/// the `tiberius` driver are always dropped because they can carry raw server
+/// messages and row data.
+///
+/// # Panics
+///
+/// Panics if a global subscriber is already installed.
 pub fn init(cfg: Config) -> Guard {
     let env_filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(cfg.default_filter));
@@ -146,14 +174,15 @@ enum Writer {
     NonBlocking(tracing_appender::non_blocking::NonBlocking),
 }
 
-/// Returns:
-/// - Some(true) / Some(false) if the var is set and parses
-/// - None if the var is unset or invalid
+/// Parses a boolean environment variable.
 ///
-/// Accepted true:  1, true, t, yes, y, on  (case-insensitive)
-/// Accepted false: 0, false, f, no, n, off (case-insensitive)
+/// Returns `None` if the variable is unset. Accepted true values are `1`,
+/// `true`, `t`, `yes`, `y`, `on`; accepted false values are `0`, `false`,
+/// `f`, `no`, `n`, `off` (case-insensitive).
 ///
-/// Panics if the var is set but has an invalid value.
+/// # Panics
+///
+/// Panics if the variable is set to any other value.
 fn env_bool(key: &str) -> Option<bool> {
     let raw = std::env::var_os(key)?;
     let s = raw.to_string_lossy().trim().to_ascii_lowercase();
