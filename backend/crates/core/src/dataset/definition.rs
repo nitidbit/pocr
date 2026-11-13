@@ -20,16 +20,30 @@ const MAX_IDENTIFIER_LEN: usize = 128;
 pub enum DefinitionError {
     /// The definition declares a version this build cannot read.
     #[error("unsupported definition version {found}")]
-    UnsupportedVersion { found: u8 },
+    UnsupportedVersion {
+        /// Version the definition declares.
+        found: u8,
+    },
     /// The dataset name is not 1-128 characters of `[a-z0-9-]`.
     #[error("invalid dataset name {value:?}")]
-    InvalidDatasetName { value: String },
+    InvalidDatasetName {
+        /// The rejected name.
+        value: String,
+    },
     /// The report name is not 1-128 characters of `[a-z0-9-]`.
     #[error("invalid report name {value:?}")]
-    InvalidReportName { value: String },
+    InvalidReportName {
+        /// The rejected name.
+        value: String,
+    },
     /// An identifier is not a bare SQL identifier of at most 128 characters.
     #[error("invalid {role} {value:?}")]
-    InvalidIdentifier { role: IdentifierRole, value: String },
+    InvalidIdentifier {
+        /// What the identifier names.
+        role: IdentifierRole,
+        /// The rejected identifier.
+        value: String,
+    },
     /// A dataset or report title is empty or whitespace.
     #[error("title is blank")]
     BlankTitle,
@@ -38,46 +52,86 @@ pub enum DefinitionError {
     NoFields,
     /// A field uses a name owned by the system columns.
     #[error("field name {name:?} is reserved")]
-    ReservedField { name: String },
+    ReservedField {
+        /// The reserved name the field uses.
+        name: String,
+    },
     /// Two fields share a name.
     #[error("duplicate field {name}")]
-    DuplicateField { name: FieldName },
+    DuplicateField {
+        /// The repeated field name.
+        name: FieldName,
+    },
     /// A result column name is empty or whitespace.
     #[error("column name is blank")]
     BlankColumn,
     /// Two fields share a result column, or a field claims `randomization_id`.
     #[error("duplicate column {column}")]
-    DuplicateColumn { column: ColumnName },
+    DuplicateColumn {
+        /// The repeated column.
+        column: ColumnName,
+    },
     /// The report declares no variables.
     #[error("report declares no variables")]
     NoVariables,
     /// Two report variables summarize the same field.
     #[error("field {field} appears in more than one report variable")]
-    DuplicateReportField { field: FieldName },
+    DuplicateReportField {
+        /// Field summarized more than once.
+        field: FieldName,
+    },
     /// A report variable label is empty or whitespace.
     #[error("label for field {field} is blank")]
-    BlankLabel { field: FieldName },
+    BlankLabel {
+        /// Field whose label is blank.
+        field: FieldName,
+    },
     /// A report variable unit is empty or whitespace.
     #[error("unit for field {field} is blank")]
-    BlankUnit { field: FieldName },
+    BlankUnit {
+        /// Field whose unit is blank.
+        field: FieldName,
+    },
     /// A categorical variable declares a unit, which applies to continuous values only.
     #[error("categorical field {field} cannot declare a unit")]
-    UnitOnCategorical { field: FieldName },
+    UnitOnCategorical {
+        /// The categorical field that declares a unit.
+        field: FieldName,
+    },
     /// A category is listed twice in a variable's display order.
     #[error("duplicate category {category:?} for field {field}")]
-    DuplicateCategory { field: FieldName, category: String },
+    DuplicateCategory {
+        /// Field whose category order repeats a category.
+        field: FieldName,
+        /// The repeated category.
+        category: String,
+    },
     /// A continuous variable declares category ordering.
     #[error("continuous field {field} cannot declare categories")]
-    CategoriesOnContinuous { field: FieldName },
+    CategoriesOnContinuous {
+        /// The continuous field that declares categories.
+        field: FieldName,
+    },
     /// A categorical variable declares decimals, which apply to continuous values only.
     #[error("categorical field {field} cannot declare decimals")]
-    DecimalsOnCategorical { field: FieldName },
+    DecimalsOnCategorical {
+        /// The categorical field that declares decimals.
+        field: FieldName,
+    },
     /// A categorical variable declares an `include_when` condition.
     #[error("categorical field {field} cannot declare a condition")]
-    ConditionOnCategorical { field: FieldName },
+    ConditionOnCategorical {
+        /// The categorical field that declares a condition.
+        field: FieldName,
+    },
     /// Decimal places exceed the supported maximum.
     #[error("field {field} requests {found} decimals; maximum is {max}", max = MAX_DECIMALS)]
-    InvalidDecimals { field: FieldName, found: u8 },
+    InvalidDecimals {
+        /// Field that requests the decimals.
+        field: FieldName,
+        /// Decimal places requested.
+        found: u8,
+    },
 }
 
 /// What a [`SqlIdentifier`] names, reported in [`DefinitionError::InvalidIdentifier`].

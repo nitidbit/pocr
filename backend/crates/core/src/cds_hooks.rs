@@ -19,7 +19,7 @@ pub struct CdsHookRequest {
     pub fhir_server: Option<String>,
     /// The hook that triggered this request (e.g., "patient-view").
     pub hook: String,
-    /// OAuth2 authorization for FHIR server access.
+    /// OAuth 2.0 authorization for FHIR server access.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fhir_authorization: Option<FhirAuthorization>,
     /// Hook-specific contextual data.
@@ -32,16 +32,16 @@ pub struct CdsHookRequest {
     pub extension: Option<serde_json::Value>,
 }
 
-/// OAuth2 token for accessing the FHIR server.
+/// OAuth 2.0 token for accessing the FHIR server.
 ///
-/// CDS Hooks embeds the raw OAuth2 token response, whose fields are
-/// snake_case (`access_token`, `token_type`, `expires_in`) — so this
+/// CDS Hooks embeds the raw OAuth 2.0 token response, whose fields are
+/// `snake_case` (`access_token`, `token_type`, `expires_in`) — so this
 /// struct deliberately omits `rename_all = "camelCase"`. All fields are
 /// optional: `fhirAuthorization` may be present with a partial or empty
 /// token, and a missing sub-field must not fail deserialization.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FhirAuthorization {
-    /// OAuth2 bearer token for FHIR server requests.
+    /// OAuth 2.0 bearer token for FHIR server requests.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub access_token: Option<String>,
     /// Token type (typically `"Bearer"`).
@@ -50,7 +50,7 @@ pub struct FhirAuthorization {
     /// Lifetime of the token in seconds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expires_in: Option<u64>,
-    /// Granted OAuth2 scopes.
+    /// Granted OAuth 2.0 scopes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope: Option<String>,
     /// Client identifier the token was issued to.
@@ -236,8 +236,8 @@ pub struct CdsServiceDescriptor {
 mod tests {
     use super::*;
 
-    /// An Epic-shaped `patient-view` request with a full, snake_case
-    /// OAuth2 token under `fhirAuthorization`.
+    /// An Epic-shaped `patient-view` request with a full, `snake_case`
+    /// OAuth 2.0 token under `fhirAuthorization`.
     fn epic_request_json() -> serde_json::Value {
         serde_json::json!({
             "hookInstance": "d1577c69-dfbe-44ad-ba6d-3e05e953b2ea",

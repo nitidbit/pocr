@@ -167,23 +167,34 @@ pub(super) struct Condition {
 pub enum IncompatibleReport {
     /// A variable or condition names a field the dataset lacks.
     #[error("dataset has no field {field}")]
-    UnknownField { field: FieldName },
+    UnknownField {
+        /// The missing field.
+        field: FieldName,
+    },
     /// The analysis does not apply to the field's type.
     #[error("{analysis} analysis cannot summarize {kind} field {field}")]
     IncompatibleAnalysis {
+        /// Field the analysis was applied to.
         field: FieldName,
+        /// The inapplicable analysis.
         analysis: Analysis,
+        /// The field's type.
         kind: FieldType,
     },
     /// A boolean field declares category ordering; booleans order true, false.
     #[error("boolean field {field} cannot declare a category order")]
-    CategoryOrderOnBoolean { field: FieldName },
+    CategoryOrderOnBoolean {
+        /// The boolean field that declares an order.
+        field: FieldName,
+    },
     /// An `include_when` value does not have the condition field's type.
     ///
     /// `field` is the condition field.
     #[error("condition on field {field} must compare with a {expected} value")]
     ConditionTypeMismatch {
+        /// The condition field.
         field: FieldName,
+        /// The type the condition value must have.
         expected: FieldType,
     },
 }

@@ -163,7 +163,7 @@ impl RandomizationConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Study {
-    /// Unique identifier (UUIDv7).
+    /// Unique identifier (`UUIDv7`).
     pub id: Uuid,
     /// Human-readable study name.
     pub name: String,
@@ -223,6 +223,12 @@ impl Study {
     /// `Active→Paused`, `Active→Closed`, `Paused→Active`, `Paused→Closed`.
     /// `Closed` is terminal. Any other transition is
     /// [`StudyError::InvalidTransition`]. On success, `updated_at` is stamped.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StudyError::InvalidTransition`] if the state machine forbids
+    /// the transition, or [`StudyError::InvalidConfiguration`] if going live
+    /// with an invalid allocation configuration.
     pub fn transition_to(&mut self, next: StudyStatus) -> Result<(), StudyError> {
         if !Self::transition_allowed(self.status, next) {
             return Err(StudyError::InvalidTransition {
@@ -249,6 +255,10 @@ impl Study {
     /// Allowed only while in [`Draft`](StudyStatus::Draft); otherwise returns
     /// [`StudyError::ConfigFrozen`]. Cosmetic fields (`name`, `description`)
     /// are edited directly and are never frozen.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StudyError::ConfigFrozen`] if the study has left draft.
     pub fn set_config(&mut self, config: RandomizationConfig) -> Result<(), StudyError> {
         if self.config_is_frozen() {
             return Err(StudyError::ConfigFrozen);

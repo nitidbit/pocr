@@ -85,8 +85,12 @@ impl EnvironmentMap {
 
     /// Resolves an optional `fhirServer` URL to an environment.
     ///
-    /// Fails closed: `None` yields [`EnvironmentError::MissingUrl`] and an
-    /// unmatched URL yields [`EnvironmentError::UnknownUrl`]. Never defaults.
+    /// Fails closed and never defaults.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EnvironmentError::MissingUrl`] for `None` and
+    /// [`EnvironmentError::UnknownUrl`] for a URL matching no prefix.
     pub fn resolve(&self, fhir_server: Option<&str>) -> Result<Environment, EnvironmentError> {
         let url = fhir_server.ok_or(EnvironmentError::MissingUrl)?;
         self.entries

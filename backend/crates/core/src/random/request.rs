@@ -25,7 +25,7 @@ pub struct RandomizationRequest {
 /// Epic-native identifiers extracted from the CDS Hooks context.
 #[derive(Debug, Clone, Default)]
 pub struct EpicIds {
-    /// Epic-native patient identifier (PatientEpicId).
+    /// Epic-native patient identifier (`PatientEpicId`).
     pub patient_id: Option<String>,
     /// Contact Serial Number (encounter ID in Epic).
     pub csn: Option<String>,

@@ -34,7 +34,7 @@ pub mod event_type {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct AuditEvent {
-    /// Unique, time-sortable identifier (UUIDv7).
+    /// Unique, time-sortable identifier (`UUIDv7`).
     pub id: Uuid,
     /// Study the action was performed against.
     pub study_id: Uuid,
@@ -49,7 +49,7 @@ pub struct AuditEvent {
 }
 
 impl AuditEvent {
-    /// Records a new audit event, stamping a fresh UUIDv7 id and the current time.
+    /// Records a new audit event, stamping a fresh `UUIDv7` id and the current time.
     ///
     /// `event_type` should be one of the [`event_type`] constants. `detail`
     /// carries any event-specific fields; pass [`serde_json::Value::Null`] or an

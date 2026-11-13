@@ -122,20 +122,30 @@ impl Catalog {
 pub enum CatalogError {
     /// Two datasets share a name.
     #[error("duplicate dataset {name}")]
-    DuplicateDataset { name: DatasetName },
+    DuplicateDataset {
+        /// Name both datasets share.
+        name: DatasetName,
+    },
     /// Two reports share a name.
     #[error("duplicate report {name}")]
-    DuplicateReport { name: ReportName },
+    DuplicateReport {
+        /// Name both reports share.
+        name: ReportName,
+    },
     /// A report names a dataset that is not deployed.
     #[error("report {report} names undeployed dataset {dataset}")]
     UnknownDataset {
+        /// Report that names the missing dataset.
         report: ReportName,
+        /// Dataset name that is not deployed.
         dataset: DatasetName,
     },
     /// A report does not fit its dataset.
     #[error("report {report} is incompatible with its dataset")]
     Incompatible {
+        /// Report that does not fit.
         report: ReportName,
+        /// Why the report does not fit.
         #[source]
         source: IncompatibleReport,
     },

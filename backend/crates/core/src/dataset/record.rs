@@ -34,7 +34,9 @@ pub enum BatchError {
     /// A single encoded context record exceeds [`MAX_BATCH_BYTES`].
     #[error("context for randomization {randomization_id} is {bytes} bytes, over the batch limit")]
     RecordTooLarge {
+        /// Randomization the oversized record belongs to.
         randomization_id: Uuid,
+        /// Encoded size of the record in bytes.
         bytes: usize,
     },
 }
@@ -48,10 +50,18 @@ pub enum BatchError {
 pub enum ResultsError {
     /// The input repeats a randomization ID.
     #[error("input repeats randomization {randomization_id}")]
-    DuplicateInput { randomization_id: Uuid },
+    DuplicateInput {
+        /// The repeated ID.
+        randomization_id: Uuid,
+    },
     /// The procedure returned a different number of rows than it was given.
     #[error("expected {expected} rows, found {actual}")]
-    RowCount { expected: usize, actual: usize },
+    RowCount {
+        /// Number of rows given to the procedure.
+        expected: usize,
+        /// Number of rows the procedure returned.
+        actual: usize,
+    },
     /// The result columns differ from the definition's columns plus `randomization_id`.
     #[error(
         "result columns differ from the definition: missing [{}], unexpected [{}]",
@@ -59,7 +69,9 @@ pub enum ResultsError {
         comma_separated(.unexpected)
     )]
     ColumnSet {
+        /// Definition columns absent from the result.
         missing: Vec<ColumnName>,
+        /// Result columns the definition does not declare.
         unexpected: Vec<String>,
     },
     /// A row has no `randomization_id`.
@@ -70,14 +82,22 @@ pub enum ResultsError {
     InvalidRowId,
     /// A row's ID is not in the input.
     #[error("row for randomization {randomization_id} was not requested")]
-    UnexpectedRowId { randomization_id: Uuid },
+    UnexpectedRowId {
+        /// The ID that was not requested.
+        randomization_id: Uuid,
+    },
     /// Two rows share an ID.
     #[error("more than one row for randomization {randomization_id}")]
-    DuplicateRowId { randomization_id: Uuid },
+    DuplicateRowId {
+        /// The ID shared by more than one row.
+        randomization_id: Uuid,
+    },
     /// A value does not match its field's declared type.
     #[error("field {field} expected a {expected} value")]
     TypeMismatch {
+        /// Field whose value has the wrong type.
         field: FieldName,
+        /// The type the field declares.
         expected: FieldType,
     },
 }
@@ -250,6 +270,11 @@ fn take_value(field: &Field, row: &mut ResultRow) -> Result<(FieldName, Value), 
 ///
 /// Returns [`BatchError::RecordTooLarge`] if one record alone exceeds the
 /// byte limit.
+///
+/// # Panics
+///
+/// Panics if a record fails to encode as JSON, which cannot happen for a
+/// UUID, a timestamp, and JSON values.
 pub fn batches(records: &[ContextRecord]) -> Result<Vec<&[ContextRecord]>, BatchError> {
     let mut batches = Vec::new();
     let mut start = 0;
