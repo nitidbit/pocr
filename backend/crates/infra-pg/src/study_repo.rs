@@ -7,12 +7,14 @@ use pocr_core::ports::{RepositoryError, StudyRepository};
 use pocr_core::study::Study;
 
 /// PostgreSQL-backed study repository.
+#[derive(Debug)]
 pub struct PgStudyRepository {
     pool: PgPool,
 }
 
 impl PgStudyRepository {
     /// Creates a repository that runs against `pool`.
+    #[must_use]
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
@@ -64,7 +66,7 @@ impl StudyRepository for PgStudyRepository {
             .to_string();
 
         let row = sqlx::query_as::<_, StudyRow>(
-            r#"INSERT INTO studies (id, name, description, status, randomization_config, created_at, updated_at)
+            r"INSERT INTO studies (id, name, description, status, randomization_config, created_at, updated_at)
                VALUES ($1, $2, $3, $4, $5, $6, $7)
                ON CONFLICT (id) DO UPDATE SET
                  name = EXCLUDED.name,
@@ -72,7 +74,7 @@ impl StudyRepository for PgStudyRepository {
                  status = EXCLUDED.status,
                  randomization_config = EXCLUDED.randomization_config,
                  updated_at = NOW()
-               RETURNING *"#,
+               RETURNING *",
         )
         .bind(study.id)
         .bind(&study.name)
@@ -106,9 +108,9 @@ impl StudyRepository for PgStudyRepository {
             source,
         })?;
         let row = sqlx::query_as::<_, StudyRow>(
-            r#"SELECT s.* FROM studies s
+            r"SELECT s.* FROM studies s
                JOIN locator_mappings lm ON lm.study_id = s.id
-               WHERE lm.locator = $1"#,
+               WHERE lm.locator = $1",
         )
         .bind(locator)
         .fetch_optional(&self.pool)
@@ -121,10 +123,10 @@ impl StudyRepository for PgStudyRepository {
     #[instrument(skip(self))]
     async fn list_for_user(&self, user_id: &str) -> Result<Vec<Study>, RepositoryError> {
         let rows = sqlx::query_as::<_, StudyRow>(
-            r#"SELECT s.* FROM studies s
+            r"SELECT s.* FROM studies s
                JOIN user_studies us ON us.study_id = s.id
                WHERE us.user_id = $1
-               ORDER BY s.updated_at DESC"#,
+               ORDER BY s.updated_at DESC",
         )
         .bind(user_id)
         .fetch_all(&self.pool)

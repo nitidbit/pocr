@@ -6,12 +6,14 @@ use uuid::Uuid;
 use pocr_core::ports::{LocatorRepository, RepositoryError};
 
 /// PostgreSQL-backed locator → study mapping repository.
+#[derive(Debug)]
 pub struct PgLocatorRepository {
     pool: PgPool,
 }
 
 impl PgLocatorRepository {
     /// Creates a repository that runs against `pool`.
+    #[must_use]
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
@@ -23,9 +25,9 @@ impl LocatorRepository for PgLocatorRepository {
     async fn save_mapping(&self, locator: u64, study_id: &Uuid) -> Result<(), RepositoryError> {
         let locator = locator_to_i64(locator)?;
         sqlx::query(
-            r#"INSERT INTO locator_mappings (locator, study_id)
+            r"INSERT INTO locator_mappings (locator, study_id)
                VALUES ($1, $2)
-               ON CONFLICT (locator) DO UPDATE SET study_id = EXCLUDED.study_id"#,
+               ON CONFLICT (locator) DO UPDATE SET study_id = EXCLUDED.study_id",
         )
         .bind(locator)
         .bind(study_id)

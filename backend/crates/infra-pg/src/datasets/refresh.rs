@@ -87,6 +87,7 @@ impl PgDatasetRepository {
 }
 
 /// Exclusive right to refresh one attachment in one environment.
+#[derive(Debug)]
 pub struct RefreshLock {
     connection: PgConnection,
     attachment_id: Uuid,
@@ -161,6 +162,7 @@ impl RefreshLock {
 /// Dropping a run without [`publish`](Self::publish) or [`fail`](Self::fail)
 /// releases the lock and leaves a `running` row that the next
 /// [`RefreshLock::begin`] discards.
+#[derive(Debug)]
 pub struct RefreshRun {
     connection: PgConnection,
     run_id: Uuid,
@@ -171,6 +173,7 @@ pub struct RefreshRun {
 
 impl RefreshRun {
     /// Identifier of this run.
+    #[must_use]
     pub fn id(&self) -> Uuid {
         self.run_id
     }

@@ -16,12 +16,14 @@ use pocr_core::ports::{AuditRepository, RepositoryError};
 use crate::error::PgError;
 
 /// PostgreSQL-backed audit event repository.
+#[derive(Debug)]
 pub struct PgAuditRepository {
     pool: PgPool,
 }
 
 impl PgAuditRepository {
     /// Creates a repository that runs against `pool`.
+    #[must_use]
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
@@ -37,8 +39,8 @@ impl AuditRepository for PgAuditRepository {
     #[instrument(name = "audit.append", skip(self, event), fields(study_id = %event.study_id, event_type = %event.event_type))]
     async fn append(&self, event: &AuditEvent) -> Result<(), RepositoryError> {
         sqlx::query(
-            r#"INSERT INTO audit_events (id, study_id, event_type, actor, detail, created_at)
-               VALUES ($1, $2, $3, $4, $5, $6)"#,
+            r"INSERT INTO audit_events (id, study_id, event_type, actor, detail, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6)",
         )
         .bind(event.id)
         .bind(event.study_id)
@@ -60,10 +62,10 @@ impl AuditRepository for PgAuditRepository {
     #[instrument(name = "audit.list_by_study", skip(self))]
     async fn list_by_study(&self, study_id: &Uuid) -> Result<Vec<AuditEvent>, RepositoryError> {
         let rows = sqlx::query_as::<_, AuditRow>(
-            r#"SELECT id, study_id, event_type, actor, detail, created_at
+            r"SELECT id, study_id, event_type, actor, detail, created_at
                FROM audit_events
                WHERE study_id = $1
-               ORDER BY created_at DESC, id DESC"#,
+               ORDER BY created_at DESC, id DESC",
         )
         .bind(study_id)
         .fetch_all(&self.pool)

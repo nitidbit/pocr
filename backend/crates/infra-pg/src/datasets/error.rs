@@ -30,6 +30,7 @@ enum FailureKind {
 
 impl DatabaseFailure {
     /// SQLSTATE reported by the server, if the failure came from the database.
+    #[must_use]
     pub fn sqlstate(&self) -> Option<&str> {
         match &self.0 {
             FailureKind::Sqlstate(code) => Some(code),

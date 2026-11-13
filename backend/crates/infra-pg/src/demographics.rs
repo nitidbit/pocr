@@ -17,12 +17,14 @@ use pocr_core::ports::{DemographicsRepository, RepositoryError};
 use crate::error::PgError;
 
 /// PostgreSQL-backed demographics repository.
+#[derive(Debug)]
 pub struct PgDemographicsRepository {
     pool: PgPool,
 }
 
 impl PgDemographicsRepository {
     /// Creates a repository that runs against `pool`.
+    #[must_use]
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
@@ -50,7 +52,7 @@ impl DemographicsRepository for PgDemographicsRepository {
             let races: Option<&[String]> = record.races.as_deref();
 
             sqlx::query(
-                r#"INSERT INTO patient_demographics
+                r"INSERT INTO patient_demographics
                        (patient_id, birth_date, sex, races, ethnicity,
                         primary_language, smoking_status, insurance_type, bmi, synced_at)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -63,7 +65,7 @@ impl DemographicsRepository for PgDemographicsRepository {
                        smoking_status = EXCLUDED.smoking_status,
                        insurance_type = EXCLUDED.insurance_type,
                        bmi = EXCLUDED.bmi,
-                       synced_at = EXCLUDED.synced_at"#,
+                       synced_at = EXCLUDED.synced_at",
             )
             .bind(&record.patient_id)
             .bind(record.birth_date)
@@ -103,10 +105,10 @@ impl DemographicsRepository for PgDemographicsRepository {
         }
 
         let rows = sqlx::query_as::<_, DemographicsRow>(
-            r#"SELECT patient_id, birth_date, sex, races, ethnicity,
+            r"SELECT patient_id, birth_date, sex, races, ethnicity,
                       primary_language, smoking_status, insurance_type,
                       bmi::FLOAT8 AS bmi, synced_at
-               FROM patient_demographics WHERE patient_id = ANY($1)"#,
+               FROM patient_demographics WHERE patient_id = ANY($1)",
         )
         .bind(patient_ids)
         .fetch_all(&self.pool)
@@ -131,7 +133,7 @@ impl DemographicsRepository for PgDemographicsRepository {
         study_id: &Uuid,
     ) -> Result<Vec<PatientDemographicsWithArm>, RepositoryError> {
         let rows = sqlx::query_as::<_, DemographicsWithArmRow>(
-            r#"SELECT
+            r"SELECT
                    pd.patient_id,
                    pd.birth_date,
                    pd.sex,
@@ -147,7 +149,7 @@ impl DemographicsRepository for PgDemographicsRepository {
                JOIN randomization_context c ON c.context_key = 'epic_patient_id'
                    AND c.context_value #>> '{}' = pd.patient_id
                JOIN randomizations r ON r.id = c.randomization_id
-               WHERE r.study_id = $1"#,
+               WHERE r.study_id = $1",
         )
         .bind(study_id)
         .fetch_all(&self.pool)

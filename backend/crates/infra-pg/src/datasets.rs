@@ -27,13 +27,14 @@ pub use error::{DatabaseFailure, RefreshStoreError};
 pub use refresh::{RefreshLock, RefreshRun, RefreshTarget};
 
 /// PostgreSQL-backed dataset store.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PgDatasetRepository {
     pool: PgPool,
 }
 
 impl PgDatasetRepository {
     /// Creates a repository over `pool`.
+    #[must_use]
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
@@ -48,15 +49,15 @@ impl DatasetRepository for PgDatasetRepository {
     async fn list(
         &self,
         study: Uuid,
-        env: Environment,
+        environment: Environment,
     ) -> Result<Vec<Attachment>, RepositoryError> {
         let rows = sqlx::query(include_str!("datasets/list_attachments.sql"))
             .bind(study)
-            .bind(env.as_str())
+            .bind(environment.as_str())
             .fetch_all(&self.pool)
             .await
             .map_err(database_error("list attachments"))?;
-        rows.into_iter()
+        rows.iter()
             .map(attachment_from_row)
             .collect::<Result<_, sqlx::Error>>()
             .map_err(database_error("list attachments"))
@@ -95,7 +96,7 @@ impl DatasetRepository for PgDatasetRepository {
         &self,
         study: Uuid,
         name: &DatasetName,
-        env: Environment,
+        environment: Environment,
     ) -> Result<Option<Snapshot>, RepositoryError> {
         // Both reads share one repeatable-read view so a concurrent prune cannot
         // remove the run's rows between the metadata and row queries.
@@ -108,7 +109,7 @@ impl DatasetRepository for PgDatasetRepository {
         let Some(row) = sqlx::query(include_str!("datasets/snapshot.sql"))
             .bind(study)
             .bind(name.as_ref())
-            .bind(env.as_str())
+            .bind(environment.as_str())
             .fetch_optional(&mut *tx)
             .await
             .map_err(database_error(operation))?
@@ -127,10 +128,10 @@ impl DatasetRepository for PgDatasetRepository {
     }
 }
 
-fn attachment_from_row(row: sqlx::postgres::PgRow) -> Result<Attachment, sqlx::Error> {
+fn attachment_from_row(row: &sqlx::postgres::PgRow) -> Result<Attachment, sqlx::Error> {
     let has_snapshot: bool = row.try_get("has_snapshot")?;
     let snapshot = if has_snapshot {
-        Some(published_summary(&row)?)
+        Some(published_summary(row)?)
     } else {
         None
     };
@@ -141,7 +142,7 @@ fn attachment_from_row(row: sqlx::postgres::PgRow) -> Result<Attachment, sqlx::E
             .map_err(|e| sqlx::Error::Decode(Box::new(e)))?,
         title: row.try_get("title")?,
         description: row.try_get("description")?,
-        status: status_from_row(&row)?,
+        status: status_from_row(row)?,
         snapshot,
     })
 }

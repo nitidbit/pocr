@@ -8,15 +8,17 @@ use uuid::Uuid;
 
 use pocr_core::environment::Environment;
 use pocr_core::ports::{ArmTally, RandomizationRepository, RepositoryError};
-use pocr_core::random::Randomization;
+use pocr_core::random::{Randomization, SimpleUnit, Unit};
 
 /// PostgreSQL-backed randomization record repository.
+#[derive(Debug)]
 pub struct PgRandomizationRepository {
     pool: PgPool,
 }
 
 impl PgRandomizationRepository {
     /// Creates a repository that runs against `pool`.
+    #[must_use]
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
@@ -54,8 +56,8 @@ impl RandomizationRepository for PgRandomizationRepository {
 
         let mut tx = self.pool.begin().await.map_err(PgError::from)?;
         sqlx::query(
-            r#"INSERT INTO randomizations (id, study_id, environment, unit_hash, strata_key, arm, issued_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7)"#,
+            r"INSERT INTO randomizations (id, study_id, environment, unit_hash, strata_key, arm, issued_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)",
         )
         .bind(randomization.id)
         .bind(randomization.study_id)
@@ -125,7 +127,7 @@ impl RandomizationRepository for PgRandomizationRepository {
             .into_iter()
             .map(|(arm_id, count)| ArmTally {
                 arm_id,
-                count: count.max(0) as u64,
+                count: u64::try_from(count).unwrap_or_default(),
             })
             .collect())
     }
@@ -181,7 +183,6 @@ fn row_to_randomization(row: RandomizationRow) -> Result<Randomization, Reposito
     // shape is unrecoverable, so unit_key is surfaced as a PatientId-wrapped
     // string and strata is dropped. Callers needing the true unit must not
     // rely on this read.
-    use pocr_core::random::{SimpleUnit, Unit};
     let unit = Unit::Simple(SimpleUnit::PatientId(row.unit_hash.clone()));
     let strata = None;
 
