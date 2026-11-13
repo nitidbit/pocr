@@ -315,11 +315,6 @@ mod tests {
     }
 
     #[test]
-    fn normalize_email_trims_and_lowercases() {
-        assert_eq!(normalize_email("  Alice@Example.COM "), "alice@example.com");
-    }
-
-    #[test]
     fn validate_email_rejects_empty() {
         assert!(matches!(validate_email(""), Err(ApiError::BadRequest(_))));
     }
@@ -334,7 +329,7 @@ mod tests {
 
     #[test]
     fn validate_email_accepts_well_formed_address() {
-        assert!(validate_email("alice@example.com").is_ok());
+        validate_email("alice@example.com").expect("well-formed address");
     }
 
     #[test]
@@ -355,12 +350,12 @@ mod tests {
 
     #[test]
     fn decide_access_allows_member_on_member_op() {
-        assert!(decide_access(Some(Role::Member), Role::Member).is_ok());
+        decide_access(Some(Role::Member), Role::Member).expect("members may perform member ops");
     }
 
     #[test]
     fn decide_access_allows_owner_on_owner_op() {
-        assert!(decide_access(Some(Role::Owner), Role::Owner).is_ok());
+        decide_access(Some(Role::Owner), Role::Owner).expect("owners may perform owner ops");
     }
 
     #[test]

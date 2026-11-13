@@ -201,7 +201,7 @@ mod tests {
         let issued_at = value["issuedAt"].as_str().unwrap();
         // A valid RFC3339 timestamp is what `new Date(...)` needs to avoid
         // "Invalid Date" on the frontend.
-        assert!(chrono::DateTime::parse_from_rfc3339(issued_at).is_ok());
+        chrono::DateTime::parse_from_rfc3339(issued_at).expect("RFC 3339 timestamp");
     }
 
     #[test]

@@ -79,6 +79,11 @@ mod tests {
         AuthUser::from_request_parts(&mut parts, &()).await
     }
 
+    #[test]
+    fn normalize_email_trims_and_lowercases() {
+        assert_eq!(normalize_email("  Alice@Example.COM "), "alice@example.com");
+    }
+
     #[tokio::test]
     async fn extracts_user_id_from_header() {
         let user = extract(Some("alice@example.com")).await.unwrap();
