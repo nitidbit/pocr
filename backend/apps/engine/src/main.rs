@@ -1,6 +1,7 @@
 use std::env;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::process::ExitCode;
 use std::sync::Arc;
 
 use axum::serve;
@@ -9,41 +10,49 @@ use pocr_engine::error::{EngineError, EngineResult};
 use pocr_engine::health::{PgHealthCheck, RedisHealthCheck};
 use pocr_engine::service::Engine;
 use tokio::net::TcpListener;
-use tracing::info;
+use tracing::{error, info};
 
 #[tokio::main]
-async fn main() -> EngineResult<()> {
+async fn main() -> ExitCode {
     let _guard = observability::init(observability::Config {
         default_filter: "info,sqlx=warn,hyper=warn,tower_http=trace",
         ..observability::Config::for_service("pocr-engine")
     });
 
+    match run().await {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            error!(error = %format!("{:#}", anyhow::Error::from(e)), "engine failed");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+async fn run() -> EngineResult<()> {
     let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".into());
     let port = env::var("API_PORT").unwrap_or_else(|_| "3000".into());
     let _grpc_port = env::var("GRPC_PORT").unwrap_or_else(|_| "50051".into());
     let database_url = resolve_secret("DATABASE_URL", "postgres://pocr:pocr@localhost:5432/pocr")?;
     let redis_url = resolve_secret("REDIS_URL", "redis://localhost:6379")?;
 
-    let addr: SocketAddr = format!("{host}:{port}")
+    let address = format!("{host}:{port}");
+    let addr: SocketAddr = address
         .parse()
-        .map_err(|e| EngineError::Unknown(format!("invalid address {host}:{port}: {e}")))?;
+        .map_err(|source| EngineError::InvalidAddress { address, source })?;
 
     // Initialize PostgreSQL
     let pg_pool = infra_pg::create_pool(&database_url)
         .await
-        .map_err(|e| EngineError::Unknown(format!("failed to connect to database: {e}")))?;
+        .map_err(EngineError::Database)?;
 
     infra_pg::run_migrations(&pg_pool)
         .await
-        .map_err(|e| EngineError::Unknown(format!("failed to run migrations: {e}")))?;
+        .map_err(EngineError::Migrations)?;
 
     info!(event_type = "database.ready", "database ready");
 
     // Initialize Redis
-    let redis_pool = Arc::new(
-        infra_redis::RedisPool::new(&redis_url)
-            .map_err(|e| EngineError::Unknown(format!("failed to connect to redis: {e}")))?,
-    );
+    let redis_pool = Arc::new(infra_redis::RedisPool::new(&redis_url).map_err(EngineError::Redis)?);
 
     // JWT secret for study sharing
     let jwt_secret = match env::var("JWT_SECRET") {
@@ -92,7 +101,7 @@ async fn main() -> EngineResult<()> {
     let datasets = api_http::datasets::DatasetsState {
         catalog: Arc::new(
             infra_datasets::from_env()
-                .map_err(|e| EngineError::Unknown(e.display_chain()))?
+                .map_err(EngineError::Catalog)?
                 .unwrap_or_default(),
         ),
         datasets: Arc::new(infra_pg::PgDatasetRepository::new(pg_pool.clone())),
@@ -121,14 +130,14 @@ async fn main() -> EngineResult<()> {
     let app = api_http::app(state);
     let listener = TcpListener::bind(addr)
         .await
-        .map_err(|e| EngineError::Unknown(format!("failed to bind {addr}: {e}")))?;
+        .map_err(|source| EngineError::Bind { addr, source })?;
 
     info!(event_type = "server.started", %addr, "server listening");
 
     serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await
-        .map_err(|e| EngineError::Unknown(e.to_string()))?;
+        .map_err(EngineError::Serve)?;
 
     info!("server shut down");
     Ok(())
@@ -145,12 +154,15 @@ async fn main() -> EngineResult<()> {
 ///
 /// # Errors
 ///
-/// Return [`EngineError::Unknown`] if `<var>_FILE` is set but cannot be read.
+/// Returns [`EngineError::SecretFile`] if `<var>_FILE` is set but cannot be read.
 fn resolve_secret(var: &str, dev_default: &str) -> EngineResult<String> {
     if let Ok(path) = env::var(format!("{var}_FILE")) {
-        let contents = std::fs::read_to_string(&path).map_err(|e| {
-            EngineError::Unknown(format!("failed to read {var}_FILE at {path}: {e}"))
-        })?;
+        let contents =
+            std::fs::read_to_string(&path).map_err(|source| EngineError::SecretFile {
+                variable: var.to_owned(),
+                path: path.into(),
+                source,
+            })?;
         return Ok(contents.trim().to_owned());
     }
 

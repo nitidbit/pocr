@@ -43,7 +43,7 @@ async fn main() -> ExitCode {
     match run().await {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            error!(error = %e, "migration failed");
+            error!(error = %format!("{:#}", anyhow::Error::from(e)), "migration failed");
             ExitCode::FAILURE
         }
     }

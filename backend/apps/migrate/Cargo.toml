@@ -9,6 +9,7 @@ name = "pocr-migrate"
 path = "src/main.rs"
 
 [dependencies]
+anyhow.workspace = true
 pocr-core = { path = "../../crates/core" }
 infra-pg = { path = "../../crates/infra-pg" }
 infra-redis = { path = "../../crates/infra-redis" }

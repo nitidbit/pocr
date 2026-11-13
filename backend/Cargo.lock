@@ -1870,6 +1870,7 @@ dependencies = [
 name = "pocr-engine"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "api-http",
  "async-trait",
  "axum",
@@ -1894,6 +1895,7 @@ dependencies = [
 name = "pocr-migrate"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "infra-pg",
  "infra-redis",
@@ -1914,6 +1916,7 @@ dependencies = [
 name = "pocr-sync"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "futures",
  "infra-caboodle",

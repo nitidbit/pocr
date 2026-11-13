@@ -23,7 +23,7 @@ async fn main() -> ExitCode {
     match run().await {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            error!(error = %e, "sync failed");
+            error!(error = %format!("{:#}", anyhow::Error::from(e)), "sync failed");
             ExitCode::FAILURE
         }
     }

@@ -5,6 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
+anyhow.workspace = true
 infra-datasets = { path = "../../crates/infra-datasets" }
 infra-caboodle = { path = "../../crates/infra-caboodle" }
 futures.workspace = true

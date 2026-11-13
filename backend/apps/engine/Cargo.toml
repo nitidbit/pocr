@@ -5,6 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
+anyhow.workspace = true
 infra-datasets = { path = "../../crates/infra-datasets" }
 api-http = { path = "../../crates/api-http" }
 pocr-core = { path = "../../crates/core" }
