@@ -53,8 +53,13 @@ async fn main() -> ExitCode {
 #[derive(Debug, thiserror::Error)]
 enum RunError {
     /// A required configuration value was missing.
-    #[error("missing required env var: {0}")]
-    MissingEnv(&'static str),
+    #[error("missing required env var: {key}")]
+    MissingEnv {
+        /// Name of the missing variable.
+        key: &'static str,
+        /// Why the lookup failed.
+        source: env::VarError,
+    },
     /// Connecting to the legacy or POCR Redis failed.
     #[error("redis connection error")]
     Redis(#[from] redis::RedisError),
@@ -70,7 +75,7 @@ enum RunError {
 }
 
 fn required_env(key: &'static str) -> Result<String, RunError> {
-    env::var(key).map_err(|_| RunError::MissingEnv(key))
+    env::var(key).map_err(|source| RunError::MissingEnv { key, source })
 }
 
 async fn run() -> Result<(), RunError> {

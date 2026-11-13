@@ -25,7 +25,7 @@ use crate::legacy::{
 };
 
 /// Errors from translating a legacy record into a core model.
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error)]
 pub enum TransformError {
     /// A proto `StudyStatus` ordinal outside the known `1..=3` range.
     #[error("unknown study status ordinal: {0}")]
@@ -41,12 +41,12 @@ pub enum TransformError {
     UnknownArm(String),
     /// A legacy block could not be reconstructed into a core
     /// [`RandomPermutedBlock`] from its injected-id serialized form.
-    #[error("failed to construct block for study {study_id}: {message}")]
+    #[error("failed to construct block for study {study_id}")]
     BlockConstruction {
         /// The remapped study id the block belongs to.
-        study_id: String,
-        /// The underlying deserialization error message.
-        message: String,
+        study_id: Uuid,
+        /// The underlying deserialization error.
+        source: serde_json::Error,
     },
 }
 
@@ -237,9 +237,9 @@ pub fn transform_block(
         "index": legacy.index,
         "values": legacy.values,
     });
-    serde_json::from_value(value).map_err(|e| TransformError::BlockConstruction {
-        study_id: new_study_id.to_string(),
-        message: e.to_string(),
+    serde_json::from_value(value).map_err(|source| TransformError::BlockConstruction {
+        study_id: new_study_id,
+        source,
     })
 }
 
@@ -262,8 +262,14 @@ mod tests {
 
     #[test]
     fn status_rejects_unspecified_and_unknown() {
-        assert_eq!(transform_status(0), Err(TransformError::UnknownStatus(0)));
-        assert_eq!(transform_status(9), Err(TransformError::UnknownStatus(9)));
+        assert!(matches!(
+            transform_status(0),
+            Err(TransformError::UnknownStatus(0))
+        ));
+        assert!(matches!(
+            transform_status(9),
+            Err(TransformError::UnknownStatus(9))
+        ));
     }
 
     #[test]
@@ -277,10 +283,10 @@ mod tests {
 
     #[test]
     fn strategy_rejects_unspecified() {
-        assert_eq!(
+        assert!(matches!(
             transform_strategy(0),
             Err(TransformError::UnknownStrategy(0))
-        );
+        ));
     }
 
     #[test]
@@ -396,7 +402,7 @@ mod tests {
         .unwrap();
 
         let err = transform_study(&legacy, Uuid::now_v7(), &HashMap::new()).unwrap_err();
-        assert_eq!(err, TransformError::UnknownArm("missing".to_string()));
+        assert!(matches!(err, TransformError::UnknownArm(ref id) if id == "missing"));
     }
 
     #[test]
