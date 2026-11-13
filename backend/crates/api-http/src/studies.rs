@@ -18,7 +18,7 @@ use crate::AppState;
 use crate::error::ApiError;
 use crate::extractors::AuthUser;
 
-/// Append an audit event for a study mutation, best-effort.
+/// Appends an audit event for a study mutation, best-effort.
 ///
 /// A failed audit write is logged at WARN and swallowed so a transient audit
 /// store outage never fails an otherwise-successful mutation. `event_type`
@@ -90,7 +90,7 @@ pub struct TransitionStudyRequest {
     pub status: StudyStatus,
 }
 
-/// List all studies for the current user.
+/// Lists all studies for the current user.
 pub async fn list_studies(
     State(state): State<AppState>,
     user: AuthUser,
@@ -99,7 +99,7 @@ pub async fn list_studies(
     Ok(Json(studies))
 }
 
-/// Get a single study by ID.
+/// Gets a single study by ID.
 pub async fn get_study(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -112,7 +112,7 @@ pub async fn get_study(
     Ok(Json(study))
 }
 
-/// List a study's audit history, newest-first.
+/// Lists a study's audit history, newest-first.
 pub async fn list_audit(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -121,7 +121,7 @@ pub async fn list_audit(
     Ok(Json(events))
 }
 
-/// Validate a create study request, returning a list of errors.
+/// Validates a create study request, returning a list of errors.
 fn validate_create_request(req: &CreateStudyRequest) -> Vec<String> {
     let mut errors = Vec::new();
 
@@ -156,7 +156,7 @@ fn validate_create_request(req: &CreateStudyRequest) -> Vec<String> {
     errors
 }
 
-/// Validate a batch of arm-ratio updates against a study's current config.
+/// Validates a batch of arm-ratio updates against a study's current config.
 ///
 /// Returns the collected human-readable errors; an empty vec means the update
 /// is valid. The updates are applied to a copy of the current ratios so that
@@ -209,7 +209,7 @@ fn validate_ratio_updates(config: &RandomizationConfig, updates: &[ArmRatioUpdat
     errors
 }
 
-/// Create a new study.
+/// Creates a new study.
 pub async fn create_study(
     State(state): State<AppState>,
     user: AuthUser,
@@ -269,7 +269,7 @@ pub async fn create_study(
     Ok((StatusCode::CREATED, Json(saved)))
 }
 
-/// Update an existing study.
+/// Updates an existing study.
 pub async fn update_study(
     State(state): State<AppState>,
     user: AuthUser,
@@ -315,7 +315,7 @@ pub async fn update_study(
     Ok(Json(saved))
 }
 
-/// Transition a study to a new lifecycle status.
+/// Transitions a study to a new lifecycle status.
 ///
 /// Enforces the study state machine (`Study::transition_to`): illegal
 /// transitions and go-live with an invalid config are rejected. Going live
@@ -359,7 +359,7 @@ pub async fn transition_study(
     Ok(Json(saved))
 }
 
-/// Delete all non-production randomizations and cached blocks for a study.
+/// Deletes all non-production randomizations and cached blocks for a study.
 ///
 /// Resets test data so a fresh non-production run starts from a clean
 /// sequence. Production state is never touched.
@@ -402,7 +402,7 @@ pub async fn purge_nonproduction(
     })))
 }
 
-/// Delete a study.
+/// Deletes a study.
 pub async fn delete_study(
     State(state): State<AppState>,
     user: AuthUser,
@@ -439,7 +439,7 @@ pub struct SetLocatorRequest {
     pub locator: u64,
 }
 
-/// Set the Epic locator ID for a specific arm in a study.
+/// Sets the Epic locator ID for a specific arm in a study.
 pub async fn set_arm_locator(
     State(state): State<AppState>,
     user: AuthUser,
@@ -503,7 +503,7 @@ pub struct UpdateRatiosRequest {
     pub arms: Vec<ArmRatioUpdate>,
 }
 
-/// Update the allocation ratios of one or more arms in a study.
+/// Updates the allocation ratios of one or more arms in a study.
 ///
 /// Ratios are editable in both draft and active studies. The change takes
 /// effect only for permuted blocks generated *after* it is saved: block
@@ -522,10 +522,10 @@ pub struct UpdateRatiosRequest {
 ///
 /// # Errors
 ///
-/// Return [`ApiError::NotFound`] if the study does not exist.
-/// Return [`ApiError::ValidationFailed`] if the updates are invalid
+/// Returns [`ApiError::NotFound`] if the study does not exist.
+/// Returns [`ApiError::ValidationFailed`] if the updates are invalid
 /// (see [`validate_ratio_updates`]).
-/// Return [`ApiError::Internal`] if the audit event or study cannot be saved.
+/// Returns [`ApiError::Internal`] if the audit event or study cannot be saved.
 pub async fn update_ratios(
     State(state): State<AppState>,
     user: AuthUser,

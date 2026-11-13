@@ -4,7 +4,7 @@ use axum::extract::FromRequestParts;
 use axum::http::StatusCode;
 use axum::http::request::Parts;
 
-/// Normalize an email-form identity: trim surrounding whitespace and lowercase.
+/// Normalizes an email-form identity: trims surrounding whitespace and lowercases.
 ///
 /// Google addresses are case-insensitive; applying this at every boundary that
 /// ingests an email keeps a single person from acquiring divergent identities

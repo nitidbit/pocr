@@ -17,7 +17,7 @@ struct MeResponse {
     groups: Vec<String>,
 }
 
-/// `GET /api/me` — Return the authenticated user's identity from Vouch headers.
+/// `GET /api/me` — Returns the authenticated user's identity from Vouch headers.
 ///
 /// The user identity comes from the `X-Vouch-User` header via [`AuthUser`],
 /// which rejects unauthenticated requests in release builds and falls back to a

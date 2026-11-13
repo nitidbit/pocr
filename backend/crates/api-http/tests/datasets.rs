@@ -140,7 +140,7 @@ impl Harness {
         id
     }
 
-    /// Attach, then publish one snapshot row whose `disposition` is `disposition`.
+    /// Attaches, then publishes one snapshot row whose `disposition` is `disposition`.
     async fn publish(&self, environment: Environment, disposition: &str) -> Uuid {
         self.publish_under(environment, disposition, &self.definition.clone())
             .await

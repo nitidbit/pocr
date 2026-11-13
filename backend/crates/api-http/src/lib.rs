@@ -73,7 +73,7 @@ impl FromRef<AppState> for datasets::DatasetsState {
     }
 }
 
-/// Build the full application router with shared state.
+/// Builds the full application router with shared state.
 pub fn app(state: AppState) -> Router {
     let api_v1 = Router::new()
         .route("/studies", get(list_studies).post(create_study))

@@ -38,7 +38,7 @@ impl Role {
     }
 }
 
-/// Parse a role string, returning `None` for any unrecognized value.
+/// Parses a role string, returning `None` for any unrecognized value.
 fn parse_role(raw: &str) -> Option<Role> {
     match raw {
         "member" => Some(Role::Member),
@@ -47,7 +47,7 @@ fn parse_role(raw: &str) -> Option<Role> {
     }
 }
 
-/// Validate a normalized email address. Requires a non-empty value containing
+/// Validates a normalized email address. Requires a non-empty value containing
 /// an `@`.
 fn validate_email(email: &str) -> Result<(), ApiError> {
     if email.is_empty() {
@@ -59,7 +59,7 @@ fn validate_email(email: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
-/// Decide whether a caller holding `current` role may perform an operation
+/// Decides whether a caller holding `current` role may perform an operation
 /// requiring at least `min_role`.
 ///
 /// A caller with no membership yields [`ApiError::NotFound`] — this hides the
@@ -75,7 +75,7 @@ fn decide_access(current: Option<Role>, min_role: Role) -> Result<(), ApiError> 
     }
 }
 
-/// Determine whether removing or demoting `target_email` would leave the study
+/// Determines whether removing or demoting `target_email` would leave the study
 /// with no owner.
 ///
 /// Returns `true` only when `target_email` is currently the sole owner. Email
@@ -85,7 +85,7 @@ fn would_orphan(members: &[StudyMember], target_email: &str) -> bool {
     owners.len() == 1 && owners[0].user_id == target_email
 }
 
-/// Fetch the caller's role in a study.
+/// Fetches the caller's role in a study.
 ///
 /// A caller with no membership, or a stored role this build does not
 /// recognize, yields [`ApiError::NotFound`] so inaccessible studies stay hidden.
@@ -102,7 +102,7 @@ pub(crate) async fn caller_role(
         .ok_or(ApiError::NotFound)
 }
 
-/// Fetch the caller's role and authorize against `min_role`.
+/// Fetches the caller's role and authorizes against `min_role`.
 async fn require_role(
     state: &AppState,
     study_id: &Uuid,
@@ -128,7 +128,7 @@ pub struct UpdateRoleRequest {
     pub role: String,
 }
 
-/// Look up a single member of a study by normalized email after a write.
+/// Looks up a single member of a study by normalized email after a write.
 async fn find_member(
     state: &AppState,
     study_id: &Uuid,
@@ -143,7 +143,7 @@ async fn find_member(
         .ok_or(ApiError::NotFound)
 }
 
-/// `GET /studies/{id}/members` — list every member of a study.
+/// `GET /studies/{id}/members` — lists every member of a study.
 ///
 /// Any member may view the roster.
 pub async fn list(
@@ -156,7 +156,7 @@ pub async fn list(
     Ok(Json(members))
 }
 
-/// `POST /studies/{id}/members` — add a member or upsert their role.
+/// `POST /studies/{id}/members` — adds a member or upserts their role.
 ///
 /// Owner-only. Adding an email that already has access updates the role.
 /// Demoting the study's last owner to `member` is rejected with `409`.
@@ -200,7 +200,7 @@ pub async fn add(
     Ok((StatusCode::CREATED, Json(member)))
 }
 
-/// `PUT /studies/{id}/members/{email}` — change an existing member's role.
+/// `PUT /studies/{id}/members/{email}` — changes an existing member's role.
 ///
 /// Owner-only. Demoting the study's last owner to `member` is rejected with
 /// `409`. Returns `200` with the updated member.
@@ -243,7 +243,7 @@ pub async fn update_role(
     Ok((StatusCode::OK, Json(member)))
 }
 
-/// `DELETE /studies/{id}/members/{email}` — revoke a member's access.
+/// `DELETE /studies/{id}/members/{email}` — revokes a member's access.
 ///
 /// Owner-only. Removing the study's last owner is rejected with `409`.
 /// Returns `204`.

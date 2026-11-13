@@ -34,7 +34,7 @@ pub async fn discover_services() -> impl IntoResponse {
     Json(discovery)
 }
 
-/// `POST /cds-services/randomization` — Execute randomization via CDS Hooks.
+/// `POST /cds-services/randomization` — Executes randomization via CDS Hooks.
 pub async fn randomize(
     State(state): State<AppState>,
     Json(request): Json<CdsHookRequest>,
@@ -208,7 +208,7 @@ pub async fn randomize(
     }
 }
 
-/// Extract the Epic locator ID from the CDS Hooks request extension.
+/// Extracts the Epic locator ID from the CDS Hooks request extension.
 fn extract_locator(request: &CdsHookRequest) -> Option<u64> {
     // Epic sends locator in extension as criteria-id
     request

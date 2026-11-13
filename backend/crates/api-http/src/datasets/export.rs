@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use pocr_core::dataset::{Field, FieldName, Snapshot, SystemColumn};
 
-/// Prefix `raw` with a quote when a spreadsheet would read it as a formula.
+/// Prefixes `raw` with a quote when a spreadsheet would read it as a formula.
 fn protect(raw: &str) -> Cow<'_, str> {
     let starts_like_formula = raw
         .trim_start_matches(|c: char| c.is_whitespace() || c.is_control())
@@ -19,7 +19,7 @@ fn protect(raw: &str) -> Cow<'_, str> {
     }
 }
 
-/// Render a field value; only strings are protected, so negative numbers stay numeric.
+/// Renders a field value; only strings are protected, so negative numbers stay numeric.
 fn field_cell(value: Option<&Value>) -> Cow<'_, str> {
     match value {
         Some(Value::String(text)) => protect(text),
@@ -28,7 +28,7 @@ fn field_cell(value: Option<&Value>) -> Cow<'_, str> {
     }
 }
 
-/// Render `snapshot` as fully quoted, CRLF-terminated CSV: the system columns,
+/// Renders `snapshot` as fully quoted, CRLF-terminated CSV: the system columns,
 /// then the definition's fields in declared order.
 ///
 /// Header cells are written unprotected: system columns and field names are

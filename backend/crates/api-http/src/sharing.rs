@@ -46,7 +46,7 @@ struct JoinResponse {
     role: String,
 }
 
-/// Generate a share token for a study. Token is valid for 7 days.
+/// Generates a share token for a study. Token is valid for 7 days.
 pub async fn share_study(
     State(state): State<AppState>,
     user: AuthUser,
@@ -84,7 +84,7 @@ pub async fn share_study(
     Ok((StatusCode::CREATED, Json(ShareResponse { token })))
 }
 
-/// Join a study using a share token.
+/// Joins a study using a share token.
 pub async fn join_study(
     State(state): State<AppState>,
     user: AuthUser,

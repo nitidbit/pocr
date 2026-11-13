@@ -132,7 +132,7 @@ pub async fn get_system_status(State(state): State<AppState>) -> impl IntoRespon
     })
 }
 
-/// Ping a service and report its status alongside the measured latency.
+/// Pings a service and reports its status alongside the measured latency.
 async fn probe(service: &dyn HealthCheckable) -> ServiceHealth {
     let start = Instant::now();
     let result = service.ping().await;
@@ -151,7 +151,7 @@ async fn probe(service: &dyn HealthCheckable) -> ServiceHealth {
     }
 }
 
-/// Read and parse the TLS certificate chain at `cert_path`.
+/// Reads and parses the TLS certificate chain at `cert_path`.
 ///
 /// Reports the soonest-expiring certificate across the whole chain so an
 /// expiring intermediate is not masked by a longer-lived leaf. Distinguishes
@@ -239,7 +239,7 @@ struct CertValidity {
     not_after: DateTime<Utc>,
 }
 
-/// Summarize a certificate chain into a [`TlsInfo`], reporting the
+/// Summarizes a certificate chain into a [`TlsInfo`], reporting the
 /// soonest-expiring certificate and treating the chain as valid only if every
 /// certificate is currently within its validity window.
 ///

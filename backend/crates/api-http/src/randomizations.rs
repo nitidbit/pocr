@@ -69,7 +69,7 @@ impl From<Randomization> for RandomizationResponse {
     }
 }
 
-/// List randomizations for a study within one environment, with pagination.
+/// Lists randomizations for a study within one environment, with pagination.
 ///
 /// Defaults to production records; pass `?environment=nonproduction` to view
 /// test data.

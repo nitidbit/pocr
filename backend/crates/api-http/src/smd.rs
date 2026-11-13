@@ -15,7 +15,7 @@ pub struct ArmStats {
     pub sd: f64,
 }
 
-/// Compute the absolute SMD for a continuous variable between two arms.
+/// Computes the absolute SMD for a continuous variable between two arms.
 ///
 /// Formula: `|mean1 - mean2| / sqrt((sd1^2 + sd2^2) / 2)`
 ///
@@ -28,7 +28,7 @@ pub fn smd_continuous(mean1: f64, sd1: f64, mean2: f64, sd2: f64) -> f64 {
     (mean1 - mean2).abs() / pooled_variance.sqrt()
 }
 
-/// Compute the absolute SMD for a binary categorical variable between two arms.
+/// Computes the absolute SMD for a binary categorical variable between two arms.
 ///
 /// Formula: `|p1 - p2| / sqrt((p1*(1-p1) + p2*(1-p2)) / 2)`
 ///
@@ -41,7 +41,7 @@ pub fn smd_categorical(p1: f64, p2: f64) -> f64 {
     (p1 - p2).abs() / pooled_variance.sqrt()
 }
 
-/// Compute the maximum pairwise SMD across all arm pairs.
+/// Computes the maximum pairwise SMD across all arm pairs.
 ///
 /// For multi-arm studies, the largest pairwise SMD indicates the worst imbalance.
 /// Returns 0.0 if fewer than two arms are provided.

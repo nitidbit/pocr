@@ -51,7 +51,7 @@ pub struct DatasetsState {
     pub studies: Arc<dyn StudyRepository>,
 }
 
-/// Build the dataset routes under `/studies/{study_id}`.
+/// Builds the dataset routes under `/studies/{study_id}`.
 ///
 /// Merge the result into the authenticated API router of any state that
 /// yields a [`DatasetsState`]; every handler authorizes the caller through
@@ -169,7 +169,7 @@ struct Incompatibility {
     reason: IncompatibilityKind,
 }
 
-/// Overlay deployed title and description on an attachment and flag drift.
+/// Overlays deployed title and description on an attachment and flags drift.
 fn describe(attachment: Attachment, current: Option<&DatasetDefinition>) -> DatasetAttachment {
     let definition_changed = match (&attachment.snapshot, current) {
         (Some(published), Some(deployed)) => deployed.fingerprint() != published.fingerprint,
@@ -199,7 +199,7 @@ fn describe(attachment: Attachment, current: Option<&DatasetDefinition>) -> Data
     }
 }
 
-/// Allow only study owners; non-members get not found, members forbidden.
+/// Allows only study owners; non-members get not found, members forbidden.
 async fn require_owner(
     state: &DatasetsState,
     study: &Uuid,
@@ -215,7 +215,7 @@ async fn require_owner(
     }
 }
 
-/// `GET /studies/{study_id}/datasets` — list the catalog and the study's
+/// `GET /studies/{study_id}/datasets` — lists the catalog and the study's
 /// attachments in one environment. Any member.
 #[instrument(skip_all, fields(study_id = %study))]
 pub async fn list(
@@ -252,7 +252,7 @@ pub async fn list(
     }))
 }
 
-/// `POST /studies/{study_id}/datasets` — attach a deployed dataset to the
+/// `POST /studies/{study_id}/datasets` — attaches a deployed dataset to the
 /// study in both environments. Owners only.
 ///
 /// A well-formed name that is not deployed is rejected with 400. A name that is
@@ -276,7 +276,7 @@ pub async fn attach(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// `DELETE /studies/{study_id}/datasets/{name}` — detach a dataset and delete
+/// `DELETE /studies/{study_id}/datasets/{name}` — detaches a dataset and deletes
 /// its snapshots in both environments. Owners only.
 #[instrument(skip_all, fields(study_id = %study, dataset_name = %name))]
 pub async fn detach(

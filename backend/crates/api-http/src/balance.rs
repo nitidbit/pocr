@@ -84,10 +84,10 @@ pub struct CategoricalArmData {
 
 // -- Handler --
 
-/// Retrieve demographic balance data for a study.
+/// Retrieves demographic balance data for a study.
 ///
-/// Fetch demographics+arm records, aggregate per-arm stats, compute SMD for
-/// each variable, and apply small-cell suppression.
+/// Fetches demographics and arm records, aggregates per-arm statistics, computes
+/// the SMD of each variable, and applies small-cell suppression.
 ///
 /// Returns an empty `variables` array when no demographics have been synced.
 #[instrument(name = "balance.get", skip(state), fields(%study_id))]
@@ -119,7 +119,7 @@ pub async fn get_balance(
 
 // -- Aggregation logic --
 
-/// Build the full balance response from raw demographics records.
+/// Builds the full balance response from raw demographics records.
 fn build_balance_response(
     study_id: Uuid,
     records: &[PatientDemographicsWithArm],
@@ -194,7 +194,7 @@ fn build_balance_response(
     }
 }
 
-/// Collect unique arm IDs from records, preserving insertion order.
+/// Collects unique arm IDs from records, preserving insertion order.
 fn collect_arm_ids(records: &[PatientDemographicsWithArm]) -> Vec<Uuid> {
     let mut seen = HashMap::new();
     let mut ids = Vec::new();
@@ -206,15 +206,15 @@ fn collect_arm_ids(records: &[PatientDemographicsWithArm]) -> Vec<Uuid> {
     ids
 }
 
-/// Compute age in years from a birth date to a reference date.
+/// Computes age in years from a birth date to a reference date.
 fn age_in_years(birth_date: NaiveDate, today: NaiveDate) -> f64 {
     let years = today.years_since(birth_date).unwrap_or(0);
     f64::from(years)
 }
 
-/// Build a continuous variable (mean, SD, SMD) from an extractor function.
+/// Builds a continuous variable (mean, SD, SMD) from an extractor function.
 ///
-/// Return `None` if no arm has any non-missing values.
+/// Returns `None` if no arm has any non-missing values.
 fn build_continuous_variable(
     name: &str,
     records: &[PatientDemographicsWithArm],
@@ -261,9 +261,9 @@ fn build_continuous_variable(
     })
 }
 
-/// Build a categorical variable with per-level SMD and small-cell suppression.
+/// Builds a categorical variable with per-level SMD and small-cell suppression.
 ///
-/// Return `None` if no values exist across all arms.
+/// Returns `None` if no values exist across all arms.
 fn build_categorical_variable(
     name: &str,
     records: &[PatientDemographicsWithArm],
@@ -375,7 +375,7 @@ fn compute_sd(values: &[f64]) -> f64 {
     variance.sqrt()
 }
 
-/// Round a percentage to one decimal place.
+/// Rounds a percentage to one decimal place.
 fn round_pct(value: f64) -> f64 {
     (value * 10.0).round() / 10.0
 }
