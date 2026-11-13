@@ -11,20 +11,20 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
-import { Route as AppUsersIndexRouteImport } from './routes/_app/users/index'
-import { Route as AppSystemIndexRouteImport } from './routes/_app/system/index'
-import { Route as AppStudiesIndexRouteImport } from './routes/_app/studies/index'
-import { Route as AppStrataIndexRouteImport } from './routes/_app/strata/index'
-import { Route as AppReportsIndexRouteImport } from './routes/_app/reports/index'
 import { Route as AppContextIndexRouteImport } from './routes/_app/context/index'
-import { Route as AppStudiesNewRouteImport } from './routes/_app/studies/new'
+import { Route as AppReportsIndexRouteImport } from './routes/_app/reports/index'
+import { Route as AppStrataIndexRouteImport } from './routes/_app/strata/index'
+import { Route as AppStudiesIndexRouteImport } from './routes/_app/studies/index'
 import { Route as AppStudiesStudyIdRouteImport } from './routes/_app/studies/$studyId'
+import { Route as AppStudiesNewRouteImport } from './routes/_app/studies/new'
+import { Route as AppSystemIndexRouteImport } from './routes/_app/system/index'
+import { Route as AppUsersIndexRouteImport } from './routes/_app/users/index'
 import { Route as AppStudiesStudyIdIndexRouteImport } from './routes/_app/studies/$studyId/index'
-import { Route as AppStudiesStudyIdMonitorRouteImport } from './routes/_app/studies/$studyId/monitor'
-import { Route as AppStudiesStudyIdDatasetsRouteImport } from './routes/_app/studies/$studyId/datasets'
-import { Route as AppStudiesStudyIdConfigRouteImport } from './routes/_app/studies/$studyId/config'
-import { Route as AppStudiesStudyIdAuditRouteImport } from './routes/_app/studies/$studyId/audit'
 import { Route as AppStudiesStudyIdAccessRouteImport } from './routes/_app/studies/$studyId/access'
+import { Route as AppStudiesStudyIdAuditRouteImport } from './routes/_app/studies/$studyId/audit'
+import { Route as AppStudiesStudyIdConfigRouteImport } from './routes/_app/studies/$studyId/config'
+import { Route as AppStudiesStudyIdDatasetsRouteImport } from './routes/_app/studies/$studyId/datasets'
+import { Route as AppStudiesStudyIdMonitorRouteImport } from './routes/_app/studies/$studyId/monitor'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -35,24 +35,9 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppUsersIndexRoute = AppUsersIndexRouteImport.update({
-  id: '/users/',
-  path: '/users/',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSystemIndexRoute = AppSystemIndexRouteImport.update({
-  id: '/system/',
-  path: '/system/',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppStudiesIndexRoute = AppStudiesIndexRouteImport.update({
-  id: '/studies/',
-  path: '/studies/',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppStrataIndexRoute = AppStrataIndexRouteImport.update({
-  id: '/strata/',
-  path: '/strata/',
+const AppContextIndexRoute = AppContextIndexRouteImport.update({
+  id: '/context/',
+  path: '/context/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppReportsIndexRoute = AppReportsIndexRouteImport.update({
@@ -60,14 +45,14 @@ const AppReportsIndexRoute = AppReportsIndexRouteImport.update({
   path: '/reports/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppContextIndexRoute = AppContextIndexRouteImport.update({
-  id: '/context/',
-  path: '/context/',
+const AppStrataIndexRoute = AppStrataIndexRouteImport.update({
+  id: '/strata/',
+  path: '/strata/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppStudiesNewRoute = AppStudiesNewRouteImport.update({
-  id: '/studies/new',
-  path: '/studies/new',
+const AppStudiesIndexRoute = AppStudiesIndexRouteImport.update({
+  id: '/studies/',
+  path: '/studies/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppStudiesStudyIdRoute = AppStudiesStudyIdRouteImport.update({
@@ -75,31 +60,24 @@ const AppStudiesStudyIdRoute = AppStudiesStudyIdRouteImport.update({
   path: '/studies/$studyId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppStudiesNewRoute = AppStudiesNewRouteImport.update({
+  id: '/studies/new',
+  path: '/studies/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSystemIndexRoute = AppSystemIndexRouteImport.update({
+  id: '/system/',
+  path: '/system/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppUsersIndexRoute = AppUsersIndexRouteImport.update({
+  id: '/users/',
+  path: '/users/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppStudiesStudyIdIndexRoute = AppStudiesStudyIdIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AppStudiesStudyIdRoute,
-} as any)
-const AppStudiesStudyIdMonitorRoute =
-  AppStudiesStudyIdMonitorRouteImport.update({
-    id: '/monitor',
-    path: '/monitor',
-    getParentRoute: () => AppStudiesStudyIdRoute,
-  } as any)
-const AppStudiesStudyIdDatasetsRoute =
-  AppStudiesStudyIdDatasetsRouteImport.update({
-    id: '/datasets',
-    path: '/datasets',
-    getParentRoute: () => AppStudiesStudyIdRoute,
-  } as any)
-const AppStudiesStudyIdConfigRoute = AppStudiesStudyIdConfigRouteImport.update({
-  id: '/config',
-  path: '/config',
-  getParentRoute: () => AppStudiesStudyIdRoute,
-} as any)
-const AppStudiesStudyIdAuditRoute = AppStudiesStudyIdAuditRouteImport.update({
-  id: '/audit',
-  path: '/audit',
   getParentRoute: () => AppStudiesStudyIdRoute,
 } as any)
 const AppStudiesStudyIdAccessRoute = AppStudiesStudyIdAccessRouteImport.update({
@@ -107,6 +85,28 @@ const AppStudiesStudyIdAccessRoute = AppStudiesStudyIdAccessRouteImport.update({
   path: '/access',
   getParentRoute: () => AppStudiesStudyIdRoute,
 } as any)
+const AppStudiesStudyIdAuditRoute = AppStudiesStudyIdAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => AppStudiesStudyIdRoute,
+} as any)
+const AppStudiesStudyIdConfigRoute = AppStudiesStudyIdConfigRouteImport.update({
+  id: '/config',
+  path: '/config',
+  getParentRoute: () => AppStudiesStudyIdRoute,
+} as any)
+const AppStudiesStudyIdDatasetsRoute =
+  AppStudiesStudyIdDatasetsRouteImport.update({
+    id: '/datasets',
+    path: '/datasets',
+    getParentRoute: () => AppStudiesStudyIdRoute,
+  } as any)
+const AppStudiesStudyIdMonitorRoute =
+  AppStudiesStudyIdMonitorRouteImport.update({
+    id: '/monitor',
+    path: '/monitor',
+    getParentRoute: () => AppStudiesStudyIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -234,32 +234,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/users/': {
-      id: '/_app/users/'
-      path: '/users'
-      fullPath: '/users/'
-      preLoaderRoute: typeof AppUsersIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/system/': {
-      id: '/_app/system/'
-      path: '/system'
-      fullPath: '/system/'
-      preLoaderRoute: typeof AppSystemIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/studies/': {
-      id: '/_app/studies/'
-      path: '/studies'
-      fullPath: '/studies/'
-      preLoaderRoute: typeof AppStudiesIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/strata/': {
-      id: '/_app/strata/'
-      path: '/strata'
-      fullPath: '/strata/'
-      preLoaderRoute: typeof AppStrataIndexRouteImport
+    '/_app/context/': {
+      id: '/_app/context/'
+      path: '/context'
+      fullPath: '/context/'
+      preLoaderRoute: typeof AppContextIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/reports/': {
@@ -269,18 +248,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppReportsIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/context/': {
-      id: '/_app/context/'
-      path: '/context'
-      fullPath: '/context/'
-      preLoaderRoute: typeof AppContextIndexRouteImport
+    '/_app/strata/': {
+      id: '/_app/strata/'
+      path: '/strata'
+      fullPath: '/strata/'
+      preLoaderRoute: typeof AppStrataIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/studies/new': {
-      id: '/_app/studies/new'
-      path: '/studies/new'
-      fullPath: '/studies/new'
-      preLoaderRoute: typeof AppStudiesNewRouteImport
+    '/_app/studies/': {
+      id: '/_app/studies/'
+      path: '/studies'
+      fullPath: '/studies/'
+      preLoaderRoute: typeof AppStudiesIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/studies/$studyId': {
@@ -290,6 +269,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStudiesStudyIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/studies/new': {
+      id: '/_app/studies/new'
+      path: '/studies/new'
+      fullPath: '/studies/new'
+      preLoaderRoute: typeof AppStudiesNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/system/': {
+      id: '/_app/system/'
+      path: '/system'
+      fullPath: '/system/'
+      preLoaderRoute: typeof AppSystemIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/users/': {
+      id: '/_app/users/'
+      path: '/users'
+      fullPath: '/users/'
+      preLoaderRoute: typeof AppUsersIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/studies/$studyId/': {
       id: '/_app/studies/$studyId/'
       path: '/'
@@ -297,25 +297,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStudiesStudyIdIndexRouteImport
       parentRoute: typeof AppStudiesStudyIdRoute
     }
-    '/_app/studies/$studyId/monitor': {
-      id: '/_app/studies/$studyId/monitor'
-      path: '/monitor'
-      fullPath: '/studies/$studyId/monitor'
-      preLoaderRoute: typeof AppStudiesStudyIdMonitorRouteImport
-      parentRoute: typeof AppStudiesStudyIdRoute
-    }
-    '/_app/studies/$studyId/datasets': {
-      id: '/_app/studies/$studyId/datasets'
-      path: '/datasets'
-      fullPath: '/studies/$studyId/datasets'
-      preLoaderRoute: typeof AppStudiesStudyIdDatasetsRouteImport
-      parentRoute: typeof AppStudiesStudyIdRoute
-    }
-    '/_app/studies/$studyId/config': {
-      id: '/_app/studies/$studyId/config'
-      path: '/config'
-      fullPath: '/studies/$studyId/config'
-      preLoaderRoute: typeof AppStudiesStudyIdConfigRouteImport
+    '/_app/studies/$studyId/access': {
+      id: '/_app/studies/$studyId/access'
+      path: '/access'
+      fullPath: '/studies/$studyId/access'
+      preLoaderRoute: typeof AppStudiesStudyIdAccessRouteImport
       parentRoute: typeof AppStudiesStudyIdRoute
     }
     '/_app/studies/$studyId/audit': {
@@ -325,11 +311,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStudiesStudyIdAuditRouteImport
       parentRoute: typeof AppStudiesStudyIdRoute
     }
-    '/_app/studies/$studyId/access': {
-      id: '/_app/studies/$studyId/access'
-      path: '/access'
-      fullPath: '/studies/$studyId/access'
-      preLoaderRoute: typeof AppStudiesStudyIdAccessRouteImport
+    '/_app/studies/$studyId/config': {
+      id: '/_app/studies/$studyId/config'
+      path: '/config'
+      fullPath: '/studies/$studyId/config'
+      preLoaderRoute: typeof AppStudiesStudyIdConfigRouteImport
+      parentRoute: typeof AppStudiesStudyIdRoute
+    }
+    '/_app/studies/$studyId/datasets': {
+      id: '/_app/studies/$studyId/datasets'
+      path: '/datasets'
+      fullPath: '/studies/$studyId/datasets'
+      preLoaderRoute: typeof AppStudiesStudyIdDatasetsRouteImport
+      parentRoute: typeof AppStudiesStudyIdRoute
+    }
+    '/_app/studies/$studyId/monitor': {
+      id: '/_app/studies/$studyId/monitor'
+      path: '/monitor'
+      fullPath: '/studies/$studyId/monitor'
+      preLoaderRoute: typeof AppStudiesStudyIdMonitorRouteImport
       parentRoute: typeof AppStudiesStudyIdRoute
     }
   }
