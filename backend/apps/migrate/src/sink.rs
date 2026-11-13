@@ -48,7 +48,7 @@ pub struct PocrSink {
 }
 
 impl PocrSink {
-    /// Build a sink over a Postgres pool and a Redis pool.
+    /// Builds a sink over a Postgres pool and a Redis pool.
     pub fn new(pool: PgPool, redis: Arc<RedisPool>) -> Self {
         Self {
             studies: PgStudyRepository::new(pool.clone()),
@@ -59,18 +59,18 @@ impl PocrSink {
         }
     }
 
-    /// Upsert a study (idempotent on the study PK).
+    /// Upserts a study (idempotent on the study PK).
     ///
     /// # Errors
     ///
-    /// Return [`SinkError::Repository`] if the underlying study upsert fails.
+    /// Returns [`SinkError::Repository`] if the underlying study upsert fails.
     #[instrument(skip(self, study), fields(study_id = %study.id))]
     pub async fn write_study(&self, study: &Study) -> Result<(), SinkError> {
         self.studies.save(study).await?;
         Ok(())
     }
 
-    /// Upsert a randomization record on `(study_id, environment, unit_hash)`.
+    /// Upserts a randomization record on `(study_id, environment, unit_hash)`.
     ///
     /// Mirrors the `infra-pg` row mapping — `unit_hash`/`strata_key` are the
     /// shared `String::from` hashes — but adds the `ON CONFLICT` clause the
@@ -79,7 +79,7 @@ impl PocrSink {
     ///
     /// # Errors
     ///
-    /// Return [`SinkError::Serialization`] if the arm cannot be encoded to
+    /// Returns [`SinkError::Serialization`] if the arm cannot be encoded to
     /// JSONB, or [`SinkError::Postgres`] if the upsert fails.
     #[instrument(skip(self, rec), fields(study_id = %rec.study_id))]
     pub async fn write_randomization(&self, rec: &Randomization) -> Result<(), SinkError> {
@@ -112,35 +112,35 @@ impl PocrSink {
         Ok(())
     }
 
-    /// Upsert a locator → study mapping.
+    /// Upserts a locator → study mapping.
     ///
     /// # Errors
     ///
-    /// Return [`SinkError::Repository`] if the mapping upsert fails.
+    /// Returns [`SinkError::Repository`] if the mapping upsert fails.
     #[instrument(skip(self))]
     pub async fn write_locator(&self, locator: u64, study_id: &Uuid) -> Result<(), SinkError> {
         self.locators.save_mapping(locator, study_id).await?;
         Ok(())
     }
 
-    /// Associate a user with a study as `owner` (idempotent).
+    /// Associates a user with a study as `owner` (idempotent).
     ///
     /// # Errors
     ///
-    /// Return [`SinkError::Repository`] if the association upsert fails.
+    /// Returns [`SinkError::Repository`] if the association upsert fails.
     #[instrument(skip(self))]
     pub async fn write_owner(&self, user_id: &str, study_id: &Uuid) -> Result<(), SinkError> {
         self.users.add_user(user_id, study_id, "owner").await?;
         Ok(())
     }
 
-    /// Write a production block into the Redis cache.
+    /// Writes a production block into the Redis cache.
     ///
     /// `RedisBlockCache::save_block` keys it `block:production:{study_id}:{stratum_key}`.
     ///
     /// # Errors
     ///
-    /// Return [`SinkError::Repository`] if the Redis block write fails.
+    /// Returns [`SinkError::Repository`] if the Redis block write fails.
     #[instrument(skip(self, block), fields(study_id = %block.study_id))]
     pub async fn write_block(&self, block: &RandomPermutedBlock) -> Result<(), SinkError> {
         self.blocks

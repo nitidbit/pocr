@@ -79,10 +79,15 @@ pub struct MigrationCounts {
     pub blocks: usize,
 }
 
-/// Load an existing manifest from `path`, or return a fresh empty one.
+/// Loads an existing manifest from `path`, or returns a fresh empty one.
 ///
 /// A present manifest makes the run idempotent (ids are reused); its absence
 /// means a clean from-scratch migration.
+///
+/// # Errors
+///
+/// Returns [`MigrateError::Manifest`] if the file exists but cannot be read, or
+/// [`MigrateError::ManifestParse`] if it is not a valid manifest.
 pub fn load_manifest(path: &Path) -> Result<Manifest, MigrateError> {
     match std::fs::read_to_string(path) {
         Ok(contents) => Ok(serde_json::from_str(&contents)?),
@@ -97,7 +102,12 @@ pub fn load_manifest(path: &Path) -> Result<Manifest, MigrateError> {
     }
 }
 
-/// Persist the manifest to `path` as pretty JSON.
+/// Persists the manifest to `path` as pretty JSON.
+///
+/// # Errors
+///
+/// Returns [`MigrateError::ManifestParse`] if serialization fails, or
+/// [`MigrateError::Manifest`] if the file cannot be written.
 pub fn save_manifest(path: &Path, manifest: &Manifest) -> Result<(), MigrateError> {
     let json = serde_json::to_string_pretty(manifest)?;
     std::fs::write(path, json).map_err(|source| MigrateError::Manifest {
@@ -106,13 +116,14 @@ pub fn save_manifest(path: &Path, manifest: &Manifest) -> Result<(), MigrateErro
     })
 }
 
-/// Milliseconds since the unix epoch for an epoch-**seconds** value, clamped at
-/// zero. Used to seed v7 minting from a study's `created_at`.
+/// Converts an epoch-**seconds** value to milliseconds, clamped at zero.
+///
+/// Seeds v7 minting from a study's `created_at`.
 fn seconds_to_millis(secs: i64) -> u64 {
     secs.max(0).cast_unsigned().saturating_mul(1000)
 }
 
-/// Pass 1: populate the study and arm id maps in `manifest` from `studies`.
+/// Pass 1: populates the study and arm id maps in `manifest` from `studies`.
 ///
 /// Each study mints (or reuses) a v7 from its `created_at`; each of its arms
 /// mints (or reuses) a v7 timestamped by the same `created_at`. Also asserts at
@@ -140,11 +151,17 @@ fn build_id_maps(
     Ok(())
 }
 
-/// Run the full two-pass migration.
+/// Runs the full two-pass migration.
 ///
 /// Reads every legacy record via `source`, builds/reuses id maps in `manifest`,
 /// writes transformed rows and blocks via `sink`, and returns the migrated
 /// counts for validation. The caller persists `manifest` afterward.
+///
+/// # Errors
+///
+/// Returns a [`MigrateError`] if reading, transforming, or writing any record
+/// fails, if no migrated study is active, or if a record references an unmapped
+/// study or arm.
 #[instrument(skip_all)]
 pub async fn migrate(
     source: &LegacySource,

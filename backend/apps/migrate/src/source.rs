@@ -42,27 +42,27 @@ pub struct LegacySource {
 }
 
 impl LegacySource {
-    /// Wrap a Redis pool connected to the legacy store.
+    /// Wraps a Redis pool connected to the legacy store.
     pub fn new(pool: RedisPool) -> Self {
         Self { pool }
     }
 
-    /// All `study:*` records.
+    /// Reads all `study:*` records.
     ///
     /// # Errors
     ///
-    /// Return [`SourceError::Redis`] if a SCAN or GET fails, or
+    /// Returns [`SourceError::Redis`] if a `SCAN` or `GET` fails, or
     /// [`SourceError::Parse`] if a stored value is not a valid `LegacyStudy`.
     #[instrument(skip(self))]
     pub async fn studies(&self) -> Result<Vec<LegacyStudy>, SourceError> {
         self.load_prefix("study:").await
     }
 
-    /// All `randomization:*` records.
+    /// Reads all `randomization:*` records.
     ///
     /// # Errors
     ///
-    /// Return [`SourceError::Redis`] if a SCAN or GET fails, or
+    /// Returns [`SourceError::Redis`] if a `SCAN` or `GET` fails, or
     /// [`SourceError::Parse`] if a stored value is not a valid
     /// `LegacyRandomization`.
     #[instrument(skip(self))]
@@ -70,25 +70,25 @@ impl LegacySource {
         self.load_prefix("randomization:").await
     }
 
-    /// All `block:*` records.
+    /// Reads all `block:*` records.
     ///
     /// # Errors
     ///
-    /// Return [`SourceError::Redis`] if a SCAN or GET fails, or
+    /// Returns [`SourceError::Redis`] if a `SCAN` or `GET` fails, or
     /// [`SourceError::Parse`] if a stored value is not a valid `LegacyBlock`.
     #[instrument(skip(self))]
     pub async fn blocks(&self) -> Result<Vec<LegacyBlock>, SourceError> {
         self.load_prefix("block:").await
     }
 
-    /// All `locator:*` records, each paired with its parsed locator id.
+    /// Reads all `locator:*` records, each paired with its parsed locator id.
     ///
     /// Keys whose suffix is not a valid `u64` are skipped with a warning so a
     /// single malformed key cannot abort the migration.
     ///
     /// # Errors
     ///
-    /// Return [`SourceError::Redis`] if a SCAN or GET fails, or
+    /// Returns [`SourceError::Redis`] if a `SCAN` or `GET` fails, or
     /// [`SourceError::Parse`] if a stored value is not a valid
     /// `LegacyLocatorMapping`.
     #[instrument(skip(self))]
@@ -109,7 +109,7 @@ impl LegacySource {
         Ok(records)
     }
 
-    /// Load and parse every value under keys matching `{prefix}*`.
+    /// Loads and parses every value under keys matching `{prefix}*`.
     async fn load_prefix<T>(&self, prefix: &str) -> Result<Vec<T>, SourceError>
     where
         T: serde::de::DeserializeOwned,
@@ -123,7 +123,7 @@ impl LegacySource {
         Ok(records)
     }
 
-    /// Load and parse a single key's JSON string value.
+    /// Loads and parses a single key's JSON string value.
     async fn load_one<T>(&self, key: &str) -> Result<T, SourceError>
     where
         T: serde::de::DeserializeOwned,
@@ -136,9 +136,9 @@ impl LegacySource {
         })
     }
 
-    /// SCAN the keyspace for keys matching `pattern`, accumulating all matches.
+    /// Scans the keyspace for keys matching `pattern`, accumulating all matches.
     ///
-    /// SCAN is used rather than KEYS so a large legacy keyspace does not block
+    /// `SCAN` is used rather than `KEYS` so a large legacy keyspace does not block
     /// the Redis server during the migration.
     async fn scan_keys(&self, pattern: &str) -> Result<Vec<String>, SourceError> {
         let mut conn = self.pool.connection().await?;

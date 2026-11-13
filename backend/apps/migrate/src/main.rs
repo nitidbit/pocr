@@ -74,10 +74,12 @@ enum RunError {
     Migrate(#[from] migrate::MigrateError),
 }
 
+/// Reads the required environment variable `key`.
 fn required_env(key: &'static str) -> Result<String, RunError> {
     env::var(key).map_err(|source| RunError::MissingEnv { key, source })
 }
 
+/// Connects the legacy and POCR stores, migrates, and persists the manifest.
 async fn run() -> Result<(), RunError> {
     let legacy_redis_url = required_env("LEGACY_REDIS_URL")?;
     let pocr_redis_url = required_env("POCR_REDIS_URL")?;

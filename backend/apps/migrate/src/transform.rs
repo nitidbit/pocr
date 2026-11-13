@@ -50,11 +50,15 @@ pub enum TransformError {
     },
 }
 
-/// Map a proto `StudyStatus` ordinal to a [`StudyStatus`].
+/// Maps a proto `StudyStatus` ordinal to a [`StudyStatus`].
 ///
 /// `1 → Draft`, `2 → Active`, `3 → Closed`. The legacy terminal `Inactive`
 /// (`3`) becomes the POCR terminal `Closed`; `paused` has no legacy source.
-/// `0` (`Unspecified`) and any other ordinal are rejected.
+///
+/// # Errors
+///
+/// Returns [`TransformError::UnknownStatus`] for `0` (`Unspecified`) and any
+/// other ordinal.
 pub fn transform_status(ordinal: i32) -> Result<StudyStatus, TransformError> {
     match ordinal {
         1 => Ok(StudyStatus::Draft),
@@ -64,10 +68,14 @@ pub fn transform_status(ordinal: i32) -> Result<StudyStatus, TransformError> {
     }
 }
 
-/// Map a proto `RandomizationStrategy` ordinal to a [`RandomizationStrategy`].
+/// Maps a proto `RandomizationStrategy` ordinal to a [`RandomizationStrategy`].
 ///
-/// `1 → Simple`, `2 → Block`. `0` (`Unspecified`) and any other ordinal are
-/// rejected.
+/// `1 → Simple`, `2 → Block`.
+///
+/// # Errors
+///
+/// Returns [`TransformError::UnknownStrategy`] for `0` (`Unspecified`) and any
+/// other ordinal.
 pub fn transform_strategy(ordinal: i32) -> Result<RandomizationStrategy, TransformError> {
     match ordinal {
         1 => Ok(RandomizationStrategy::Simple),
@@ -76,12 +84,12 @@ pub fn transform_strategy(ordinal: i32) -> Result<RandomizationStrategy, Transfo
     }
 }
 
-/// Translate the legacy dynamic-block sentinel: `0 → None`, `n → Some(n)`.
+/// Translates the legacy dynamic-block sentinel: `0 → None`, `n → Some(n)`.
 pub fn transform_block_size(block_size: u32) -> Option<u32> {
     (block_size != 0).then_some(block_size)
 }
 
-/// Translate a legacy arm to a core [`Arm`], applying the remapped `new_id`.
+/// Translates a legacy arm to a core [`Arm`], applying the remapped `new_id`.
 ///
 /// `ratio` and `locator` are preserved; `name` is empty (the legacy model has
 /// no arm name).
@@ -94,7 +102,7 @@ pub fn transform_arm(legacy: &LegacyArm, new_id: Uuid) -> Arm {
     }
 }
 
-/// Translate a legacy key `oneof` into a core [`KeyVariant`].
+/// Translates a legacy key `oneof` into a core [`KeyVariant`].
 ///
 /// An unset `oneof` maps to `None` and is dropped by the caller.
 pub fn transform_key(legacy: &LegacyKey) -> Option<KeyVariant> {
@@ -111,14 +119,18 @@ pub fn transform_key(legacy: &LegacyKey) -> Option<KeyVariant> {
     })
 }
 
-/// Convert a unix-epoch **seconds** value to a UTC timestamp.
+/// Converts a unix-epoch **seconds** value to a UTC timestamp.
+///
+/// # Errors
+///
+/// Returns [`TransformError::InvalidTimestamp`] if `secs` is out of range.
 pub fn epoch_seconds_to_utc(secs: i64) -> Result<DateTime<Utc>, TransformError> {
     DateTime::from_timestamp(secs, 0).ok_or(TransformError::InvalidTimestamp(secs))
 }
 
-/// Translate a legacy randomization config, applying the arm-id remap.
+/// Translates a legacy randomization config, applying the arm-id remap.
 ///
-/// `arm_ids` maps each legacy arm id (UUIDv4 string) to its minted v7 id.
+/// `arm_ids` maps each legacy arm id (`UUIDv4` string) to its minted v7 id.
 fn transform_config(
     legacy: &LegacyRandomizationConfig,
     arm_ids: &HashMap<String, Uuid>,
@@ -146,11 +158,16 @@ fn transform_config(
     })
 }
 
-/// Translate a legacy `study:*` record into a core [`Study`].
+/// Translates a legacy `study:*` record into a core [`Study`].
 ///
 /// `new_id` is the study's minted v7 id; `arm_ids` remaps every arm in the
 /// config. Status, strategy, timestamps, and the block-size sentinel are all
 /// translated; the config's arms carry their remapped ids.
+///
+/// # Errors
+///
+/// Returns a [`TransformError`] if the status or strategy ordinal is unknown,
+/// a timestamp is out of range, or an arm id is absent from `arm_ids`.
 pub fn transform_study(
     legacy: &LegacyStudy,
     new_id: Uuid,
@@ -167,7 +184,7 @@ pub fn transform_study(
     })
 }
 
-/// Translate a legacy `randomization:*` record into a core [`Randomization`].
+/// Translates a legacy `randomization:*` record into a core [`Randomization`].
 ///
 /// `new_id` is the record's minted v7 id, `new_study_id` the study's, and
 /// `new_arm_id` the remapped id of the assigned arm. Every migrated record is
@@ -191,7 +208,7 @@ pub fn transform_randomization(
     }
 }
 
-/// Preserve typed identifiers from legacy records; never decode a persisted hash.
+/// Preserves typed identifiers from legacy records; never decode a persisted hash.
 fn unit_context(
     unit: &pocr_core::random::Unit,
 ) -> std::collections::BTreeMap<String, serde_json::Value> {
@@ -214,7 +231,7 @@ fn unit_context(
         .collect()
 }
 
-/// Translate a legacy `block:*` record into a core [`RandomPermutedBlock`].
+/// Translates a legacy `block:*` record into a core [`RandomPermutedBlock`].
 ///
 /// The core type's `index`/`values` are private, so the block is rebuilt by
 /// injecting a freshly-minted v7 `id` and the remapped `study_id` into the
@@ -224,7 +241,7 @@ fn unit_context(
 ///
 /// # Errors
 ///
-/// Return [`TransformError::BlockConstruction`] if the injected-id form does
+/// Returns [`TransformError::BlockConstruction`] if the injected-id form does
 /// not deserialize into a [`RandomPermutedBlock`].
 pub fn transform_block(
     legacy: &LegacyBlock,

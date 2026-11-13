@@ -1,6 +1,6 @@
 //! Two-pass v4 → v7 identifier remapping and its persisted manifest.
 //!
-//! Every legacy UUIDv4 is replaced by a v7 minted from the record's **original**
+//! Every legacy `UUIDv4` is replaced by a v7 minted from the record's **original**
 //! timestamp (not the migration instant) via
 //! [`uuid::Builder::from_unix_timestamp_millis`], so the new ids sort in true
 //! historical order. Minting draws fresh random bytes, so a naive re-run would
@@ -16,7 +16,7 @@ use rand::{Rng, RngExt};
 use serde::{Deserialize, Serialize};
 use uuid::{Builder, Uuid};
 
-/// Mint a v7 UUID whose timestamp component is `millis` (unix epoch
+/// Mints a v7 UUID whose timestamp component is `millis` (unix epoch
 /// milliseconds), with fresh random bytes for the remaining entropy.
 ///
 /// This is the historical-order minting the migration relies on; contrast with
@@ -29,7 +29,7 @@ pub fn v7_from_millis(millis: u64, rng: &mut impl Rng) -> Uuid {
 
 /// The old→new id maps, persisted as `migration-manifest.json`.
 ///
-/// Keys are legacy UUIDv4 strings; values are the minted v7 ids.
+/// Keys are legacy `UUIDv4` strings; values are the minted v7 ids.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Manifest {
     /// Legacy study id → new v7 study id.
@@ -41,7 +41,7 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    /// Look up (or mint) the v7 for a legacy study id at `created_at_millis`.
+    /// Looks up (or mints) the v7 for a legacy study id at `created_at_millis`.
     ///
     /// Reusing an existing entry is what makes a manifest-backed re-run
     /// idempotent; a fresh entry is minted only when the id is unseen.
@@ -49,7 +49,7 @@ impl Manifest {
         upsert(&mut self.studies, legacy, created_at_millis, rng)
     }
 
-    /// Look up (or mint) the v7 for a legacy arm id, timestamped by its owning
+    /// Looks up (or mints) the v7 for a legacy arm id, timestamped by its owning
     /// study's `created_at`.
     pub fn arm_id(
         &mut self,
@@ -60,7 +60,7 @@ impl Manifest {
         upsert(&mut self.arms, legacy, study_created_at_millis, rng)
     }
 
-    /// Look up (or mint) the v7 for a legacy randomization id at its
+    /// Looks up (or mints) the v7 for a legacy randomization id at its
     /// `issued_at`.
     pub fn randomization_id(
         &mut self,
@@ -72,7 +72,7 @@ impl Manifest {
     }
 }
 
-/// Return the existing mapping for `legacy`, or mint a new v7 at `millis`.
+/// Returns the existing mapping for `legacy`, or mints a new v7 at `millis`.
 fn upsert(map: &mut HashMap<String, Uuid>, legacy: &str, millis: u64, rng: &mut impl Rng) -> Uuid {
     if let Some(existing) = map.get(legacy) {
         return *existing;

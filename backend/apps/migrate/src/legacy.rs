@@ -2,7 +2,7 @@
 //!
 //! The legacy engine (`cloud-randomization/satellite/service`) serializes
 //! prost/tonic-generated proto types to JSON strings: integer enum ordinals,
-//! externally-tagged `oneof` shapes, snake_case fields, and unix-epoch `i64`
+//! externally-tagged `oneof` shapes, `snake_case` fields, and unix-epoch `i64`
 //! timestamps. These structs deserialize that wire format verbatim so the
 //! transform layer can map it onto the hand-written `pocr-core` models.
 //!
@@ -18,7 +18,7 @@ use pocr_core::random::Stratum;
 /// A legacy `study:{id}` record.
 #[derive(Debug, Clone, Deserialize)]
 pub struct LegacyStudy {
-    /// UUIDv4 string.
+    /// `UUIDv4` string.
     pub id: String,
     /// Human-readable study name.
     pub name: String,
@@ -64,7 +64,7 @@ pub struct LegacyRandomizationConfig {
 /// A legacy treatment arm. Lacks the `name` field present in the POCR model.
 #[derive(Debug, Clone, Deserialize)]
 pub struct LegacyArm {
-    /// UUIDv4 string.
+    /// `UUIDv4` string.
     pub id: String,
     /// Relative allocation weight.
     pub ratio: u32,
@@ -88,13 +88,13 @@ pub struct LegacyKey {
     reason = "serde reads the wire shape `{\"PatientId\":{}}` only for brace variants"
 )]
 pub enum LegacyKeyVariant {
-    /// Identify the subject by patient id.
+    /// Identifies the subject by patient id.
     PatientId {},
-    /// Identify the subject by encounter id.
+    /// Identifies the subject by encounter id.
     EncounterId {},
-    /// Identify the subject by provider (user) id.
+    /// Identifies the subject by provider (user) id.
     ProviderId {},
-    /// Extract the subject from a FHIR resource path.
+    /// Extracts the subject from a FHIR resource path.
     FhirPath(LegacyFhirPath),
 }
 
@@ -118,9 +118,9 @@ pub struct LegacyFhirPath {
 /// `unit_hash`/`strata_key` parity through the shared `String::from` functions.
 #[derive(Debug, Clone, Deserialize)]
 pub struct LegacyRandomization {
-    /// UUIDv4 string.
+    /// `UUIDv4` string.
     pub id: String,
-    /// Owning study, UUIDv4 string.
+    /// Owning study, `UUIDv4` string.
     pub study_id: String,
     /// Stratification applied at assignment, if any.
     #[serde(default)]
@@ -141,7 +141,7 @@ pub struct LegacyRandomization {
 /// [`RandomPermutedBlock`]: pocr_core::random::RandomPermutedBlock
 #[derive(Debug, Clone, Deserialize)]
 pub struct LegacyBlock {
-    /// Owning study, UUIDv4 string.
+    /// Owning study, `UUIDv4` string.
     pub study_id: String,
     /// Serialized stratum key, or `null` for the unstratified block.
     pub stratification: Option<String>,
@@ -154,7 +154,7 @@ pub struct LegacyBlock {
 /// A legacy `locator:{locator}` record: `{"study_id": "..."}`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct LegacyLocatorMapping {
-    /// The study a locator resolves to, UUIDv4 string.
+    /// The study a locator resolves to, `UUIDv4` string.
     pub study_id: String,
 }
 
