@@ -16,7 +16,7 @@ pub enum LogFormat {
 }
 
 /// Tracing configuration for a single process.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Config {
     /// Human-identifiable name for this process (api/worker/migrator/etc).
     pub service_name: &'static str,
@@ -37,6 +37,7 @@ pub struct Config {
 impl Config {
     /// Returns the defaults for `service_name`: `info` filter, pretty
     /// format, no span events, non-blocking writer.
+    #[must_use]
     pub fn for_service(service_name: &'static str) -> Self {
         Self {
             service_name,
@@ -58,6 +59,7 @@ impl Config {
     ///
     /// Panics if either variable is set to a value that is not a recognized
     /// boolean (`1`, `true`, `t`, `yes`, `y`, `on` or their negations).
+    #[must_use]
     pub fn from_env(service_name: &'static str) -> Self {
         let mut cfg = Self::for_service(service_name);
 
@@ -80,6 +82,7 @@ impl Config {
 /// Holds guards and resources that must live for the entire process lifetime.
 ///
 /// Dropping the guard flushes the non-blocking writer and exits the root span.
+#[derive(Debug)]
 pub struct Guard {
     _non_blocking: Option<tracing_appender::non_blocking::WorkerGuard>,
     _root: tracing::span::EnteredSpan,
@@ -94,6 +97,7 @@ pub struct Guard {
 /// # Panics
 ///
 /// Panics if a global subscriber is already installed.
+#[must_use = "dropping the guard stops log flushing and exits the root span"]
 pub fn init(cfg: Config) -> Guard {
     let env_filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(cfg.default_filter));
@@ -229,7 +233,7 @@ mod tests {
         let count = Arc::new(AtomicUsize::new(0));
         let subscriber = tracing_subscriber::registry()
             .with(database_log_filter())
-            .with(EventCount(count.clone()));
+            .with(EventCount(Arc::clone(&count)));
         tracing::subscriber::with_default(subscriber, || {
             tracing::error!(target: "tiberius::tds::stream::token", "sensitive server error");
             tracing::trace!(target: "tiberius::tds::stream::token", "sensitive row data");
