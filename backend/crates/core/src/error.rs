@@ -1,3 +1,5 @@
+//! Error type and result alias for randomization operations.
+
 use thiserror::Error;
 
 use crate::ports::RepositoryError;

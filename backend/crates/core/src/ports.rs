@@ -96,15 +96,15 @@ impl RepositoryError {
 /// Persistence for study aggregates.
 #[async_trait]
 pub trait StudyRepository: Send + Sync {
-    /// Insert or update a study.
+    /// Inserts or updates a study.
     async fn save(&self, study: &Study) -> Result<Study, RepositoryError>;
-    /// Find a study by its ID.
+    /// Finds a study by its ID.
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<Study>, RepositoryError>;
-    /// Find a study by its Epic locator ID.
+    /// Finds a study by its Epic locator ID.
     async fn find_by_locator(&self, locator: u64) -> Result<Option<Study>, RepositoryError>;
-    /// List all studies accessible to a user.
+    /// Lists all studies accessible to a user.
     async fn list_for_user(&self, user_id: &str) -> Result<Vec<Study>, RepositoryError>;
-    /// Delete a study by ID.
+    /// Deletes a study by ID.
     async fn delete(&self, id: &Uuid) -> Result<(), RepositoryError>;
 }
 
@@ -114,7 +114,9 @@ pub trait StudyRepository: Send + Sync {
 /// record, not just a paginated page of the newest rows.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArmTally {
+    /// Arm the randomizations were assigned to.
     pub arm_id: Uuid,
+    /// Number of randomizations assigned to the arm.
     pub count: u64,
 }
 
@@ -124,9 +126,9 @@ pub struct ArmTally {
 /// that non-production assignments never mix with production trial data.
 #[async_trait]
 pub trait RandomizationRepository: Send + Sync {
-    /// Store a new randomization record. The record carries its own environment.
+    /// Stores a new randomization record, which carries its own environment.
     async fn save(&self, randomization: &Randomization) -> Result<Randomization, RepositoryError>;
-    /// List randomizations for a study within one environment, with pagination.
+    /// Lists randomizations for a study within one environment, with pagination.
     async fn find_by_study(
         &self,
         study_id: &Uuid,
@@ -134,7 +136,7 @@ pub trait RandomizationRepository: Send + Sync {
         limit: u32,
         offset: u32,
     ) -> Result<Vec<Randomization>, RepositoryError>;
-    /// Tally randomizations per arm for a study within one environment.
+    /// Tallies randomizations per arm for a study within one environment.
     ///
     /// Aggregated in the store so callers get whole-study counts without
     /// paging through every record.
@@ -143,8 +145,7 @@ pub trait RandomizationRepository: Send + Sync {
         study_id: &Uuid,
         environment: Environment,
     ) -> Result<Vec<ArmTally>, RepositoryError>;
-    /// Check if a randomization already exists for this study + environment +
-    /// unit combination. Returns the existing record if found.
+    /// Finds the randomization for this study, environment, and unit, if any.
     ///
     /// `unit_key` is the delimiter-joined string form of the randomization
     /// [`Unit`](crate::random::Unit) (see `String::from(&Unit)`), not a hash.
@@ -154,7 +155,7 @@ pub trait RandomizationRepository: Send + Sync {
         environment: Environment,
         unit_key: &str,
     ) -> Result<Option<Randomization>, RepositoryError>;
-    /// Delete all non-production randomizations for a study, returning the
+    /// Deletes all non-production randomizations for a study and returns the
     /// count removed. Production records are never touched.
     async fn purge_nonproduction(&self, study_id: &Uuid) -> Result<u64, RepositoryError>;
 }
@@ -166,20 +167,21 @@ pub trait RandomizationRepository: Send + Sync {
 /// advance or consume the production allocation sequence.
 #[async_trait]
 pub trait BlockCacheRepository: Send + Sync {
-    /// Retrieve the current block for an environment/study/stratum combination.
+    /// Retrieves the current block for an environment, study, and stratum.
     async fn get_block(
         &self,
         environment: Environment,
         study_id: &Uuid,
         stratum_key: &str,
     ) -> Result<Option<RandomPermutedBlock>, RepositoryError>;
-    /// Store a block in the cache for the given environment.
+    /// Stores a block in the cache for the given environment.
     async fn save_block(
         &self,
         environment: Environment,
         block: &RandomPermutedBlock,
     ) -> Result<(), RepositoryError>;
-    /// Atomically consume the next assignment from a cached block.
+    /// Atomically consumes the next assignment from a cached block.
+    ///
     /// Returns `None` if the block is exhausted or not found.
     async fn consume_next(
         &self,
@@ -187,18 +189,20 @@ pub trait BlockCacheRepository: Send + Sync {
         study_id: &Uuid,
         stratum_key: &str,
     ) -> Result<Option<u32>, RepositoryError>;
-    /// Delete all non-production cached blocks for a study, returning the count
-    /// removed. Production blocks are never touched. Used when resetting test
-    /// data so a subsequent non-production run starts from a fresh sequence.
+    /// Deletes all non-production cached blocks for a study and returns the
+    /// count removed.
+    ///
+    /// Production blocks are never touched. Used when resetting test data so a
+    /// subsequent non-production run starts from a fresh sequence.
     async fn purge_nonproduction(&self, study_id: &Uuid) -> Result<u64, RepositoryError>;
 }
 
 /// Persistence for Epic locator → study mappings.
 #[async_trait]
 pub trait LocatorRepository: Send + Sync {
-    /// Create or update a locator → study mapping.
+    /// Creates or updates a locator → study mapping.
     async fn save_mapping(&self, locator: u64, study_id: &Uuid) -> Result<(), RepositoryError>;
-    /// Look up which study a locator belongs to.
+    /// Looks up which study a locator belongs to.
     async fn find_study_id(&self, locator: u64) -> Result<Option<Uuid>, RepositoryError>;
 }
 
@@ -217,7 +221,7 @@ pub struct StudyMember {
 /// Persistence for user ↔ study associations.
 #[async_trait]
 pub trait UserStudyRepository: Send + Sync {
-    /// Associate a user with a study in the given role, upserting the role if
+    /// Associates a user with a study in the given role, upserting the role if
     /// the association already exists.
     async fn add_user(
         &self,
@@ -225,15 +229,15 @@ pub trait UserStudyRepository: Send + Sync {
         study_id: &Uuid,
         role: &str,
     ) -> Result<(), RepositoryError>;
-    /// Remove a user's association with a study.
+    /// Removes a user's association with a study.
     async fn remove_user(&self, user_id: &str, study_id: &Uuid) -> Result<(), RepositoryError>;
-    /// Return the user's role in the study, or `None` if they have no access.
+    /// Returns the user's role in the study, or `None` if they have no access.
     async fn get_role(
         &self,
         user_id: &str,
         study_id: &Uuid,
     ) -> Result<Option<String>, RepositoryError>;
-    /// List all members of a study, ordered by when they joined.
+    /// Lists all members of a study, ordered by when they joined.
     async fn list_members(&self, study_id: &Uuid) -> Result<Vec<StudyMember>, RepositoryError>;
 }
 
@@ -243,9 +247,9 @@ pub trait UserStudyRepository: Send + Sync {
 /// newest-first so the history view can render most-recent activity at the top.
 #[async_trait]
 pub trait AuditRepository: Send + Sync {
-    /// Append a new audit event.
+    /// Appends a new audit event.
     async fn append(&self, event: &AuditEvent) -> Result<(), RepositoryError>;
-    /// List a study's audit events, ordered newest-first.
+    /// Lists a study's audit events, ordered newest-first.
     async fn list_by_study(&self, study_id: &Uuid) -> Result<Vec<AuditEvent>, RepositoryError>;
 }
 
@@ -255,15 +259,15 @@ pub trait AuditRepository: Send + Sync {
 /// back joined with randomization arm assignments for parity reporting.
 #[async_trait]
 pub trait DemographicsRepository: Send + Sync {
-    /// Bulk upsert a batch of demographic records, refreshing existing rows.
+    /// Upserts a batch of demographic records, refreshing existing rows.
     async fn upsert_batch(&self, batch: &[PatientDemographics]) -> Result<(), RepositoryError>;
-    /// Fetch demographics for a set of patient IDs.
+    /// Fetches demographics for a set of patient IDs.
     async fn find_by_patient_ids(
         &self,
         patient_ids: &[String],
     ) -> Result<Vec<PatientDemographics>, RepositoryError>;
-    /// Fetch demographics for all randomized patients in a study, joined with
-    /// their arm assignment.
+    /// Fetches demographics for all randomized patients in a study, joined
+    /// with their arm assignment.
     async fn find_by_study(
         &self,
         study_id: &Uuid,
@@ -273,34 +277,37 @@ pub trait DemographicsRepository: Send + Sync {
 /// Cache for study configs on the CDS Hooks hot path.
 #[async_trait]
 pub trait StudyCache: Send + Sync {
-    /// Look up cached study_id for a locator.
+    /// Looks up the cached `study_id` for a locator.
     async fn get_study_id_for_locator(&self, locator: u64)
     -> Result<Option<Uuid>, RepositoryError>;
-    /// Cache a locator → study_id mapping.
+    /// Caches a locator → `study_id` mapping.
     async fn cache_locator_mapping(
         &self,
         locator: u64,
         study_id: &Uuid,
     ) -> Result<(), RepositoryError>;
-    /// Retrieve a cached study config.
+    /// Retrieves a cached study config.
     async fn get_cached_study(&self, study_id: &Uuid) -> Result<Option<Study>, RepositoryError>;
-    /// Cache a full study config with TTL.
+    /// Caches a full study config with a TTL.
     async fn cache_study(&self, study: &Study) -> Result<(), RepositoryError>;
-    /// Remove a study from cache.
+    /// Removes a study from the cache.
     async fn invalidate_study(&self, study_id: &Uuid) -> Result<(), RepositoryError>;
 }
 
-/// Trait for checking if an infrastructure service is healthy.
+/// A dependency whose health can be probed.
 #[async_trait]
 pub trait HealthCheckable: Send + Sync {
+    /// Probes the dependency, returning a description of the failure if it is unhealthy.
     async fn ping(&self) -> Result<(), String>;
 }
 
-/// Orchestrates the randomization flow for a study + request within an
-/// [`Environment`]. The environment is resolved by the caller (from the CDS
-/// Hooks `fhirServer` URL) and gates whether the request may proceed.
+/// Orchestrates the randomization flow for a study and request.
+///
+/// The [`Environment`] is resolved by the caller (from the CDS Hooks
+/// `fhirServer` URL) and gates whether the request may proceed.
 #[async_trait]
 pub trait RandomizationService: Send + Sync {
+    /// Randomizes the request's subject into an arm of `study` within `environment`.
     async fn randomize(
         &self,
         study: &Study,
