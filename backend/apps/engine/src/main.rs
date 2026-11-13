@@ -1,3 +1,6 @@
+//! The `pocr-engine` binary: configures dependencies from the environment and
+//! serves the HTTP API.
+
 use std::env;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -143,7 +146,7 @@ async fn run() -> EngineResult<()> {
     Ok(())
 }
 
-/// Resolve a connection URL that may be supplied directly or via a secret file.
+/// Resolves a connection URL that may be supplied directly or via a secret file.
 ///
 /// Resolution order for a variable named `var`:
 /// 1. `<var>_FILE` — read the file, trim whitespace, and use its contents (the
@@ -182,7 +185,7 @@ fn resolve_secret(var: &str, dev_default: &str) -> EngineResult<String> {
     }
 }
 
-/// Parse the `FHIR_ENV_MAP` variable into an [`EnvironmentMap`].
+/// Parses the `FHIR_ENV_MAP` variable into an [`EnvironmentMap`].
 ///
 /// Format: semicolon-separated `prefix=environment` pairs, where environment
 /// is `production` or `nonproduction`. Example:
@@ -212,7 +215,7 @@ fn parse_environment_map(raw: Option<&str>) -> EnvironmentMap {
     EnvironmentMap::new(entries)
 }
 
-/// Wait for SIGTERM or ctrl_c, whichever arrives first.
+/// Waits for SIGTERM or `ctrl_c`, whichever arrives first.
 async fn shutdown_signal() {
     let ctrl_c = tokio::signal::ctrl_c();
 

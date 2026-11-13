@@ -1,10 +1,10 @@
-//! Randomization service — orchestrates the full randomization flow.
+//! Randomization service that orchestrates the full randomization flow.
 //!
 //! Responsibilities:
-//! - Extract unit + strata from request context per study config
-//! - Deduplicate concurrent requests for the same unit
-//! - Load/create permuted blocks via the cache
-//! - Record randomization assignments
+//! - Extracts the unit and strata from the request context per study config
+//! - Deduplicates concurrent requests for the same unit
+//! - Loads or creates permuted blocks via the cache
+//! - Records randomization assignments
 
 use std::sync::Arc;
 
@@ -22,7 +22,7 @@ use pocr_core::random::{
 };
 use pocr_core::study::{GateDecision, GateRejection, RandomizationStrategy, Study, gate};
 
-/// The randomization service wires together domain logic and persistence.
+/// Wires together randomization domain logic and persistence.
 pub struct Engine {
     randomization_repo: Arc<dyn RandomizationRepository>,
     block_cache: Arc<dyn BlockCacheRepository>,
@@ -49,6 +49,8 @@ impl Drop for InflightGuard<'_> {
 }
 
 impl Engine {
+    /// Creates an engine that persists assignments to `randomization_repo` and
+    /// draws permuted blocks from `block_cache`.
     pub fn new(
         randomization_repo: Arc<dyn RandomizationRepository>,
         block_cache: Arc<dyn BlockCacheRepository>,
@@ -60,7 +62,16 @@ impl Engine {
         }
     }
 
-    /// Execute randomization for a study given a request in an environment.
+    /// Randomizes the request's unit into an arm of `study` within `environment`.
+    ///
+    /// Returns the existing assignment when the unit was already randomized.
+    /// Concurrent requests for the same unit wait for the first to finish.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`RandomizationError`] if the environment/status gate rejects
+    /// the request, the request lacks a configured key or stratum, the study
+    /// configuration cannot be sampled, or a repository call fails.
     #[instrument(skip(self, study, request), fields(study_id = %study.id, environment = %environment))]
     pub async fn randomize(
         &self,
@@ -242,7 +253,7 @@ impl Engine {
     }
 }
 
-/// Extract the randomization unit from a request, defaulting to patient ID
+/// Extracts the randomization unit from a request, defaulting to patient ID
 /// when the study configures no keys.
 fn extract_unit(keys: &[KeyVariant], request: &RandomizationRequest) -> RandomizationResult<Unit> {
     if keys.is_empty() {
