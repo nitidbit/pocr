@@ -1,6 +1,7 @@
 //! Dataset persistence and refresh sessions against a disposable PostgreSQL
 //! database named by `DATASET_TEST_DATABASE_URL`.
 
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 use infra_pg::{DatabaseFailure, PgDatasetRepository, RefreshLock, RefreshRun, RefreshStoreError};
@@ -146,7 +147,7 @@ fn record_for(definition: &DatasetDefinition, id: Uuid) -> DatasetRecord {
     let input = ContextRecord {
         randomization_id: id,
         randomization_time: "2026-10-01T14:30:00Z".parse().unwrap(),
-        context: Default::default(),
+        context: BTreeMap::default(),
     };
     definition
         .parse_results(&[input], vec![row])
@@ -201,6 +202,15 @@ async fn snapshot_is_scoped_to_its_environment() {
 
     assert_eq!(f.snapshot_run(PRODUCTION).await, Some(run));
     assert_eq!(f.snapshot_run(NON_PRODUCTION).await, None);
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
+async fn snapshot_rows_carry_the_arm_name() {
+    let f = Fixture::new().await;
+    f.seed(PRODUCTION).await;
+    f.publish(PRODUCTION).await;
+
     let rows = f
         .repository
         .snapshot(f.study, f.name(), PRODUCTION)
@@ -208,6 +218,7 @@ async fn snapshot_is_scoped_to_its_environment() {
         .unwrap()
         .unwrap()
         .rows;
+
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].arm_name, "Treatment");
 }
@@ -233,11 +244,33 @@ async fn snapshot_appears_only_when_run_is_published() {
     assert_eq!(f.snapshot_run(PRODUCTION).await, None);
     let run_id = run.id();
 
+    run.publish().await.unwrap();
+
+    assert_eq!(f.snapshot_run(PRODUCTION).await, Some(run_id));
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
+async fn publishing_reports_the_published_row_count() {
+    let f = Fixture::new().await;
+    f.seed(PRODUCTION).await;
+    let mut run = f.begin(PRODUCTION, &f.definition).await;
+    stage_cohort(&mut run, &f.definition).await;
+
     let row_count = run.publish().await.unwrap();
 
     assert_eq!(row_count, 1);
-    assert_eq!(f.snapshot_run(PRODUCTION).await, Some(run_id));
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
+async fn published_attachment_reports_success_and_row_count() {
+    let f = Fixture::new().await;
+    f.seed(PRODUCTION).await;
+    f.publish(PRODUCTION).await;
+
     let attachment = &f.repository.list(f.study, PRODUCTION).await.unwrap()[0];
+
     assert_eq!(attachment.status, DatasetStatus::Succeeded);
     let published = attachment.snapshot.as_ref().expect("published snapshot");
     assert_eq!(published.row_count, 1);
