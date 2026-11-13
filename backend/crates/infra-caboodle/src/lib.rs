@@ -11,5 +11,5 @@ pub mod queries;
 
 pub use config::CaboodleConfig;
 pub use connection::CaboodleClient;
-pub use error::{CaboodleError, CaboodleResult};
+pub use error::{CaboodleError, CaboodleResult, DriverFailure};
 pub use queries::CaboodleDemographics;

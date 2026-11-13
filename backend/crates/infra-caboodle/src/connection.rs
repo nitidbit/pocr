@@ -7,7 +7,7 @@ use tokio_util::compat::TokioAsyncWriteCompatExt;
 use tracing::{info, instrument};
 
 use crate::config::CaboodleConfig;
-use crate::error::{CaboodleError, CaboodleResult, driver_error};
+use crate::error::{CaboodleError, CaboodleResult, DriverFailure};
 
 /// A connected client to the Caboodle MS-SQL database.
 pub struct CaboodleClient {
@@ -19,8 +19,9 @@ impl CaboodleClient {
     ///
     /// # Errors
     ///
-    /// Return [`CaboodleError::Connection`] if the TCP connection, socket
-    /// configuration, or TDS handshake fails.
+    /// Returns [`CaboodleError::TcpConnect`], [`CaboodleError::Socket`], or
+    /// [`CaboodleError::Handshake`] if connecting fails, and
+    /// [`CaboodleError::ConnectTimeout`] if it exceeds 15 seconds.
     #[instrument(skip(config), fields(host = %config.host, port = config.port, database = %config.database))]
     pub async fn connect(config: &CaboodleConfig) -> CaboodleResult<Self> {
         let mut tib_config = TiberiusConfig::new();
@@ -36,21 +37,18 @@ impl CaboodleClient {
         let client = tokio::time::timeout(Duration::from_secs(15), async {
             let tcp = TcpStream::connect(tib_config.get_addr())
                 .await
-                .map_err(|e| CaboodleError::Connection(format!("TCP connect failed: {e}")))?;
+                .map_err(CaboodleError::TcpConnect)?;
 
-            tcp.set_nodelay(true)
-                .map_err(|e| CaboodleError::Connection(format!("set_nodelay failed: {e}")))?;
+            tcp.set_nodelay(true).map_err(CaboodleError::Socket)?;
 
             let client = Client::connect(tib_config, tcp.compat_write())
                 .await
-                .map_err(|e| {
-                    CaboodleError::Connection(format!("TDS connect failed: {}", driver_error(&e)))
-                })?;
+                .map_err(|e| CaboodleError::Handshake(DriverFailure::from(&e)))?;
 
             Ok::<_, CaboodleError>(client)
         })
         .await
-        .map_err(|_| CaboodleError::Connection("connection timed out after 15 seconds".into()))??;
+        .map_err(|_elapsed| CaboodleError::ConnectTimeout)??;
 
         info!("connected to Caboodle");
         Ok(Self { client })
@@ -62,20 +60,21 @@ impl CaboodleClient {
     ///
     /// # Errors
     ///
-    /// Return [`CaboodleError::Query`] if the query fails or exceeds 15 seconds.
+    /// Returns [`CaboodleError::Query`] if the query fails and
+    /// [`CaboodleError::QueryTimeout`] if it exceeds 15 seconds.
     /// The connection is consumed so a timed-out protocol stream cannot be reused.
     pub async fn ping(mut self) -> CaboodleResult<()> {
         tokio::time::timeout(Duration::from_secs(15), async {
             Query::new("SELECT 1")
                 .query(&mut self.client)
                 .await
-                .map_err(|e| CaboodleError::Query(format!("ping: {}", driver_error(&e))))?
+                .map_err(|e| CaboodleError::query("ping", &e))?
                 .into_first_result()
                 .await
-                .map_err(|e| CaboodleError::Query(format!("ping results: {}", driver_error(&e))))?;
+                .map_err(|e| CaboodleError::query("ping results", &e))?;
             Ok(())
         })
         .await
-        .map_err(|_| CaboodleError::Query("ping timed out after 15 seconds".into()))?
+        .map_err(|_elapsed| CaboodleError::QueryTimeout { operation: "ping" })?
     }
 }

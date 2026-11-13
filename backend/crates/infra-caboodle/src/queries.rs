@@ -53,12 +53,12 @@ pub async fn fetch_demographics(
         let stream = q
             .query(&mut client.client)
             .await
-            .map_err(|e| CaboodleError::Query(format!("fetch_demographics: {e}")))?;
+            .map_err(|e| CaboodleError::query("fetch_demographics", &e))?;
 
         let rows: Vec<Row> = stream
             .into_first_result()
             .await
-            .map_err(|e| CaboodleError::Query(format!("fetch_demographics results: {e}")))?;
+            .map_err(|e| CaboodleError::query("fetch_demographics results", &e))?;
 
         for row in &rows {
             let patient_epic_id: &str = row.get("PatientEpicId").unwrap_or_default();
@@ -123,12 +123,12 @@ pub async fn fetch_races(
         let stream = q
             .query(&mut client.client)
             .await
-            .map_err(|e| CaboodleError::Query(format!("fetch_races: {e}")))?;
+            .map_err(|e| CaboodleError::query("fetch_races", &e))?;
 
         let rows: Vec<Row> = stream
             .into_first_result()
             .await
-            .map_err(|e| CaboodleError::Query(format!("fetch_races results: {e}")))?;
+            .map_err(|e| CaboodleError::query("fetch_races results", &e))?;
 
         for row in &rows {
             let patient_key: i64 = row.get("PatientKey").unwrap_or_default();
@@ -180,12 +180,12 @@ pub async fn fetch_insurance(
         let stream = q
             .query(&mut client.client)
             .await
-            .map_err(|e| CaboodleError::Query(format!("fetch_insurance: {e}")))?;
+            .map_err(|e| CaboodleError::query("fetch_insurance", &e))?;
 
         let rows: Vec<Row> = stream
             .into_first_result()
             .await
-            .map_err(|e| CaboodleError::Query(format!("fetch_insurance results: {e}")))?;
+            .map_err(|e| CaboodleError::query("fetch_insurance results", &e))?;
 
         for row in &rows {
             let patient_key: i64 = row.get("PatientKey").unwrap_or_default();
@@ -228,11 +228,12 @@ pub async fn fetch_bmi(
         let stream = q
             .query(&mut client.client)
             .await
-            .map_err(|e| CaboodleError::Query(format!("fetch_bmi for {patient_id}: {e}")))?;
+            .map_err(|e| CaboodleError::query("fetch_bmi", &e))?;
 
-        let rows: Vec<Row> = stream.into_first_result().await.map_err(|e| {
-            CaboodleError::Query(format!("fetch_bmi results for {patient_id}: {e}"))
-        })?;
+        let rows: Vec<Row> = stream
+            .into_first_result()
+            .await
+            .map_err(|e| CaboodleError::query("fetch_bmi results", &e))?;
 
         if let Some(row) = rows.first()
             && let Some(value_str) = row.get::<&str, _>("Value")

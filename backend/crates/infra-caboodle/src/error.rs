@@ -6,13 +6,38 @@ pub type CaboodleResult<T> = Result<T, CaboodleError>;
 /// Errors arising from Caboodle (MS-SQL) operations.
 #[derive(Debug, Error)]
 pub enum CaboodleError {
-    /// TCP or TDS-level connection failure.
-    #[error("connection failed: {0}")]
-    Connection(String),
+    /// The TCP connection to the server could not be opened.
+    #[error("TCP connect failed")]
+    TcpConnect(#[source] std::io::Error),
 
-    /// Query execution or result-set read failure.
-    #[error("query failed: {0}")]
-    Query(String),
+    /// The socket could not be configured after connecting.
+    #[error("socket configuration failed")]
+    Socket(#[source] std::io::Error),
+
+    /// The TDS handshake or login failed.
+    #[error("TDS connect failed")]
+    Handshake(#[source] DriverFailure),
+
+    /// Connecting did not finish within its time limit.
+    #[error("connection timed out after 15 seconds")]
+    ConnectTimeout,
+
+    /// A query could not be sent, or its results could not be read.
+    #[error("{operation} failed")]
+    Query {
+        /// Operation being performed, for example `"fetch_races"`.
+        operation: &'static str,
+        /// Sanitized failure category.
+        #[source]
+        cause: DriverFailure,
+    },
+
+    /// A query did not finish within its time limit.
+    #[error("{operation} timed out after 15 seconds")]
+    QueryTimeout {
+        /// Operation being performed, for example `"ping"`.
+        operation: &'static str,
+    },
 
     /// Row data could not be converted to the expected Rust type.
     #[error("data conversion error: {0}")]
@@ -28,23 +53,60 @@ pub enum CaboodleError {
 
     /// A dataset procedure returned zero or several result sets instead of one.
     #[error("dataset procedure returned {actual} result sets, expected one")]
-    ResultSetCount { actual: usize },
+    ResultSetCount {
+        /// Number of result sets the procedure returned.
+        actual: usize,
+    },
 
     /// A dataset procedure returned a result that violates the dataset contract.
     #[error("dataset result contract violated: {0}")]
     Contract(#[from] pocr_core::dataset::ResultsError),
 }
 
-/// Preserve diagnostic categories/codes without retaining server messages or data.
-pub(crate) fn driver_error(error: &tiberius::error::Error) -> String {
-    if let Some(code) = error.code() {
-        return format!("SQL Server error {code}");
+impl CaboodleError {
+    /// Wraps a driver failure raised while running `operation`.
+    pub(crate) fn query(operation: &'static str, error: &tiberius::error::Error) -> Self {
+        Self::Query {
+            operation,
+            cause: DriverFailure::from(error),
+        }
     }
-    match error {
-        tiberius::error::Error::Io { kind, .. } => format!("I/O error ({kind:?})"),
-        tiberius::error::Error::Tls(_) => "TLS handshake or certificate validation failed".into(),
-        tiberius::error::Error::Conversion(_) => "unexpected column type".into(),
-        _ => "database protocol or data decoding error".into(),
+}
+
+/// Sanitized category of a SQL Server driver failure.
+///
+/// Carries the server error code or failure class only. Driver messages can
+/// contain row values and are never retained.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error(transparent)]
+pub struct DriverFailure(FailureKind);
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+enum FailureKind {
+    #[error("SQL Server error {0}")]
+    Server(u32),
+    #[error("I/O error ({0:?})")]
+    Io(std::io::ErrorKind),
+    #[error("TLS handshake or certificate validation failed")]
+    Tls,
+    #[error("unexpected column type")]
+    Conversion,
+    #[error("database protocol or data decoding error")]
+    Other,
+}
+
+impl From<&tiberius::error::Error> for DriverFailure {
+    fn from(error: &tiberius::error::Error) -> Self {
+        use tiberius::error::Error;
+        if let Some(code) = error.code() {
+            return Self(FailureKind::Server(code));
+        }
+        Self(match error {
+            Error::Io { kind, .. } => FailureKind::Io(*kind),
+            Error::Tls(_) => FailureKind::Tls,
+            Error::Conversion(_) => FailureKind::Conversion,
+            _ => FailureKind::Other,
+        })
     }
 }
 
@@ -63,7 +125,11 @@ mod tests {
                 message: "sensitive-patient-value".into(),
             },
         ] {
-            assert!(!driver_error(&error).contains("sensitive-patient-value"));
+            assert!(
+                !DriverFailure::from(&error)
+                    .to_string()
+                    .contains("sensitive-patient-value")
+            );
         }
     }
 }

@@ -15,7 +15,7 @@ use pocr_core::dataset::{
     ContextRecord, DatasetDefinition, DatasetRecord, Procedure, ResultRow, ResultsError,
 };
 
-use crate::{CaboodleClient, CaboodleError, CaboodleResult, error::driver_error};
+use crate::{CaboodleClient, CaboodleError, CaboodleResult};
 
 /// Run a dataset's stored procedure for `input` and parse the result.
 ///
@@ -46,7 +46,7 @@ pub async fn execute_dataset(
 ) -> CaboodleResult<Vec<DatasetRecord>> {
     tokio::time::timeout(timeout, run_procedure(client, definition, input))
         .await
-        .map_err(|_| CaboodleError::Timeout)?
+        .map_err(|_elapsed| CaboodleError::Timeout)?
 }
 
 async fn run_procedure(
@@ -62,13 +62,13 @@ async fn run_procedure(
     let mut stream = query
         .query(&mut client.client)
         .await
-        .map_err(|e| CaboodleError::Query(driver_error(&e)))?;
+        .map_err(|e| CaboodleError::query("dataset procedure", &e))?;
     let mut result_sets = 0;
     let mut rows = Vec::new();
     while let Some(item) = stream
         .try_next()
         .await
-        .map_err(|e| CaboodleError::Query(driver_error(&e)))?
+        .map_err(|e| CaboodleError::query("dataset procedure results", &e))?
     {
         match item {
             QueryItem::Metadata(metadata) => {
