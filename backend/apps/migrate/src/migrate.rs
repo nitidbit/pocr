@@ -109,7 +109,7 @@ pub fn save_manifest(path: &Path, manifest: &Manifest) -> Result<(), MigrateErro
 /// Milliseconds since the unix epoch for an epoch-**seconds** value, clamped at
 /// zero. Used to seed v7 minting from a study's `created_at`.
 fn seconds_to_millis(secs: i64) -> u64 {
-    (secs.max(0) as u64).saturating_mul(1000)
+    secs.max(0).cast_unsigned().saturating_mul(1000)
 }
 
 /// Pass 1: populate the study and arm id maps in `manifest` from `studies`.
@@ -202,7 +202,7 @@ pub async fn migrate(
                 study_id: legacy.study_id.clone(),
             });
         };
-        let issued_millis = legacy.issued_at.timestamp_millis().max(0) as u64;
+        let issued_millis = legacy.issued_at.timestamp_millis().max(0).cast_unsigned();
         let new_id = manifest.randomization_id(&legacy.id, issued_millis, &mut rng);
         let rec = transform_randomization(&legacy, new_id, new_study_id, new_arm_id);
         sink.write_randomization(&rec).await?;
@@ -307,7 +307,7 @@ mod tests {
         let loaded = load_manifest(&path).unwrap();
         assert_eq!(loaded, manifest);
 
-        std::fs::remove_file(&path).ok();
+        std::fs::remove_file(&path).unwrap();
     }
 
     #[test]

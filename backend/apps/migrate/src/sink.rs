@@ -89,11 +89,11 @@ impl PocrSink {
 
         let mut tx = self.pool.begin().await?;
         let inserted: Option<Uuid> = sqlx::query_scalar(
-            r#"INSERT INTO randomizations
+            r"INSERT INTO randomizations
                  (id, study_id, environment, unit_hash, strata_key, arm, issued_at)
                VALUES ($1, $2, $3, $4, $5, $6, $7)
                ON CONFLICT (study_id, environment, unit_hash) DO NOTHING
-               RETURNING id"#,
+               RETURNING id",
         )
         .bind(rec.id)
         .bind(rec.study_id)

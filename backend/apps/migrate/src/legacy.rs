@@ -83,6 +83,10 @@ pub struct LegacyKey {
 ///
 /// Example wire shapes: `{"PatientId":{}}`, `{"FhirPath":{...}}`.
 #[derive(Debug, Clone, Deserialize)]
+#[expect(
+    clippy::empty_enum_variants_with_brackets,
+    reason = "serde reads the wire shape `{\"PatientId\":{}}` only for brace variants"
+)]
 pub enum LegacyKeyVariant {
     /// Identify the subject by patient id.
     PatientId {},
@@ -175,7 +179,7 @@ mod tests {
         assert_eq!(study.randomization_config.arms.len(), 2);
         assert_eq!(study.randomization_config.arms[0].ratio, 1);
         assert!(study.randomization_config.arms[0].locator.is_none());
-        assert_eq!(study.created_at, 1772550371);
+        assert_eq!(study.created_at, 1_772_550_371);
         assert_eq!(study.created_by.unwrap().id, "andrew");
     }
 

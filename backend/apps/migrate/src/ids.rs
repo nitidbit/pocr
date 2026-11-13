@@ -104,13 +104,10 @@ mod tests {
         let id = v7_from_millis(millis, &mut rng());
         // v7 timestamp is the top 48 bits, unix epoch milliseconds.
         let bytes = id.as_bytes();
-        let ts = ((bytes[0] as u64) << 40)
-            | ((bytes[1] as u64) << 32)
-            | ((bytes[2] as u64) << 24)
-            | ((bytes[3] as u64) << 16)
-            | ((bytes[4] as u64) << 8)
-            | (bytes[5] as u64);
-        assert_eq!(ts, millis);
+        // Left-pad the 48-bit big-endian timestamp into a u64.
+        let mut be = [0u8; 8];
+        be[2..].copy_from_slice(&bytes[..6]);
+        assert_eq!(u64::from_be_bytes(be), millis);
     }
 
     #[test]

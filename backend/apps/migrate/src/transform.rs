@@ -362,8 +362,8 @@ mod tests {
 
     #[test]
     fn epoch_conversion_roundtrips() {
-        let dt = epoch_seconds_to_utc(1772550371).unwrap();
-        assert_eq!(dt.timestamp(), 1772550371);
+        let dt = epoch_seconds_to_utc(1_772_550_371).unwrap();
+        assert_eq!(dt.timestamp(), 1_772_550_371);
     }
 
     #[test]
@@ -453,6 +453,6 @@ mod tests {
         assert_eq!(json["values"], serde_json::json!([0, 1, 1, 0]));
         assert_eq!(json["stratification"], serde_json::Value::Null);
         // A fresh v7 id was injected.
-        assert!(block.id.get_version_num() == 7);
+        assert_eq!(block.id.get_version_num(), 7);
     }
 }
