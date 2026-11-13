@@ -80,14 +80,16 @@ async fn run() -> EngineResult<()> {
     let audit_repo = Arc::new(infra_pg::PgAuditRepository::new(pg_pool.clone()));
     let locator_repo = Arc::new(infra_pg::PgLocatorRepository::new(pg_pool.clone()));
     let demographics_repo = Arc::new(infra_pg::PgDemographicsRepository::new(pg_pool.clone()));
-    let block_cache = Arc::new(infra_redis::RedisBlockCache::new(redis_pool.clone()));
-    let study_cache = Arc::new(infra_redis::RedisStudyCache::new(redis_pool.clone()));
+    let block_cache = Arc::new(infra_redis::RedisBlockCache::new(Arc::clone(&redis_pool)));
+    let study_cache = Arc::new(infra_redis::RedisStudyCache::new(Arc::clone(&redis_pool)));
     let pg_health = Arc::new(PgHealthCheck::new(pg_pool.clone()));
     let redis_health = Arc::new(RedisHealthCheck::new(redis_pool));
 
     // Build randomization service
-    let randomization_service =
-        Arc::new(Engine::new(randomization_repo.clone(), block_cache.clone()));
+    let randomization_service = Arc::new(Engine::new(
+        Arc::clone(&randomization_repo) as _,
+        Arc::clone(&block_cache) as _,
+    ));
 
     // Parse the fhirServer URL → environment map (fails closed on unknown URLs).
     let environment_map = parse_environment_map(env::var("FHIR_ENV_MAP").ok().as_deref());
@@ -108,8 +110,8 @@ async fn run() -> EngineResult<()> {
                 .unwrap_or_default(),
         ),
         datasets: Arc::new(infra_pg::PgDatasetRepository::new(pg_pool.clone())),
-        members: user_study_repo.clone(),
-        studies: study_repo.clone(),
+        members: Arc::clone(&user_study_repo) as _,
+        studies: Arc::clone(&study_repo) as _,
     };
     let state = api_http::AppState {
         study_repo,

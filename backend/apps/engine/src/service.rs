@@ -6,6 +6,7 @@
 //! - Loads or creates permuted blocks via the cache
 //! - Records randomization assignments
 
+use std::fmt;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -48,9 +49,18 @@ impl Drop for InflightGuard<'_> {
     }
 }
 
+impl fmt::Debug for Engine {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Engine")
+            .field("inflight", &self.inflight.len())
+            .finish_non_exhaustive()
+    }
+}
+
 impl Engine {
     /// Creates an engine that persists assignments to `randomization_repo` and
     /// draws permuted blocks from `block_cache`.
+    #[must_use]
     pub fn new(
         randomization_repo: Arc<dyn RandomizationRepository>,
         block_cache: Arc<dyn BlockCacheRepository>,
@@ -113,11 +123,11 @@ impl Engine {
             match self.inflight.entry(dedup_key.clone()) {
                 dashmap::mapref::entry::Entry::Vacant(entry) => {
                     let notify = Arc::new(Notify::new());
-                    entry.insert(notify.clone());
+                    entry.insert(Arc::clone(&notify));
                     break notify;
                 }
                 dashmap::mapref::entry::Entry::Occupied(entry) => {
-                    let notify = entry.get().clone();
+                    let notify = Arc::clone(entry.get());
                     // enable() registers this waiter before the map guard is
                     // released, so a notify from the holder in the gap between
                     // dropping the guard and awaiting cannot be lost.
@@ -141,7 +151,7 @@ impl Engine {
         let mut guard = InflightGuard {
             map: &self.inflight,
             key: dedup_key,
-            notify: notify.clone(),
+            notify: Arc::clone(&notify),
             defused: false,
         };
 
@@ -150,27 +160,9 @@ impl Engine {
         } else {
             Some(Strata::try_parse(&config.strata, request)?)
         };
-        let stratum_key = strata.as_ref().map(String::from).unwrap_or_default();
+        let stratum_key = strata.as_ref().map_or_else(String::new, String::from);
 
-        let arm_index = match config.strategy {
-            RandomizationStrategy::Simple => Self::simple_randomize(&config.arms)?,
-            RandomizationStrategy::Block => {
-                self.block_randomize(
-                    &study.id,
-                    environment,
-                    &config.arms,
-                    config.block_size,
-                    &stratum_key,
-                )
-                .await?
-            }
-        };
-
-        let arm = config
-            .arms
-            .get(usize::try_from(arm_index).map_err(|_| RandomizationError::Unknown)?)
-            .ok_or(RandomizationError::Unknown)?
-            .clone();
+        let arm = self.pick_arm(study, environment, &stratum_key).await?;
 
         let mut randomization = match config.strategy {
             RandomizationStrategy::Simple => {
@@ -200,16 +192,59 @@ impl Engine {
         Ok(saved)
     }
 
+    async fn pick_arm(
+        &self,
+        study: &Study,
+        environment: Environment,
+        stratum_key: &str,
+    ) -> RandomizationResult<Arm> {
+        let config = &study.randomization_config;
+        let arm_index = match config.strategy {
+            RandomizationStrategy::Simple => Self::simple_randomize(&config.arms)?,
+            RandomizationStrategy::Block => {
+                self.block_randomize(
+                    &study.id,
+                    environment,
+                    &config.arms,
+                    config.block_size,
+                    stratum_key,
+                )
+                .await?
+            }
+        };
+
+        #[expect(
+            clippy::map_err_ignore,
+            reason = "the failed conversion carries no cause beyond the out-of-range index"
+        )]
+        let arm_slot = usize::try_from(arm_index).map_err(|_| RandomizationError::Unknown)?;
+        config
+            .arms
+            .get(arm_slot)
+            .cloned()
+            .ok_or(RandomizationError::Unknown)
+    }
+
     fn simple_randomize(arms: &[Arm]) -> RandomizationResult<u32> {
         use rand::distr::Distribution;
         use rand::distr::weighted::WeightedIndex;
 
         let weights: Vec<u32> = arms.iter().map(|a| a.ratio).collect();
+        #[expect(
+            clippy::map_err_ignore,
+            reason = "only zero weights reach here; the config error is the full diagnosis"
+        )]
         let dist = WeightedIndex::new(&weights).map_err(|_| {
             RandomizationError::InvalidConfiguration("all arm ratios are zero".into())
         })?;
         let mut rng = rand::rng();
-        u32::try_from(dist.sample(&mut rng)).map_err(|_| RandomizationError::Unknown)
+        #[expect(
+            clippy::map_err_ignore,
+            reason = "the failed conversion carries no cause beyond the out-of-range index"
+        )]
+        let index =
+            u32::try_from(dist.sample(&mut rng)).map_err(|_| RandomizationError::Unknown)?;
+        Ok(index)
     }
 
     async fn block_randomize(
