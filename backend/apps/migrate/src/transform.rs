@@ -271,18 +271,25 @@ mod tests {
     }
 
     #[test]
-    fn status_maps_draft_and_closed() {
+    fn status_maps_draft() {
         assert_eq!(transform_status(1).unwrap(), StudyStatus::Draft);
-        // Legacy Inactive (3) becomes the terminal Closed.
+    }
+
+    #[test]
+    fn status_maps_legacy_inactive_to_closed() {
         assert_eq!(transform_status(3).unwrap(), StudyStatus::Closed);
     }
 
     #[test]
-    fn status_rejects_unspecified_and_unknown() {
+    fn status_rejects_unspecified() {
         assert!(matches!(
             transform_status(0),
             Err(TransformError::UnknownStatus(0))
         ));
+    }
+
+    #[test]
+    fn status_rejects_unknown_ordinal() {
         assert!(matches!(
             transform_status(9),
             Err(TransformError::UnknownStatus(9))
@@ -290,11 +297,15 @@ mod tests {
     }
 
     #[test]
-    fn strategy_maps_simple_and_block() {
+    fn strategy_maps_simple() {
         assert_eq!(
             transform_strategy(1).unwrap(),
             RandomizationStrategy::Simple
         );
+    }
+
+    #[test]
+    fn strategy_maps_block() {
         assert_eq!(transform_strategy(2).unwrap(), RandomizationStrategy::Block);
     }
 
@@ -309,6 +320,10 @@ mod tests {
     #[test]
     fn block_size_zero_is_dynamic_none() {
         assert_eq!(transform_block_size(0), None);
+    }
+
+    #[test]
+    fn block_size_nonzero_is_preserved() {
         assert_eq!(transform_block_size(6), Some(6));
     }
 
@@ -383,32 +398,48 @@ mod tests {
         assert_eq!(dt.timestamp(), 1_772_550_371);
     }
 
-    #[test]
-    fn study_transform_applies_ids_and_enums() {
-        let legacy: LegacyStudy = serde_json::from_str(
+    const LIVE_ARM_0: &str = "d42d45ab-33ae-4d30-9910-678b32478f55";
+    const LIVE_ARM_1: &str = "7ad8afde-9190-4072-8406-7ff4bea61e50";
+
+    fn live_study() -> LegacyStudy {
+        serde_json::from_str(
             r#"{"id":"bd7be9c5-708b-4b9b-b3cf-1d82c647ee16","name":"Test study","description":"Test desc","randomization_config":{"strategy":2,"block_size":0,"arms":[{"id":"d42d45ab-33ae-4d30-9910-678b32478f55","ratio":1,"locator":null},{"id":"7ad8afde-9190-4072-8406-7ff4bea61e50","ratio":1,"locator":null}],"keys":[],"strata":[]},"status":2,"created_at":1772550371,"updated_at":1772550371}"#,
         )
-        .unwrap();
+        .unwrap()
+    }
 
+    #[test]
+    fn study_transform_applies_remapped_ids() {
         let new_study_id = Uuid::now_v7();
         let arm0 = Uuid::now_v7();
         let arm1 = Uuid::now_v7();
         let arm_ids = HashMap::from([
-            ("d42d45ab-33ae-4d30-9910-678b32478f55".to_string(), arm0),
-            ("7ad8afde-9190-4072-8406-7ff4bea61e50".to_string(), arm1),
+            (LIVE_ARM_0.to_string(), arm0),
+            (LIVE_ARM_1.to_string(), arm1),
         ]);
 
-        let study = transform_study(&legacy, new_study_id, &arm_ids).unwrap();
+        let study = transform_study(&live_study(), new_study_id, &arm_ids).unwrap();
 
         assert_eq!(study.id, new_study_id);
+        assert_eq!(study.randomization_config.arms[0].id, arm0);
+        assert_eq!(study.randomization_config.arms[1].id, arm1);
+    }
+
+    #[test]
+    fn study_transform_translates_enums_and_block_size() {
+        let arm_ids = HashMap::from([
+            (LIVE_ARM_0.to_string(), Uuid::now_v7()),
+            (LIVE_ARM_1.to_string(), Uuid::now_v7()),
+        ]);
+
+        let study = transform_study(&live_study(), Uuid::now_v7(), &arm_ids).unwrap();
+
         assert_eq!(study.status, StudyStatus::Active);
         assert_eq!(
             study.randomization_config.strategy,
             RandomizationStrategy::Block
         );
         assert_eq!(study.randomization_config.block_size, None);
-        assert_eq!(study.randomization_config.arms[0].id, arm0);
-        assert_eq!(study.randomization_config.arms[1].id, arm1);
     }
 
     #[test]
@@ -422,54 +453,116 @@ mod tests {
         assert!(matches!(err, TransformError::UnknownArm(ref id) if id == "missing"));
     }
 
-    #[test]
-    fn randomization_transform_tags_production_and_remaps_ids() {
-        let legacy: LegacyRandomization = serde_json::from_str(
+    fn live_randomization() -> LegacyRandomization {
+        serde_json::from_str(
             r#"{"id":"2f1df2e5-71a4-46b2-90a0-4bd22ac260bd","study_id":"228835de-96a7-442f-8fdb-6aeae6af8012","unit":{"kind":"simple","data":{"PatientId":"eaYQYiGc3dMeGffKe8qGUow3"}},"arm":{"id":"3dcce794-5284-4d7c-b773-2e7d18ffb589","ratio":1,"locator":5802},"issued_at":"2026-03-03T15:56:53.232231178Z"}"#,
         )
-        .unwrap();
+        .unwrap()
+    }
 
-        let new_id = Uuid::now_v7();
-        let new_study_id = Uuid::now_v7();
-        let new_arm_id = Uuid::now_v7();
+    fn transformed_randomization() -> Randomization {
+        transform_randomization(
+            &live_randomization(),
+            Uuid::now_v7(),
+            Uuid::now_v7(),
+            Uuid::now_v7(),
+        )
+    }
 
-        let rec = transform_randomization(&legacy, new_id, new_study_id, new_arm_id);
+    #[test]
+    fn randomization_transform_applies_remapped_ids() {
+        let (new_id, new_study_id, new_arm_id) = (Uuid::now_v7(), Uuid::now_v7(), Uuid::now_v7());
+
+        let rec = transform_randomization(&live_randomization(), new_id, new_study_id, new_arm_id);
 
         assert_eq!(rec.id, new_id);
         assert_eq!(rec.study_id, new_study_id);
-        assert_eq!(rec.environment, Environment::Production);
         assert_eq!(rec.arm.id, new_arm_id);
-        assert_eq!(rec.arm.locator, Some(5802));
-        assert!(!rec.context.contains_key("epic_patient_id"));
+    }
+
+    #[test]
+    fn randomization_transform_tags_production() {
+        assert_eq!(
+            transformed_randomization().environment,
+            Environment::Production
+        );
+    }
+
+    #[test]
+    fn randomization_transform_preserves_arm_locator() {
+        assert_eq!(transformed_randomization().arm.locator, Some(5802));
+    }
+
+    #[test]
+    fn randomization_transform_derives_fhir_patient_context() {
+        let rec = transformed_randomization();
+
         assert_eq!(
             rec.context.get("fhir_patient_id"),
             Some(&serde_json::json!("eaYQYiGc3dMeGffKe8qGUow3"))
         );
-        assert!(matches!(
-            rec.unit,
-            Unit::Simple(SimpleUnit::PatientId(ref id)) if id == "eaYQYiGc3dMeGffKe8qGUow3"
-        ));
-        // issued_at is passed through unchanged.
-        assert_eq!(rec.issued_at, legacy.issued_at);
     }
 
     #[test]
-    fn block_transform_preserves_index_and_values_byte_for_byte() {
+    fn randomization_transform_omits_epic_identifiers() {
+        assert!(
+            !transformed_randomization()
+                .context
+                .contains_key("epic_patient_id")
+        );
+    }
+
+    #[test]
+    fn randomization_transform_keeps_unit() {
+        assert!(matches!(
+            transformed_randomization().unit,
+            Unit::Simple(SimpleUnit::PatientId(ref id)) if id == "eaYQYiGc3dMeGffKe8qGUow3"
+        ));
+    }
+
+    #[test]
+    fn randomization_transform_passes_issued_at_through() {
+        assert_eq!(
+            transformed_randomization().issued_at,
+            live_randomization().issued_at
+        );
+    }
+
+    fn transformed_block(new_study_id: Uuid) -> RandomPermutedBlock {
         let legacy: LegacyBlock = serde_json::from_str(
             r#"{"study_id":"228835de-96a7-442f-8fdb-6aeae6af8012","stratification":null,"index":2,"values":[0,1,1,0]}"#,
         )
         .unwrap();
+        transform_block(&legacy, new_study_id).unwrap()
+    }
 
-        let new_study_id = Uuid::now_v7();
-        let block = transform_block(&legacy, new_study_id).unwrap();
-
+    #[test]
+    fn block_transform_preserves_index_and_values() {
         // Re-serialize to inspect the private index/values without accessors.
-        let json = serde_json::to_value(&block).unwrap();
-        assert_eq!(json["study_id"], serde_json::json!(new_study_id));
+        let json = serde_json::to_value(transformed_block(Uuid::now_v7())).unwrap();
+
         assert_eq!(json["index"], serde_json::json!(2));
         assert_eq!(json["values"], serde_json::json!([0, 1, 1, 0]));
+    }
+
+    #[test]
+    fn block_transform_applies_remapped_study_id() {
+        let new_study_id = Uuid::now_v7();
+
+        let json = serde_json::to_value(transformed_block(new_study_id)).unwrap();
+
+        assert_eq!(json["study_id"], serde_json::json!(new_study_id));
+    }
+
+    #[test]
+    fn block_transform_keeps_null_stratification() {
+        let json = serde_json::to_value(transformed_block(Uuid::now_v7())).unwrap();
+
         assert_eq!(json["stratification"], serde_json::Value::Null);
-        // A fresh v7 id was injected.
-        assert_eq!(block.id.get_version_num(), 7);
+    }
+
+    #[test]
+    fn block_transform_injects_v7_id() {
+        assert_eq!(transformed_block(Uuid::now_v7()).id.get_version_num(), 7);
     }
 }
