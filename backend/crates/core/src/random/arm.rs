@@ -20,7 +20,7 @@ pub struct Arm {
 }
 
 impl Arm {
-    /// Create a new arm with a generated UUIDv7 and enforced minimum ratio of 1.
+    /// Creates a new arm with a generated UUIDv7 and enforced minimum ratio of 1.
     pub fn new(name: impl Into<String>, ratio: u32) -> Self {
         Self {
             id: Uuid::now_v7(),

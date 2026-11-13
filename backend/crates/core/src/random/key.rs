@@ -5,13 +5,13 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum KeyVariant {
-    /// Use the patient identifier.
+    /// Uses the patient identifier.
     PatientId,
-    /// Use the encounter identifier.
+    /// Uses the encounter identifier.
     EncounterId,
-    /// Use the provider (user) identifier.
+    /// Uses the provider (user) identifier.
     ProviderId,
-    /// Use a value extracted from a FHIR resource path.
+    /// Uses a value extracted from a FHIR resource path.
     FhirPath(FhirPath),
 }
 

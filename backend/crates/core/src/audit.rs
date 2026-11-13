@@ -49,7 +49,7 @@ pub struct AuditEvent {
 }
 
 impl AuditEvent {
-    /// Record a new audit event, stamping a fresh UUIDv7 id and the current time.
+    /// Records a new audit event, stamping a fresh UUIDv7 id and the current time.
     ///
     /// `event_type` should be one of the [`event_type`] constants. `detail`
     /// carries any event-specific fields; pass [`serde_json::Value::Null`] or an
@@ -70,7 +70,7 @@ impl AuditEvent {
         }
     }
 
-    /// Reconstruct an event from its stored fields.
+    /// Reconstructs an event from its stored fields.
     ///
     /// For persistence adapters rehydrating a row; unlike [`AuditEvent::record`]
     /// it preserves the original `id` and `created_at` rather than stamping new

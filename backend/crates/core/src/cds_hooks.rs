@@ -172,11 +172,11 @@ pub struct Action {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ActionType {
-    /// Create the supplied resource.
+    /// Creates the supplied resource.
     Create,
-    /// Update the supplied resource.
+    /// Updates the supplied resource.
     Update,
-    /// Delete the referenced resource.
+    /// Deletes the referenced resource.
     Delete,
 }
 

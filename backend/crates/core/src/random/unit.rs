@@ -38,12 +38,12 @@ pub enum Unit {
 }
 
 impl SimpleUnit {
-    /// Extract a unit identifier from the request using the given key.
+    /// Extracts a unit identifier from the request using the given key.
     ///
     /// # Errors
     ///
-    /// Return [`RandomizationError::MissingField`] if the key's corresponding
-    /// request field is absent. Return [`RandomizationError::NotImplemented`]
+    /// Returns [`RandomizationError::MissingField`] if the key's corresponding
+    /// request field is absent. Returns [`RandomizationError::NotImplemented`]
     /// for a [`KeyVariant::FhirPath`] key.
     pub fn try_parse(
         key: &KeyVariant,
@@ -83,15 +83,15 @@ impl SimpleUnit {
 }
 
 impl Unit {
-    /// Extract a unit from the request using one or more keys.
+    /// Extracts a unit from the request using one or more keys.
     ///
-    /// Return [`Unit::Simple`] for a single key, [`Unit::Composite`] for
+    /// Returns [`Unit::Simple`] for a single key, [`Unit::Composite`] for
     /// multiple keys.
     ///
     /// # Errors
     ///
-    /// Return [`RandomizationError::NotFound`] if `keys` is empty.
-    /// Propagate errors from [`SimpleUnit::try_parse`] for each key.
+    /// Returns [`RandomizationError::NotFound`] if `keys` is empty.
+    /// Propagates errors from [`SimpleUnit::try_parse`] for each key.
     pub fn try_parse(
         keys: &[KeyVariant],
         request: &RandomizationRequest,

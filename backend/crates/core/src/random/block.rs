@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 /// A permuted block of randomized arm assignments.
 ///
-/// Generate a shuffled sequence of arm indices according to the configured
+/// Holds a shuffled sequence of arm indices according to the configured
 /// ratios and block size. Assignments are dispensed one at a time via
 /// [`get_next`](Self::get_next) until the block is exhausted.
 #[derive(Debug, Serialize, Deserialize)]
@@ -26,11 +26,11 @@ pub struct RandomPermutedBlock {
 }
 
 impl RandomPermutedBlock {
-    /// Create a new permuted block for the given study arms.
+    /// Creates a new permuted block for the given study arms.
     ///
     /// # Errors
     ///
-    /// Return [`RandomizationError::InvalidBlockSize`] if `block_size` is
+    /// Returns [`RandomizationError::InvalidBlockSize`] if `block_size` is
     /// provided and is not a positive multiple of the sum of arm ratios.
     pub fn new(
         study_id: &Uuid,
@@ -42,11 +42,11 @@ impl RandomPermutedBlock {
         Self::try_generate(study_id, arms, block_size, strata, rng)
     }
 
-    /// Return the next arm index from this block and advance the cursor.
+    /// Returns the next arm index from this block and advances the cursor.
     ///
     /// # Errors
     ///
-    /// Return [`RandomizationError::BlockExhausted`] if all assignments
+    /// Returns [`RandomizationError::BlockExhausted`] if all assignments
     /// in this block have already been consumed.
     pub fn get_next(&mut self) -> RandomizationResult<u32> {
         if self.index >= self.values.len() {
@@ -105,7 +105,7 @@ fn block_size_minima(arms: &[Arm]) -> u32 {
     arms.iter().map(|arm| arm.ratio).sum()
 }
 
-/// Calculate how many slots in a block belong to a single arm.
+/// Calculates how many slots in a block belong to a single arm.
 pub(super) fn arm_assignment_count(block_size: u32, ratio_sum: u32, arm_ratio: u32) -> u32 {
     ((block_size as u64 * arm_ratio as u64) / ratio_sum as u64) as u32
 }

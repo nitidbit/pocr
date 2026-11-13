@@ -34,7 +34,7 @@ pub struct EpicIds {
 }
 
 impl RandomizationRequest {
-    /// Capture selected identifiers only; never persist prefetch resources or tokens.
+    /// Captures selected identifiers only; never persists prefetch resources or tokens.
     pub fn extract_context(&self) -> BTreeMap<String, serde_json::Value> {
         let epic = self.extract_epic_ids();
         [
@@ -53,7 +53,7 @@ impl RandomizationRequest {
         .collect()
     }
 
-    /// Extract Epic-native IDs from the FHIR resources in the request context.
+    /// Extracts Epic-native IDs from the FHIR resources in the request context.
     ///
     /// The context is the CDS Hooks `prefetch` block: `patient`, `encounter`,
     /// and `user` (Practitioner) FHIR resources, each present only if the EHR
@@ -80,7 +80,7 @@ impl RandomizationRequest {
 /// segment boundary.
 const CSN_OID_SUFFIX: &str = ".7.3.698084.8";
 
-/// Return the value of the first identifier on `resource` whose `type.text`
+/// Returns the value of the first identifier on `resource` whose `type.text`
 /// equals `type_text`.
 fn identifier_by_type(resource: Option<&serde_json::Value>, type_text: &str) -> Option<String> {
     identifiers(resource)
@@ -94,7 +94,7 @@ fn identifier_by_type(resource: Option<&serde_json::Value>, type_text: &str) -> 
         .map(String::from)
 }
 
-/// Return the value of the first identifier on `resource` whose `system`
+/// Returns the value of the first identifier on `resource` whose `system`
 /// ends with `suffix`.
 fn identifier_by_system_suffix(
     resource: Option<&serde_json::Value>,
@@ -110,7 +110,7 @@ fn identifier_by_system_suffix(
         .map(String::from)
 }
 
-/// Iterate the `identifier` array entries of a FHIR resource, if any.
+/// Iterates the `identifier` array entries of a FHIR resource, if any.
 fn identifiers(resource: Option<&serde_json::Value>) -> impl Iterator<Item = &serde_json::Value> {
     resource
         .and_then(|r| r.get("identifier"))

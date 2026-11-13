@@ -37,7 +37,7 @@ pub struct PatientDemographics {
 }
 
 impl PatientDemographics {
-    /// Construct a record from all fields, in declaration order.
+    /// Constructs a record from all fields, in declaration order.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         patient_id: String,
@@ -95,7 +95,7 @@ pub struct PatientDemographicsWithArm {
 }
 
 impl PatientDemographicsWithArm {
-    /// Construct a record from all fields, in declaration order.
+    /// Constructs a record from all fields, in declaration order.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         patient_id: String,

@@ -35,7 +35,7 @@ impl Environment {
         }
     }
 
-    /// Parse the lowercase string form (inverse of [`Environment::as_str`]).
+    /// Parses the lowercase string form (inverse of [`Environment::as_str`]).
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             "production" => Some(Environment::Production),
@@ -75,7 +75,7 @@ pub struct EnvironmentMap {
 }
 
 impl EnvironmentMap {
-    /// Build a map from `(url_prefix, environment)` pairs.
+    /// Builds a map from `(url_prefix, environment)` pairs.
     pub fn new(entries: impl IntoIterator<Item = (String, Environment)>) -> Self {
         let mut entries: Vec<(String, Environment)> = entries.into_iter().collect();
         // Longest prefix first so resolution picks the most specific match.
@@ -83,7 +83,7 @@ impl EnvironmentMap {
         Self { entries }
     }
 
-    /// Resolve an optional `fhirServer` URL to an environment.
+    /// Resolves an optional `fhirServer` URL to an environment.
     ///
     /// Fails closed: `None` yields [`EnvironmentError::MissingUrl`] and an
     /// unmatched URL yields [`EnvironmentError::UnknownUrl`]. Never defaults.

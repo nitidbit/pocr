@@ -1,6 +1,6 @@
 //! Randomization primitives for clinical trial arm assignment.
 //!
-//! Provide permuted-block randomization with configurable arm ratios,
+//! Provides permuted-block randomization with configurable arm ratios,
 //! optional stratification, and flexible unit identification. The primary
 //! entry point is [`RandomPermutedBlock`] for block generation and
 //! [`Randomization`] for recording issued assignments.

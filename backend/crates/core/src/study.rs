@@ -62,7 +62,7 @@ pub enum GateRejection {
     StudyClosed,
 }
 
-/// Decide whether a request in `env` may randomize against a study in `status`.
+/// Decides whether a request in `env` may randomize against a study in `status`.
 ///
 /// Rules (see design spec, section 4):
 /// - Production randomizes **only** when the study is `Active`.
@@ -131,7 +131,7 @@ pub struct RandomizationConfig {
 }
 
 impl RandomizationConfig {
-    /// Validate the configuration for go-live. Returns the collected errors.
+    /// Validates the configuration for go-live. Returns the collected errors.
     ///
     /// Mirrors the API-layer create validation so that a study cannot be
     /// activated with a config that would never randomize correctly.
@@ -180,7 +180,7 @@ pub struct Study {
 }
 
 impl Study {
-    /// Create a new draft study with the given configuration.
+    /// Creates a new draft study with the given configuration.
     pub fn new(name: String, description: String, config: RandomizationConfig) -> Self {
         let now = Utc::now();
         Self {
@@ -216,7 +216,7 @@ impl Study {
         )
     }
 
-    /// Attempt a lifecycle transition, enforcing the state machine.
+    /// Attempts a lifecycle transition, enforcing the state machine.
     ///
     /// Permitted transitions (design spec section 3):
     /// `Draft→Active` (validates config, then freezes it), `Draft→Closed`,
@@ -244,7 +244,7 @@ impl Study {
         Ok(())
     }
 
-    /// Replace the allocation configuration, honoring the freeze rule.
+    /// Replaces the allocation configuration, honoring the freeze rule.
     ///
     /// Allowed only while in [`Draft`](StudyStatus::Draft); otherwise returns
     /// [`StudyError::ConfigFrozen`]. Cosmetic fields (`name`, `description`)

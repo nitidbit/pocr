@@ -46,11 +46,11 @@ pub enum Strata {
 }
 
 impl SimpleStratum {
-    /// Extract a stratum value from the request context.
+    /// Extracts a stratum value from the request context.
     ///
     /// # Errors
     ///
-    /// Return [`RandomizationError::NotFound`] if the request has no context,
+    /// Returns [`RandomizationError::NotFound`] if the request has no context,
     /// the context lacks the specified resource, or the path does not resolve.
     pub fn try_parse(
         stratum: &Stratum,
@@ -77,11 +77,11 @@ impl SimpleStratum {
 }
 
 impl Strata {
-    /// Parse all strata definitions against the request context.
+    /// Parses all strata definitions against the request context.
     ///
     /// # Errors
     ///
-    /// Return [`RandomizationError::NotFound`] if the slice is empty or
+    /// Returns [`RandomizationError::NotFound`] if the slice is empty or
     /// any individual stratum cannot be resolved from the request.
     pub fn try_parse(
         strata: &[Stratum],
