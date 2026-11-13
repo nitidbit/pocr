@@ -38,7 +38,11 @@ pub struct PatientDemographics {
 
 impl PatientDemographics {
     /// Constructs a record from all fields, in declaration order.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "mirrors the stored row column for column"
+    )]
+    #[must_use]
     pub fn new(
         patient_id: String,
         birth_date: Option<NaiveDate>,
@@ -96,7 +100,11 @@ pub struct PatientDemographicsWithArm {
 
 impl PatientDemographicsWithArm {
     /// Constructs a record from all fields, in declaration order.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "mirrors the stored row column for column"
+    )]
+    #[must_use]
     pub fn new(
         patient_id: String,
         birth_date: Option<NaiveDate>,

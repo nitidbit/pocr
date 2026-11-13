@@ -213,6 +213,7 @@ pub enum IncompatibilityKind {
 
 impl IncompatibleReport {
     /// The dataset field whose absence or type broke the binding.
+    #[must_use]
     pub fn field(&self) -> &FieldName {
         match self {
             Self::UnknownField { field }
@@ -223,6 +224,7 @@ impl IncompatibleReport {
     }
 
     /// Classifies the incompatibility.
+    #[must_use]
     pub fn kind(&self) -> IncompatibilityKind {
         match self {
             Self::UnknownField { .. } => IncompatibilityKind::UnknownField,
@@ -235,26 +237,31 @@ impl IncompatibleReport {
 
 impl ReportDefinition {
     /// Unique report name.
+    #[must_use]
     pub fn name(&self) -> &ReportName {
         &self.name
     }
 
     /// Name of the dataset the report summarizes.
+    #[must_use]
     pub fn dataset(&self) -> &DatasetName {
         &self.dataset
     }
 
     /// Report title shown above the summary.
+    #[must_use]
     pub fn title(&self) -> &str {
         &self.title
     }
 
     /// Report description.
+    #[must_use]
     pub fn description(&self) -> &str {
         &self.description
     }
 
     /// Variables in display order.
+    #[must_use]
     pub fn variables(&self) -> &[Variable] {
         &self.variables
     }
@@ -304,6 +311,7 @@ pub struct BoundReport<'a> {
 
 impl BoundReport<'_> {
     /// The bound report definition.
+    #[must_use]
     pub fn definition(&self) -> &ReportDefinition {
         self.definition
     }
@@ -313,6 +321,7 @@ impl BoundReport<'_> {
     /// Columns are the configured `arms` in order, including arms with no
     /// rows. Arms found only in `rows` follow, named as stored, in order of
     /// their first row by randomization ID.
+    #[must_use]
     pub fn summarize(&self, arms: &[Arm], rows: &[DatasetRow]) -> Report {
         summary::summarize(self, arms, rows)
     }
@@ -328,16 +337,19 @@ impl BoundReport<'_> {
 
 impl Variable {
     /// Dataset field this variable summarizes.
+    #[must_use]
     pub fn field(&self) -> &FieldName {
         &self.field
     }
 
     /// Display label.
+    #[must_use]
     pub fn label(&self) -> &str {
         &self.label
     }
 
     /// How the field is summarized.
+    #[must_use]
     pub fn analysis(&self) -> Analysis {
         self.analysis
     }

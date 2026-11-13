@@ -35,6 +35,7 @@ pub struct EpicIds {
 
 impl RandomizationRequest {
     /// Captures selected identifiers only; never persists prefetch resources or tokens.
+    #[must_use]
     pub fn extract_context(&self) -> BTreeMap<String, serde_json::Value> {
         let epic = self.extract_epic_ids();
         [
@@ -63,6 +64,7 @@ impl RandomizationRequest {
     /// - `patient_id`: the Patient's `EXTERNAL`-typed identifier value.
     /// - `csn`: the Encounter identifier whose system OID ends in `.7.3.698084.8`.
     /// - `user_id`: the user (Practitioner) `EXTERNAL`-typed identifier value.
+    #[must_use]
     pub fn extract_epic_ids(&self) -> EpicIds {
         let Some(ctx) = &self.context else {
             return EpicIds::default();

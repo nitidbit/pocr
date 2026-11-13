@@ -337,11 +337,13 @@ pub struct Procedure {
 
 impl Procedure {
     /// Schema containing the procedure.
+    #[must_use]
     pub fn schema(&self) -> &SqlIdentifier {
         &self.schema
     }
 
     /// Procedure name.
+    #[must_use]
     pub fn name(&self) -> &SqlIdentifier {
         &self.name
     }
@@ -357,16 +359,19 @@ pub struct Field {
 
 impl Field {
     /// Name exposed to reports and exports.
+    #[must_use]
     pub fn name(&self) -> &FieldName {
         &self.name
     }
 
     /// Declared value type.
+    #[must_use]
     pub fn kind(&self) -> FieldType {
         self.kind
     }
 
     /// Column in the procedure's result set that supplies the value.
+    #[must_use]
     pub fn column(&self) -> &ColumnName {
         &self.column
     }
@@ -504,42 +509,50 @@ impl From<DatasetDefinition> for RawDatasetDefinition {
 
 impl DatasetDefinition {
     /// Unique dataset name.
+    #[must_use]
     pub fn name(&self) -> &DatasetName {
         &self.name
     }
 
     /// Human-readable title; never blank.
+    #[must_use]
     pub fn title(&self) -> &str {
         &self.title
     }
 
     /// Free-form description; may be empty.
+    #[must_use]
     pub fn description(&self) -> &str {
         &self.description
     }
 
     /// Database the procedure runs against.
+    #[must_use]
     pub fn source(&self) -> Source {
         self.source
     }
 
     /// Stored procedure that produces the dataset.
+    #[must_use]
     pub fn procedure(&self) -> &Procedure {
         &self.procedure
     }
 
     /// Clinical fields in export order.
+    #[must_use]
     pub fn fields(&self) -> &[Field] {
         &self.fields
     }
 
     /// Hex SHA-256 of the canonical JSON form; changes whenever the
     /// definition changes.
+    #[must_use]
     pub fn fingerprint(&self) -> &str {
         &self.fingerprint
     }
 
     /// Looks up a field by name.
+    #[must_use]
     pub fn field(&self, name: &FieldName) -> Option<&Field> {
         self.fields.iter().find(|field| &field.name == name)
     }

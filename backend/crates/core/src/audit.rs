@@ -75,6 +75,7 @@ impl AuditEvent {
     /// For persistence adapters rehydrating a row; unlike [`AuditEvent::record`]
     /// it preserves the original `id` and `created_at` rather than stamping new
     /// ones.
+    #[must_use]
     pub fn from_stored(
         id: Uuid,
         study_id: Uuid,

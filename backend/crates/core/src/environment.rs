@@ -28,6 +28,7 @@ pub enum Environment {
 
 impl Environment {
     /// The lowercase string form used in cache keys and stored records.
+    #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
             Environment::Production => "production",
@@ -36,6 +37,7 @@ impl Environment {
     }
 
     /// Parses the lowercase string form (inverse of [`Environment::as_str`]).
+    #[must_use]
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             "production" => Some(Environment::Production),
@@ -101,6 +103,7 @@ impl EnvironmentMap {
     }
 
     /// Whether the map has no configured prefixes.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }

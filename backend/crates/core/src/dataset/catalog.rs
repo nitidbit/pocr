@@ -28,6 +28,7 @@ impl DatasetRegistry {
     }
 
     /// Looks up a definition by name.
+    #[must_use]
     pub fn get(&self, name: &DatasetName) -> Option<&DatasetDefinition> {
         self.0.get(name)
     }
@@ -38,6 +39,7 @@ impl DatasetRegistry {
     }
 
     /// Returns whether no definitions are registered.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -56,6 +58,7 @@ pub struct Catalog {
 
 impl Catalog {
     /// Creates a catalog of `datasets` with no reports.
+    #[must_use]
     pub fn new(datasets: DatasetRegistry) -> Self {
         Self {
             datasets,
@@ -95,11 +98,13 @@ impl Catalog {
     }
 
     /// The deployed datasets.
+    #[must_use]
     pub fn datasets(&self) -> &DatasetRegistry {
         &self.datasets
     }
 
     /// Looks up a report by name.
+    #[must_use]
     pub fn report(&self, name: &ReportName) -> Option<&ReportDefinition> {
         self.reports.get(name)
     }

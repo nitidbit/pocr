@@ -33,6 +33,7 @@ pub enum StudyStatus {
 
 impl StudyStatus {
     /// The lowercase string form used in stored records.
+    #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
             StudyStatus::Draft => "draft",
@@ -71,6 +72,7 @@ pub enum GateRejection {
 ///
 /// Pure and total — the single source of truth for the gate, exercised
 /// exhaustively by the service and by tests.
+#[must_use]
 pub fn gate(env: Environment, status: StudyStatus) -> GateDecision {
     match (env, status) {
         (_, StudyStatus::Closed) => GateDecision::Reject(GateRejection::StudyClosed),
@@ -182,6 +184,7 @@ pub struct Study {
 
 impl Study {
     /// Creates a new draft study with the given configuration.
+    #[must_use]
     pub fn new(name: String, description: String, config: RandomizationConfig) -> Self {
         let now = Utc::now();
         Self {
@@ -199,6 +202,7 @@ impl Study {
     ///
     /// Config is mutable only while the study is in [`Draft`](StudyStatus::Draft).
     /// Freezing preserves allocation integrity once subjects can be randomized.
+    #[must_use]
     pub fn config_is_frozen(&self) -> bool {
         self.status != StudyStatus::Draft
     }

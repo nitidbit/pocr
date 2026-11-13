@@ -32,6 +32,7 @@ pub struct Randomization {
 
 impl Randomization {
     /// Creates a simple (unstratified) randomization record.
+    #[must_use]
     pub fn simple(study_id: &Uuid, environment: Environment, unit: &Unit, arm: &Arm) -> Self {
         Self {
             id: Uuid::now_v7(),
@@ -46,6 +47,7 @@ impl Randomization {
     }
 
     /// Creates a block-randomization record, optionally stratified.
+    #[must_use]
     pub fn block(
         study_id: &Uuid,
         environment: Environment,

@@ -135,11 +135,13 @@ pub struct DatasetRecord {
 
 impl DatasetRecord {
     /// Randomization this row describes.
+    #[must_use]
     pub fn randomization_id(&self) -> Uuid {
         self.randomization_id
     }
 
     /// Field values keyed by field name; every declared field is present, nulls included.
+    #[must_use]
     pub fn values(&self) -> &Values {
         &self.values
     }
