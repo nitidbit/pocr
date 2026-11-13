@@ -158,7 +158,7 @@ pub async fn get_system_status(State(state): State<AppState>) -> impl IntoRespon
 async fn probe(service: &dyn HealthCheckable) -> ServiceHealth {
     let start = Instant::now();
     let result = service.ping().await;
-    let latency_ms = start.elapsed().as_millis() as u64;
+    let latency_ms = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
     match result {
         Ok(()) => ServiceHealth {
             status: ServiceStatus::Up,

@@ -4,7 +4,7 @@
 //! applies small-cell suppression for patient privacy. Used by the frontend
 //! to display a balance table for study investigators.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use axum::Json;
 use axum::extract::{Path, State};
@@ -196,10 +196,10 @@ fn build_balance_response(
 
 /// Collects unique arm IDs from records, preserving insertion order.
 fn collect_arm_ids(records: &[PatientDemographicsWithArm]) -> Vec<Uuid> {
-    let mut seen = HashMap::new();
+    let mut seen = HashSet::new();
     let mut ids = Vec::new();
     for record in records {
-        if seen.insert(record.arm_id, ()).is_none() {
+        if seen.insert(record.arm_id) {
             ids.push(record.arm_id);
         }
     }
@@ -314,7 +314,7 @@ fn build_categorical_variable(
             let count = counts.get(&arm_id).copied().unwrap_or(0);
             let total = arm_totals.get(&arm_id).copied().unwrap_or(0);
             let proportion = if total > 0 {
-                count as f64 / total as f64
+                as_f64(count) / as_f64(total)
             } else {
                 0.0
             };
@@ -358,11 +358,20 @@ fn build_categorical_variable(
 
 // -- Numeric helpers --
 
+/// Converts a count to `f64`.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "patient counts stay far below 2^52"
+)]
+fn as_f64(count: usize) -> f64 {
+    count as f64
+}
+
 fn compute_mean(values: &[f64]) -> f64 {
     if values.is_empty() {
         return 0.0;
     }
-    values.iter().sum::<f64>() / values.len() as f64
+    values.iter().sum::<f64>() / as_f64(values.len())
 }
 
 fn compute_sd(values: &[f64]) -> f64 {
@@ -371,7 +380,7 @@ fn compute_sd(values: &[f64]) -> f64 {
     }
     let mean = compute_mean(values);
     let variance =
-        values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (values.len() - 1) as f64;
+        values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / as_f64(values.len() - 1);
     variance.sqrt()
 }
 

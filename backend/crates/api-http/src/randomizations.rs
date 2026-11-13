@@ -154,7 +154,7 @@ pub async fn count_randomizations(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pocr_core::random::{Arm, SimpleUnit, Unit};
+    use pocr_core::random::SimpleUnit;
 
     fn make_randomization() -> Randomization {
         let arm = Arm::new("Treatment A", 1);

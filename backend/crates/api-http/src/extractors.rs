@@ -38,14 +38,17 @@ where
 {
     type Rejection = (StatusCode, &'static str);
 
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+    fn from_request_parts(
+        parts: &mut Parts,
+        _state: &S,
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
         let header_value = parts
             .headers
             .get("X-Vouch-User")
             .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_owned());
+            .map(str::to_owned);
 
-        match header_value {
+        std::future::ready(match header_value {
             Some(user_id) => Ok(AuthUser(normalize_email(&user_id))),
             None => {
                 #[cfg(debug_assertions)]
@@ -60,7 +63,7 @@ where
                     Err((StatusCode::UNAUTHORIZED, "missing authentication header"))
                 }
             }
-        }
+        })
     }
 }
 

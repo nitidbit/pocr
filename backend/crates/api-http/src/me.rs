@@ -38,8 +38,9 @@ pub async fn get_me(
     let groups = headers
         .get("X-Vouch-Groups")
         .and_then(|v| v.to_str().ok())
-        .map(|s| s.split(',').map(|g| g.trim().to_owned()).collect())
-        .unwrap_or_default();
+        .map_or_else(Vec::new, |s| {
+            s.split(',').map(|g| g.trim().to_owned()).collect()
+        });
 
     Ok(Json(MeResponse {
         email: user.0,

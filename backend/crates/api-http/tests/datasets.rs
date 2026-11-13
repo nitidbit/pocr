@@ -2,6 +2,7 @@
 //! `DATASET_TEST_DATABASE_URL`, with real repositories and snapshots seeded
 //! through the public refresh API.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use api_http::{DatasetsState, datasets_router};
@@ -106,8 +107,8 @@ impl Harness {
     fn router_with(&self, catalog: Catalog) -> Router {
         datasets_router().with_state(DatasetsState {
             catalog: Arc::new(catalog),
-            datasets: self.repository.clone(),
-            members: self.members.clone(),
+            datasets: Arc::<PgDatasetRepository>::clone(&self.repository),
+            members: Arc::<PgUserStudyRepository>::clone(&self.members),
             studies: Arc::new(PgStudyRepository::new(self.pool.clone())),
         })
     }
@@ -230,7 +231,7 @@ fn record(
     let input = ContextRecord {
         randomization_id: id,
         randomization_time: "2026-10-01T14:30:00Z".parse().unwrap(),
-        context: Default::default(),
+        context: BTreeMap::default(),
     };
     definition
         .parse_results(&[input], vec![row])
@@ -301,8 +302,8 @@ async fn get(h: &Harness, uri: &str, user: &str) -> (StatusCode, String) {
     send(h.router(), Method::GET, uri, user, None).await
 }
 
-fn attach_body() -> Option<Value> {
-    Some(json!({"name": DATASET}))
+fn attach_body() -> Value {
+    json!({"name": DATASET})
 }
 
 #[tokio::test]
@@ -325,7 +326,7 @@ async fn non_member_gets_not_found_attaching_a_dataset() {
         Method::POST,
         &h.attach_uri(),
         OUTSIDER,
-        attach_body(),
+        Some(attach_body()),
     )
     .await;
 
@@ -430,7 +431,7 @@ async fn member_cannot_attach_a_dataset() {
         Method::POST,
         &h.attach_uri(),
         MEMBER,
-        attach_body(),
+        Some(attach_body()),
     )
     .await;
 
@@ -458,7 +459,7 @@ async fn owner_attaches_a_dataset_and_can_manage() {
         Method::POST,
         &h.attach_uri(),
         OWNER,
-        attach_body(),
+        Some(attach_body()),
     )
     .await;
     let (_, body) = get(&h, &h.datasets_uri("production"), OWNER).await;

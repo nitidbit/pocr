@@ -3,9 +3,6 @@
 //! Computes SMD for continuous and categorical variables across treatment arms.
 //! Used by the balance endpoint to flag demographic imbalance.
 
-/// SMD threshold above which a variable is considered imbalanced.
-pub const SMD_IMBALANCE_THRESHOLD: f64 = 0.1;
-
 /// Per-arm statistics for a single variable.
 #[derive(Debug, Clone)]
 pub struct ArmStats {
@@ -21,7 +18,7 @@ pub struct ArmStats {
 ///
 /// Returns 0.0 when the pooled standard deviation is zero.
 pub fn smd_continuous(mean1: f64, sd1: f64, mean2: f64, sd2: f64) -> f64 {
-    let pooled_variance = (sd1 * sd1 + sd2 * sd2) / 2.0;
+    let pooled_variance = f64::midpoint(sd1 * sd1, sd2 * sd2);
     if pooled_variance == 0.0 {
         return 0.0;
     }
@@ -34,7 +31,7 @@ pub fn smd_continuous(mean1: f64, sd1: f64, mean2: f64, sd2: f64) -> f64 {
 ///
 /// Returns 0.0 when the pooled variance is zero (both proportions are 0 or 1).
 pub fn smd_categorical(p1: f64, p2: f64) -> f64 {
-    let pooled_variance = (p1 * (1.0 - p1) + p2 * (1.0 - p2)) / 2.0;
+    let pooled_variance = f64::midpoint(p1 * (1.0 - p1), p2 * (1.0 - p2));
     if pooled_variance == 0.0 {
         return 0.0;
     }

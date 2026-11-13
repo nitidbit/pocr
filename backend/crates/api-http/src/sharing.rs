@@ -6,7 +6,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::AppState;
@@ -60,7 +60,7 @@ pub async fn share_study(
         .await?
         .ok_or(ApiError::NotFound)?;
 
-    let now = chrono::Utc::now().timestamp() as u64;
+    let now = chrono::Utc::now().timestamp().cast_unsigned();
     let claims = ShareClaims {
         sub: id.to_string(),
         iat: now,
@@ -101,11 +101,10 @@ pub async fn join_study(
     )
     .map_err(|e| ApiError::BadRequest(format!("invalid or expired token: {e}")))?;
 
-    let study_id: Uuid = token_data
-        .claims
-        .sub
-        .parse()
-        .map_err(|_| ApiError::BadRequest("invalid study ID in token".to_string()))?;
+    let study_id: Uuid = token_data.claims.sub.parse().map_err(|e: uuid::Error| {
+        warn!(error = %e, "share token subject is not a study ID");
+        ApiError::BadRequest("invalid study ID in token".to_string())
+    })?;
 
     // Verify study still exists
     state
