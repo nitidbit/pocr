@@ -89,6 +89,16 @@ async fn main() -> EngineResult<()> {
     let cert_path = env::var_os("CERT_PATH").map(|path| PathBuf::from(path).into());
 
     // Build app state
+    let datasets = api_http::datasets::DatasetsState {
+        catalog: Arc::new(
+            infra_datasets::from_env()
+                .map_err(|e| EngineError::Unknown(e.display_chain()))?
+                .unwrap_or_default(),
+        ),
+        datasets: Arc::new(infra_pg::PgDatasetRepository::new(pg_pool.clone())),
+        members: user_study_repo.clone(),
+        studies: study_repo.clone(),
+    };
     let state = api_http::AppState {
         study_repo,
         randomization_repo,
@@ -104,6 +114,7 @@ async fn main() -> EngineResult<()> {
         redis_health,
         jwt_secret: jwt_secret.into(),
         cert_path,
+        datasets,
         started_at: std::time::Instant::now(),
     };
 

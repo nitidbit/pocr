@@ -2,6 +2,7 @@
 
 pub mod balance;
 pub mod cds_hooks;
+pub mod datasets;
 pub mod error;
 pub mod extractors;
 mod health;
@@ -16,6 +17,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use axum::Router;
+use axum::extract::FromRef;
 use axum::routing::{get, post};
 use tower_http::trace::TraceLayer;
 
@@ -56,8 +58,16 @@ pub struct AppState {
     pub jwt_secret: Arc<str>,
     /// Path to TLS certificate PEM file (optional).
     pub cert_path: Option<Arc<Path>>,
+    /// Dependencies of the dataset routes.
+    pub datasets: datasets::DatasetsState,
     /// Server start time for uptime calculation.
     pub started_at: std::time::Instant,
+}
+
+impl FromRef<AppState> for datasets::DatasetsState {
+    fn from_ref(state: &AppState) -> Self {
+        state.datasets.clone()
+    }
 }
 
 /// Build the full application router with shared state.
@@ -103,7 +113,8 @@ pub fn app(state: AppState) -> Router {
             get(count_randomizations),
         )
         .route("/studies/{study_id}/balance", get(get_balance))
-        .route("/system/status", get(system::get_system_status));
+        .route("/system/status", get(system::get_system_status))
+        .merge(datasets::router());
 
     let cds = Router::new()
         .route("/cds-services", get(cds_hooks::discover_services))

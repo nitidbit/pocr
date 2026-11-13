@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+infra-datasets = { path = "../../crates/infra-datasets" }
 api-http = { path = "../../crates/api-http" }
 pocr-core = { path = "../../crates/core" }
 infra-pg = { path = "../../crates/infra-pg" }

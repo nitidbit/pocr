@@ -7,6 +7,7 @@ edition = "2024"
 pocr-core = { path = "../core" }
 axum = { workspace = true, features = ["macros"] }
 chrono.workspace = true
+csv.workspace = true
 jsonwebtoken.workspace = true
 pem.workspace = true
 serde.workspace = true
@@ -20,6 +21,11 @@ x509-parser.workspace = true
 
 [dev-dependencies]
 async-trait.workspace = true
+http-body-util.workspace = true
+infra-datasets = { path = "../infra-datasets" }
+infra-pg = { path = "../infra-pg" }
+sqlx.workspace = true
+tower = { workspace = true, features = ["util"] }
 
 [lints]
 workspace = true
