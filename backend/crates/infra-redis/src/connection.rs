@@ -1,3 +1,5 @@
+use std::fmt;
+
 use redis::Client;
 use redis::aio::MultiplexedConnection;
 use tokio::sync::OnceCell;
@@ -6,6 +8,14 @@ use tokio::sync::OnceCell;
 pub struct RedisPool {
     client: Client,
     connection: OnceCell<MultiplexedConnection>,
+}
+
+impl fmt::Debug for RedisPool {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RedisPool")
+            .field("connected", &self.connection.initialized())
+            .finish_non_exhaustive()
+    }
 }
 
 impl RedisPool {

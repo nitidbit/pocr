@@ -16,12 +16,14 @@ use crate::connection::RedisPool;
 /// Stores in-flight blocks keyed by `block:{env}:{study_id}:{stratum_key}`.
 /// The environment prefix keeps production and non-production block sequences
 /// fully independent. Uses a Lua script for atomic consume-next operations.
+#[derive(Debug)]
 pub struct RedisBlockCache {
     pool: Arc<RedisPool>,
 }
 
 impl RedisBlockCache {
     /// Creates a block cache that shares `pool` for all Redis access.
+    #[must_use]
     pub fn new(pool: Arc<RedisPool>) -> Self {
         Self { pool }
     }
@@ -34,7 +36,7 @@ impl RedisBlockCache {
 /// Lua script for atomically consuming the next value from a block.
 ///
 /// Returns the arm index, or nil if the block is exhausted or missing.
-const CONSUME_NEXT_SCRIPT: &str = r#"
+const CONSUME_NEXT_SCRIPT: &str = r"
 local key = KEYS[1]
 local data = redis.call('GET', key)
 if not data then
@@ -50,7 +52,7 @@ end
 block['index'] = index + 1
 redis.call('SET', key, cjson.encode(block))
 return values[index + 1]
-"#;
+";
 
 #[async_trait]
 impl BlockCacheRepository for RedisBlockCache {

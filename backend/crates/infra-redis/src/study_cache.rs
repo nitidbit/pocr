@@ -13,6 +13,7 @@ use crate::connection::RedisPool;
 /// Redis cache for study configs on the CDS Hooks hot path.
 ///
 /// Caches locator → `study_id` mappings and full study configs with a TTL.
+#[derive(Debug)]
 pub struct RedisStudyCache {
     pool: Arc<RedisPool>,
 }
@@ -21,6 +22,7 @@ const STUDY_CACHE_TTL_SECS: u64 = 300; // 5 minutes
 
 impl RedisStudyCache {
     /// Creates a study cache that shares `pool` for all Redis access.
+    #[must_use]
     pub fn new(pool: Arc<RedisPool>) -> Self {
         Self { pool }
     }
