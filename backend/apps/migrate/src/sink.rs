@@ -28,13 +28,13 @@ use uuid::Uuid;
 #[derive(Debug, thiserror::Error)]
 pub enum SinkError {
     /// A repository operation failed.
-    #[error("repository error: {0}")]
+    #[error("repository error")]
     Repository(#[from] pocr_core::ports::RepositoryError),
     /// A direct PostgreSQL query failed.
-    #[error("postgres error: {0}")]
+    #[error("postgres error")]
     Postgres(#[from] sqlx::Error),
     /// Serializing a record to JSONB failed.
-    #[error("serialization error: {0}")]
+    #[error("serialization error")]
     Serialization(#[from] serde_json::Error),
 }
 

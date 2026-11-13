@@ -35,7 +35,7 @@ pub enum MigrateError {
     #[error(transparent)]
     Transform(#[from] TransformError),
     /// Reading or writing the manifest file failed.
-    #[error("manifest I/O error at {path}: {source}")]
+    #[error("manifest I/O error at {}", path.display())]
     Manifest {
         /// The manifest path.
         path: PathBuf,
@@ -43,7 +43,7 @@ pub enum MigrateError {
         source: std::io::Error,
     },
     /// The manifest file held invalid JSON.
-    #[error("manifest parse error: {0}")]
+    #[error("manifest parse error")]
     ManifestParse(#[from] serde_json::Error),
     /// A block referenced a study id absent from the study map, so its key
     /// could not be rewritten.

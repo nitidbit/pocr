@@ -203,19 +203,19 @@ enum SyncError {
     #[error("missing or invalid Caboodle environment variables")]
     CaboodleConfig(#[source] infra_caboodle::CaboodleError),
 
-    #[error("PostgreSQL error: {0}")]
+    #[error("PostgreSQL error")]
     Postgres(#[from] sqlx::Error),
 
-    #[error("migration error: {0}")]
+    #[error("migration error")]
     Migration(#[from] sqlx::migrate::MigrateError),
 
-    #[error("Caboodle error: {0}")]
+    #[error("Caboodle error")]
     Caboodle(#[from] infra_caboodle::CaboodleError),
 
-    #[error("demographics upsert error: {0}")]
+    #[error("demographics upsert error")]
     Upsert(#[from] pocr_core::ports::RepositoryError),
 
-    #[error("dataset store error: {0}")]
+    #[error("dataset store error")]
     DatasetStore(#[from] infra_pg::RefreshStoreError),
 
     #[error("{failed} dataset refreshes failed")]

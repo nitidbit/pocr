@@ -59,7 +59,7 @@ pub enum CaboodleError {
     },
 
     /// A dataset procedure returned a result that violates the dataset contract.
-    #[error("dataset result contract violated: {0}")]
+    #[error("dataset result contract violated")]
     Contract(#[from] pocr_core::dataset::ResultsError),
 }
 

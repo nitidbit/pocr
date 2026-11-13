@@ -7,9 +7,9 @@ pub enum PgError {
     NotFound,
     #[error("conflict: {0}")]
     Conflict(String),
-    #[error("database error: {0}")]
+    #[error("database error")]
     Database(#[from] sqlx::Error),
-    #[error("migration error: {0}")]
+    #[error("migration error")]
     Migration(#[from] sqlx::migrate::MigrateError),
 }
 

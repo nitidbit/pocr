@@ -15,10 +15,10 @@ use crate::legacy::{LegacyBlock, LegacyLocatorMapping, LegacyRandomization, Lega
 #[derive(Debug, thiserror::Error)]
 pub enum SourceError {
     /// A Redis command failed.
-    #[error("redis error: {0}")]
+    #[error("redis error")]
     Redis(#[from] redis::RedisError),
     /// A stored JSON value could not be parsed into a source model.
-    #[error("failed to parse {key}: {source}")]
+    #[error("failed to parse {key}")]
     Parse {
         /// The Redis key whose value failed to parse.
         key: String,

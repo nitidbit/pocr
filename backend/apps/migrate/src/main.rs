@@ -56,13 +56,13 @@ enum RunError {
     #[error("missing required env var: {0}")]
     MissingEnv(&'static str),
     /// Connecting to the legacy or POCR Redis failed.
-    #[error("redis connection error: {0}")]
+    #[error("redis connection error")]
     Redis(#[from] redis::RedisError),
     /// Connecting to or migrating Postgres failed.
-    #[error("postgres error: {0}")]
+    #[error("postgres error")]
     Postgres(#[from] sqlx::Error),
     /// Running Postgres migrations failed.
-    #[error("migration error: {0}")]
+    #[error("migration error")]
     PgMigrate(#[from] sqlx::migrate::MigrateError),
     /// The migration itself failed.
     #[error(transparent)]
