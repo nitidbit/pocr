@@ -43,7 +43,7 @@ test *args:
 # Lint every crate, denying warnings.
 [group('backend')]
 clippy:
-    cargo clippy --manifest-path {{backend}}/Cargo.toml --workspace -- -D warnings
+    cargo clippy --manifest-path {{backend}}/Cargo.toml --workspace --all-targets -- -D warnings
 
 # Format the workspace in place.
 [group('backend')]
@@ -97,7 +97,7 @@ fix: fmt fe-fix
 [group('gate')]
 check:
     cargo fmt --all --manifest-path {{backend}}/Cargo.toml --check
-    cargo clippy --manifest-path {{backend}}/Cargo.toml --workspace -- -D warnings
+    cargo clippy --manifest-path {{backend}}/Cargo.toml --workspace --all-targets -- -D warnings
     cargo test --manifest-path {{backend}}/Cargo.toml
     npm --prefix {{frontend}} run check:ci
     npm --prefix {{frontend}} run build
