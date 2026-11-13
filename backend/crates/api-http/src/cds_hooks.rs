@@ -11,6 +11,9 @@ use pocr_core::cds_hooks::{
     Card, CdsHookRequest, CdsHookResponse, CdsServiceDescriptor, CdsServiceDiscovery, Indicator,
     Source,
 };
+use pocr_core::error::RandomizationError;
+use pocr_core::random::Randomization;
+use pocr_core::study::Study;
 
 use crate::AppState;
 use crate::error::ApiError;
@@ -49,72 +52,28 @@ pub async fn randomize(
         Ok(env) => env,
         Err(e) => {
             warn!(error = %e, "rejecting randomization from unrecognized fhirServer");
-            return Ok((
-                StatusCode::OK,
-                Json(CdsHookResponse {
-                    cards: vec![info_card(
-                        "Unrecognized environment",
-                        "This EHR instance is not configured for randomization.",
-                    )],
-                }),
+            return Ok(info_response(
+                "Unrecognized environment",
+                "This EHR instance is not configured for randomization.",
             ));
         }
     };
 
-    // Extract locator from Epic extension
-    let locator = extract_locator(&request);
-
-    let Some(locator) = locator else {
+    let Some(locator) = extract_locator(&request) else {
         warn!("CDS Hooks request missing locator");
-        return Ok((
-            StatusCode::OK,
-            Json(CdsHookResponse {
-                cards: vec![info_card(
-                    "No locator found",
-                    "Request did not contain a valid study locator.",
-                )],
-            }),
+        return Ok(info_response(
+            "No locator found",
+            "Request did not contain a valid study locator.",
         ));
     };
 
-    // Look up study by locator (cache-first, fallback to PG)
-    let study = match state.study_cache.get_study_id_for_locator(locator).await {
-        Ok(Some(study_id)) => {
-            // Cache hit on locator → try to get full study from cache
-            match state.study_cache.get_cached_study(&study_id).await {
-                Ok(Some(study)) => Some(study),
-                _ => {
-                    // Cache miss on study body — fallback to PG
-                    let study = state.study_repo.find_by_id(&study_id).await?;
-                    if let Some(ref s) = study {
-                        let _ = state.study_cache.cache_study(s).await;
-                    }
-                    study
-                }
-            }
-        }
-        _ => {
-            // Cache miss on locator — fallback to PG
-            let study = state.study_repo.find_by_locator(locator).await?;
-            if let Some(ref s) = study {
-                let _ = state
-                    .study_cache
-                    .cache_locator_mapping(locator, &s.id)
-                    .await;
-                let _ = state.study_cache.cache_study(s).await;
-            }
-            study
-        }
-    };
-
-    let Some(study) = study else {
+    let Some(study) = find_study(&state, locator).await? else {
         warn!(locator, "No study found for locator");
         return Err(ApiError::PreconditionFailed(
             "No study configured for this locator".to_string(),
         ));
     };
 
-    // Build randomization request from CDS context
     let randomization_request = pocr_core::random::RandomizationRequest {
         locator: Some(locator),
         patient_id: request.context.patient_id.clone(),
@@ -124,7 +83,6 @@ pub async fn randomize(
         context: request.prefetch.clone(),
     };
 
-    // Execute randomization via the service
     let result = state
         .randomization_service
         .randomize(&study, environment, &randomization_request)
@@ -133,79 +91,115 @@ pub async fn randomize(
     match result {
         // Lifecycle gate rejections are expected, not errors: surface them as
         // an informational card rather than a 500.
-        Err(
-            e @ (pocr_core::error::RandomizationError::StudyNotActive
-            | pocr_core::error::RandomizationError::StudyClosed),
-        ) => {
+        Err(e @ (RandomizationError::StudyNotActive | RandomizationError::StudyClosed)) => {
             info!(study_id = %study.id, %environment, reason = %e, "randomization gated");
-            Ok((
-                StatusCode::OK,
-                Json(CdsHookResponse {
-                    cards: vec![info_card("Randomization unavailable", &e.to_string())],
-                }),
-            ))
+            Ok(info_response("Randomization unavailable", &e.to_string()))
         }
-        Ok(randomization) => {
-            // Locator gate: the patient is only "randomized" for this request
-            // when the assigned arm maps to the locator that triggered it.
-            // An arm with no locator, or one bound to a different locator,
-            // yields no card — the clinician sees nothing, matching the POC.
-            let Some(arm_locator) = randomization.arm.locator else {
-                info!(
-                    study_id = %study.id,
-                    arm_id = %randomization.arm.id,
-                    "Assigned arm has no locator — no card"
-                );
-                return Err(ApiError::PreconditionFailed(
-                    "Assigned arm has no locator".to_string(),
-                ));
-            };
-
-            if arm_locator != locator {
-                info!(
-                    study_id = %study.id,
-                    arm_id = %randomization.arm.id,
-                    arm_locator,
-                    request_locator = locator,
-                    "Assigned arm is for a different locator — no card"
-                );
-                return Err(ApiError::PreconditionFailed(
-                    "Assigned arm is for a different locator".to_string(),
-                ));
-            }
-
-            info!(
-                study_id = %study.id,
-                arm_id = %randomization.arm.id,
-                "Randomization issued"
-            );
-
-            let card = Card {
-                uuid: Some(randomization.id.to_string()),
-                summary: format!("Randomized: {}", randomization.arm.name),
-                detail: Some(format!(
-                    "Study: {}\nArm: {} (ratio {})\nAssignment ID: {}",
-                    study.name, randomization.arm.name, randomization.arm.ratio, randomization.id
-                )),
-                indicator: Indicator::Warning,
-                source: Source {
-                    label: "POCR".to_string(),
-                    url: Some("https://randomization.ucsf.edu".to_string()),
-                    icon: None,
-                    topic: None,
-                },
-                suggestions: None,
-                links: None,
-            };
-
-            Ok((StatusCode::OK, Json(CdsHookResponse { cards: vec![card] })))
-        }
+        Ok(randomization) => assignment_response(&study, &randomization, locator),
         Err(e) => {
             // The cause is logged with its chain when the 500 is rendered.
             error!(study_id = %study.id, "randomization failed");
             Err(ApiError::internal(e))
         }
     }
+}
+
+/// Finds the study bound to `locator`, preferring the cache over the repository.
+///
+/// Cache failures and misses fall back to the repository and repopulate the
+/// cache best-effort.
+async fn find_study(state: &AppState, locator: u64) -> Result<Option<Study>, ApiError> {
+    if let Ok(Some(study_id)) = state.study_cache.get_study_id_for_locator(locator).await {
+        if let Ok(Some(study)) = state.study_cache.get_cached_study(&study_id).await {
+            return Ok(Some(study));
+        }
+        let study = state.study_repo.find_by_id(&study_id).await?;
+        if let Some(study) = &study {
+            let _ = state.study_cache.cache_study(study).await;
+        }
+        return Ok(study);
+    }
+
+    let study = state.study_repo.find_by_locator(locator).await?;
+    if let Some(study) = &study {
+        let _ = state
+            .study_cache
+            .cache_locator_mapping(locator, &study.id)
+            .await;
+        let _ = state.study_cache.cache_study(study).await;
+    }
+    Ok(study)
+}
+
+/// Builds the card announcing `randomization`, gated on the request locator.
+///
+/// The patient is only "randomized" for this request when the assigned arm maps
+/// to the locator that triggered it. An arm with no locator, or one bound to a
+/// different locator, yields no card: the clinician sees nothing.
+fn assignment_response(
+    study: &Study,
+    randomization: &Randomization,
+    locator: u64,
+) -> Result<(StatusCode, Json<CdsHookResponse>), ApiError> {
+    let Some(arm_locator) = randomization.arm.locator else {
+        info!(
+            study_id = %study.id,
+            arm_id = %randomization.arm.id,
+            "Assigned arm has no locator — no card"
+        );
+        return Err(ApiError::PreconditionFailed(
+            "Assigned arm has no locator".to_string(),
+        ));
+    };
+
+    if arm_locator != locator {
+        info!(
+            study_id = %study.id,
+            arm_id = %randomization.arm.id,
+            arm_locator,
+            request_locator = locator,
+            "Assigned arm is for a different locator — no card"
+        );
+        return Err(ApiError::PreconditionFailed(
+            "Assigned arm is for a different locator".to_string(),
+        ));
+    }
+
+    info!(
+        study_id = %study.id,
+        arm_id = %randomization.arm.id,
+        "Randomization issued"
+    );
+
+    let card = Card {
+        uuid: Some(randomization.id.to_string()),
+        summary: format!("Randomized: {}", randomization.arm.name),
+        detail: Some(format!(
+            "Study: {}\nArm: {} (ratio {})\nAssignment ID: {}",
+            study.name, randomization.arm.name, randomization.arm.ratio, randomization.id
+        )),
+        indicator: Indicator::Warning,
+        source: Source {
+            label: "POCR".to_string(),
+            url: Some("https://randomization.ucsf.edu".to_string()),
+            icon: None,
+            topic: None,
+        },
+        suggestions: None,
+        links: None,
+    };
+
+    Ok((StatusCode::OK, Json(CdsHookResponse { cards: vec![card] })))
+}
+
+/// Wraps an informational card in a `200` CDS Hooks response.
+fn info_response(summary: &str, detail: &str) -> (StatusCode, Json<CdsHookResponse>) {
+    (
+        StatusCode::OK,
+        Json(CdsHookResponse {
+            cards: vec![info_card(summary, detail)],
+        }),
+    )
 }
 
 /// Extracts the Epic locator ID from the CDS Hooks request extension.
