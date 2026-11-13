@@ -84,7 +84,12 @@ impl RandomPermutedBlock {
 
         for (i, arm) in arms.iter().enumerate() {
             let n_arm_assignments = arm_assignment_count(block_size, block_size_minima, arm.ratio);
-            let arm_assignments = vec![i as u32; n_arm_assignments as usize];
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "an arm index fits u32 because arm ratios sum to a u32 block size"
+            )]
+            let arm_index = i as u32;
+            let arm_assignments = vec![arm_index; n_arm_assignments as usize];
             values.extend(arm_assignments);
         }
 
@@ -106,8 +111,12 @@ fn block_size_minima(arms: &[Arm]) -> u32 {
 }
 
 /// Calculates how many slots in a block belong to a single arm.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "arm_ratio <= ratio_sum, so the count is at most block_size"
+)]
 pub(super) fn arm_assignment_count(block_size: u32, ratio_sum: u32, arm_ratio: u32) -> u32 {
-    ((block_size as u64 * arm_ratio as u64) / ratio_sum as u64) as u32
+    (u64::from(block_size) * u64::from(arm_ratio) / u64::from(ratio_sum)) as u32
 }
 
 #[cfg(test)]

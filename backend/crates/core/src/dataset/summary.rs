@@ -315,11 +315,23 @@ fn integer(number: &Number) -> Option<i128> {
         .or_else(|| number.as_u64().map(i128::from))
 }
 
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "the cast saturates, and a saturated value equals no i64/u64"
+)]
 fn float_equals_integer(float: &Number, whole: i128) -> bool {
     // A whole f64 below 2^127 casts exactly; larger ones saturate and equal no i64/u64.
     float
         .as_f64()
         .is_some_and(|f| f.fract() == 0.0 && f as i128 == whole)
+}
+
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "sample counts are far below 2^52, where usize converts to f64 exactly"
+)]
+fn count_as_f64(count: usize) -> f64 {
+    count as f64
 }
 
 struct Moments {
@@ -335,13 +347,13 @@ impl Moments {
         let mut m2 = 0.0;
         for (i, x) in values.iter().enumerate() {
             let delta = x - mean;
-            mean += delta / (i + 1) as f64;
+            mean += delta / count_as_f64(i + 1);
             m2 += delta * (x - mean);
         }
         Self {
             mean: (!values.is_empty()).then_some(mean),
             standard_deviation: (values.len() >= 2)
-                .then(|| (m2 / (values.len() - 1) as f64).max(0.0).sqrt()),
+                .then(|| (m2 / count_as_f64(values.len() - 1)).max(0.0).sqrt()),
             count: values.len(),
         }
     }

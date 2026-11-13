@@ -1,8 +1,8 @@
 //! Procedure results validated against the definition and the input cohort.
 
-use pocr_core::dataset::{ContextRecord, DatasetDefinition, FieldType, ResultRow, ResultsError};
 use std::collections::BTreeMap;
 
+use pocr_core::dataset::{ContextRecord, DatasetDefinition, FieldType, ResultRow, ResultsError};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
