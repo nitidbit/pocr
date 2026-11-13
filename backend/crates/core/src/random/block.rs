@@ -138,7 +138,7 @@ mod tests {
         ];
 
         let block = RandomPermutedBlock::try_generate(
-            &Default::default(),
+            &Uuid::nil(),
             &arms,
             Some(6),
             None,
@@ -167,7 +167,7 @@ mod tests {
         ];
 
         let block = RandomPermutedBlock::try_generate(
-            &Default::default(),
+            &Uuid::nil(),
             &arms,
             Some(8),
             None,
@@ -197,14 +197,9 @@ mod tests {
             },
         ];
 
-        let block = RandomPermutedBlock::try_generate(
-            &Default::default(),
-            &arms,
-            None,
-            None,
-            &mut seeded_rng(),
-        )
-        .expect("should generate block with dynamic size");
+        let block =
+            RandomPermutedBlock::try_generate(&Uuid::nil(), &arms, None, None, &mut seeded_rng())
+                .expect("should generate block with dynamic size");
 
         let ratio_sum: usize = arms.iter().map(|a| a.ratio as usize).sum();
         assert_eq!(
@@ -265,7 +260,7 @@ mod tests {
         ];
 
         let result = RandomPermutedBlock::try_generate(
-            &Default::default(),
+            &Uuid::nil(),
             &arms,
             Some(5),
             None,
@@ -297,7 +292,7 @@ mod tests {
         ];
 
         let block_a = RandomPermutedBlock::try_generate(
-            &Default::default(),
+            &Uuid::nil(),
             &arms,
             Some(6),
             None,
@@ -306,7 +301,7 @@ mod tests {
         .unwrap();
 
         let block_b = RandomPermutedBlock::try_generate(
-            &Default::default(),
+            &Uuid::nil(),
             &arms,
             Some(6),
             None,
@@ -338,9 +333,8 @@ mod tests {
         ];
 
         let mut rng = seeded_rng();
-        let block =
-            RandomPermutedBlock::try_generate(&Default::default(), &arms, Some(6), None, &mut rng)
-                .unwrap();
+        let block = RandomPermutedBlock::try_generate(&Uuid::nil(), &arms, Some(6), None, &mut rng)
+            .unwrap();
 
         // With equal 1:1 ratios and size 6: 3 zeros, 3 ones
         assert_eq!(block.values.iter().filter(|&&x| x == 0).count(), 3);
@@ -349,7 +343,7 @@ mod tests {
         // The sequence should not be sorted (shuffled)
         let sorted = {
             let mut v = block.values.clone();
-            v.sort();
+            v.sort_unstable();
             v
         };
         assert_ne!(block.values, sorted, "block should be shuffled, not sorted");
@@ -372,14 +366,9 @@ mod tests {
             },
         ];
 
-        let block = RandomPermutedBlock::try_generate(
-            &Default::default(),
-            &arms,
-            None,
-            None,
-            &mut seeded_rng(),
-        )
-        .unwrap();
+        let block =
+            RandomPermutedBlock::try_generate(&Uuid::nil(), &arms, None, None, &mut seeded_rng())
+                .unwrap();
 
         // ratio_sum = 3, multiplier from rng in 2..=4
         assert_eq!(

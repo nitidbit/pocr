@@ -116,9 +116,9 @@ impl Unit {
 impl From<&SimpleUnit> for String {
     fn from(unit: &SimpleUnit) -> Self {
         match unit {
-            SimpleUnit::PatientId(id) => id.clone(),
-            SimpleUnit::EncounterId(id) => id.clone(),
-            SimpleUnit::ProviderId(id) => id.clone(),
+            SimpleUnit::PatientId(id)
+            | SimpleUnit::EncounterId(id)
+            | SimpleUnit::ProviderId(id) => id.clone(),
             SimpleUnit::FhirPath(fp) => format!("{}={}", fp.name, fp.value),
         }
     }
@@ -130,7 +130,7 @@ impl From<&Unit> for String {
             Unit::Simple(su) => su.into(),
             Unit::Composite(units) => units
                 .iter()
-                .map(|u| u.into())
+                .map(Into::into)
                 .collect::<Vec<String>>()
                 .join("|"),
         }

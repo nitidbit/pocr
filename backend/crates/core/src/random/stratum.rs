@@ -106,7 +106,7 @@ impl Strata {
 impl From<&SimpleStratum> for String {
     fn from(stratum: &SimpleStratum) -> Self {
         match stratum {
-            SimpleStratum::FhirPath { name, value } => format!("{}={}", name, value),
+            SimpleStratum::FhirPath { name, value } => format!("{name}={value}"),
         }
     }
 }
@@ -117,7 +117,7 @@ impl From<&Strata> for String {
             Strata::Simple(stratum) => stratum.into(),
             Strata::Composite(strata) => strata
                 .iter()
-                .map(|s| s.into())
+                .map(Into::into)
                 .collect::<Vec<String>>()
                 .join("|"),
         }

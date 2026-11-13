@@ -142,7 +142,7 @@ fn set_config_succeeds_in_draft() {
     let mut study = draft_study();
     let config = study.randomization_config.clone();
 
-    assert!(study.set_config(config).is_ok());
+    study.set_config(config).expect("draft config is editable");
 }
 
 #[test]

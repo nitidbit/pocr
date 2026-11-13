@@ -37,7 +37,7 @@ fn report_name_rejects_invalid_names() {
 
 #[test]
 fn report_name_accepts_lowercase_digits_and_hyphens() {
-    assert!(ReportName::parse("a-1").is_ok());
+    ReportName::parse("a-1").expect("valid name");
 }
 
 #[test]

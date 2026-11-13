@@ -153,7 +153,7 @@ fn captured_definition_with_extra_fields_binds() {
             .push(json!({"name": "extra", "type": "string", "column": "EXTRA"}));
     });
 
-    assert!(report().bind(&dataset).is_ok());
+    report().bind(&dataset).expect("report binds");
 }
 
 #[test]

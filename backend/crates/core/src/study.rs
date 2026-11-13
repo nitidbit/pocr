@@ -72,13 +72,14 @@ pub enum GateRejection {
 /// Pure and total — the single source of truth for the gate, exercised
 /// exhaustively by the service and by tests.
 pub fn gate(env: Environment, status: StudyStatus) -> GateDecision {
-    use Environment::*;
-    use StudyStatus::*;
     match (env, status) {
-        (_, Closed) => GateDecision::Reject(GateRejection::StudyClosed),
-        (Production, Active) => GateDecision::Allow,
-        (Production, _) => GateDecision::Reject(GateRejection::StudyNotActive),
-        (NonProduction, Draft | Active | Paused) => GateDecision::Allow,
+        (_, StudyStatus::Closed) => GateDecision::Reject(GateRejection::StudyClosed),
+        (Environment::Production, StudyStatus::Active)
+        | (
+            Environment::NonProduction,
+            StudyStatus::Draft | StudyStatus::Active | StudyStatus::Paused,
+        ) => GateDecision::Allow,
+        (Environment::Production, _) => GateDecision::Reject(GateRejection::StudyNotActive),
     }
 }
 
@@ -204,15 +205,10 @@ impl Study {
 
     /// Whether `next` is a permitted transition from the current status.
     fn transition_allowed(from: StudyStatus, next: StudyStatus) -> bool {
-        use StudyStatus::*;
+        use StudyStatus::{Active, Closed, Draft, Paused};
         matches!(
             (from, next),
-            (Draft, Active)
-                | (Draft, Closed)
-                | (Active, Paused)
-                | (Active, Closed)
-                | (Paused, Active)
-                | (Paused, Closed)
+            (Draft | Paused, Active) | (Active, Paused) | (Draft | Active | Paused, Closed)
         )
     }
 

@@ -1,6 +1,8 @@
 //! Procedure results validated against the definition and the input cohort.
 
 use pocr_core::dataset::{ContextRecord, DatasetDefinition, FieldType, ResultRow, ResultsError};
+use std::collections::BTreeMap;
+
 use serde_json::{Value, json};
 use uuid::Uuid;
 
@@ -27,7 +29,7 @@ fn record(id: Uuid) -> ContextRecord {
     ContextRecord {
         randomization_id: id,
         randomization_time: "2026-10-01T14:30:00Z".parse().expect("fixed timestamp"),
-        context: Default::default(),
+        context: BTreeMap::default(),
     }
 }
 
@@ -48,7 +50,7 @@ fn parse_results_keys_values_by_field_name_and_accepts_nulls() {
         .parse_results(&[record(ID_A)], vec![null_row(ID_A)])
         .expect("nulls are accepted");
 
-    let keys: Vec<&str> = records[0].values().keys().map(|k| k.as_ref()).collect();
+    let keys: Vec<&str> = records[0].values().keys().map(AsRef::as_ref).collect();
     assert_eq!(records[0].randomization_id(), ID_A);
     assert_eq!(keys, ["disposition", "los", "readmission"]);
 }

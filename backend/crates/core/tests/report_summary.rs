@@ -37,7 +37,7 @@ impl Fixture {
     }
 }
 
-fn report(variables: Value) -> Fixture {
+fn report(variables: &Value) -> Fixture {
     Fixture(
         serde_json::from_value(json!({
             "version": 1, "name": "report", "dataset": "outcomes", "title": "Report",
@@ -86,19 +86,19 @@ fn continuous(report: &Report, index: usize) -> (&[Option<f64>], &[Option<f64>],
 }
 
 fn day_report() -> Fixture {
-    report(json!([{
+    report(&json!([{
         "field": "day", "label": "Day", "analysis": "categorical",
         "category_order": ["Monday", "Tuesday"]
     }]))
 }
 
 fn los_report() -> Fixture {
-    report(json!([{"field": "los", "label": "LOS", "analysis": "continuous"}]))
+    report(&json!([{"field": "los", "label": "LOS", "analysis": "continuous"}]))
 }
 
 /// A report of `days_to_readmit` restricted to rows where `los` equals `equals`.
-fn readmit_when_los(equals: Value) -> Fixture {
-    report(json!([{
+fn readmit_when_los(equals: &Value) -> Fixture {
+    report(&json!([{
         "field": "days_to_readmit", "label": "Days to readmission", "analysis": "continuous",
         "include_when": {"field": "los", "equals": equals}
     }]))
@@ -195,7 +195,7 @@ fn summarize_omits_missing_category_when_every_row_has_a_value() {
 
 #[test]
 fn summarize_labels_booleans_yes_no_in_true_false_missing_order() {
-    let report = report(json!([{
+    let report = report(&json!([{
         "field": "readmitted", "label": "Readmission", "analysis": "categorical"
     }]));
     let rows = [
@@ -222,7 +222,7 @@ fn summarize_labels_booleans_yes_no_in_true_false_missing_order() {
 
 #[test]
 fn summarize_averages_only_eligible_nonnull_values() {
-    let report = report(json!([{
+    let report = report(&json!([{
         "field": "days_to_readmit", "label": "Readmission", "analysis": "continuous",
         "unit": "days", "include_when": {"field": "readmitted", "equals": true}
     }]));
@@ -298,7 +298,7 @@ fn summarize_gives_empty_arm_no_mean_and_zero_denominator() {
 fn summarize_matches_float_value_against_integer_condition() {
     let rows = [row(1, ARM_A, json!({"los": 1.0, "days_to_readmit": 5.0}))];
 
-    let summary = readmit_when_los(json!(1)).summarize(&[arm(ARM_A, "A")], &rows);
+    let summary = readmit_when_los(&json!(1)).summarize(&[arm(ARM_A, "A")], &rows);
 
     assert_eq!(continuous(&summary, 0).2, [1]);
 }
@@ -307,7 +307,7 @@ fn summarize_matches_float_value_against_integer_condition() {
 fn summarize_matches_integer_value_against_float_condition() {
     let rows = [row(1, ARM_A, json!({"los": 1, "days_to_readmit": 5.0}))];
 
-    let summary = readmit_when_los(json!(1.0)).summarize(&[arm(ARM_A, "A")], &rows);
+    let summary = readmit_when_los(&json!(1.0)).summarize(&[arm(ARM_A, "A")], &rows);
 
     assert_eq!(continuous(&summary, 0).2, [1]);
 }
@@ -316,7 +316,7 @@ fn summarize_matches_integer_value_against_float_condition() {
 fn summarize_excludes_fractional_value_from_integer_condition() {
     let rows = [row(1, ARM_A, json!({"los": 1.1, "days_to_readmit": 5.0}))];
 
-    let summary = readmit_when_los(json!(1)).summarize(&[arm(ARM_A, "A")], &rows);
+    let summary = readmit_when_los(&json!(1)).summarize(&[arm(ARM_A, "A")], &rows);
 
     assert_eq!(continuous(&summary, 0).2, [0]);
 }
@@ -330,14 +330,14 @@ fn summarize_excludes_integer_beyond_float_precision_from_nearest_float_conditio
     )];
 
     let summary =
-        readmit_when_los(json!(9_007_199_254_740_992.0)).summarize(&[arm(ARM_A, "A")], &rows);
+        readmit_when_los(&json!(9_007_199_254_740_992.0)).summarize(&[arm(ARM_A, "A")], &rows);
 
     assert_eq!(continuous(&summary, 0).2, [0]);
 }
 
 #[test]
 fn summarize_serializes_fields_with_an_analysis_tag() {
-    let report = report(json!([
+    let report = report(&json!([
         {"field": "los", "label": "LOS", "analysis": "continuous"},
         {"field": "day", "label": "Day", "analysis": "categorical"}
     ]));
