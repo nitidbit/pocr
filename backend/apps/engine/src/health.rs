@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use infra_redis::RedisPool;
+use pocr_core::ports::RepositoryError;
 use sqlx::PgPool;
 
 /// Checks PostgreSQL connectivity via the `HealthCheckable` trait.
@@ -23,11 +24,11 @@ impl PgHealthCheck {
 
 #[async_trait]
 impl pocr_core::ports::HealthCheckable for PgHealthCheck {
-    async fn ping(&self) -> Result<(), String> {
+    async fn ping(&self) -> Result<(), RepositoryError> {
         sqlx::query("SELECT 1")
             .execute(&self.pool)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(RepositoryError::storage)?;
         Ok(())
     }
 }
@@ -53,12 +54,16 @@ impl RedisHealthCheck {
 
 #[async_trait]
 impl pocr_core::ports::HealthCheckable for RedisHealthCheck {
-    async fn ping(&self) -> Result<(), String> {
-        let mut conn = self.pool.connection().await.map_err(|e| e.to_string())?;
+    async fn ping(&self) -> Result<(), RepositoryError> {
+        let mut conn = self
+            .pool
+            .connection()
+            .await
+            .map_err(RepositoryError::connection)?;
         redis::cmd("PING")
             .query_async::<String>(&mut conn)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(RepositoryError::storage)?;
         Ok(())
     }
 }

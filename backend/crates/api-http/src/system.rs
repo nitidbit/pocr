@@ -1,5 +1,6 @@
 //! System status endpoint — reports infrastructure health and TLS certificate validity.
 
+use std::error::Error;
 use std::path::Path;
 use std::time::Instant;
 
@@ -168,7 +169,11 @@ async fn probe(service: &dyn HealthCheckable) -> ServiceHealth {
         Err(e) => ServiceHealth {
             status: ServiceStatus::Down,
             latency_ms,
-            error: Some(e),
+            // The dashboard shows the driver's message, not the classification.
+            error: Some(
+                e.source()
+                    .map_or_else(|| e.to_string(), ToString::to_string),
+            ),
         },
     }
 }

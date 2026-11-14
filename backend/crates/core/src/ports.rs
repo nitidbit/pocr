@@ -297,8 +297,14 @@ pub trait StudyCache: Send + Sync {
 /// A dependency whose health can be probed.
 #[async_trait]
 pub trait HealthCheckable: Send + Sync {
-    /// Probes the dependency, returning a description of the failure if it is unhealthy.
-    async fn ping(&self) -> Result<(), String>;
+    /// Probes the dependency.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RepositoryError::Connection`] if the dependency is
+    /// unreachable and [`RepositoryError::Storage`] if the probe fails after
+    /// connecting.
+    async fn ping(&self) -> Result<(), RepositoryError>;
 }
 
 /// Orchestrates the randomization flow for a study and request.
