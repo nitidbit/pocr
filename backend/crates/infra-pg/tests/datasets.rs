@@ -498,7 +498,7 @@ async fn database_failures_expose_sqlstate_without_row_values() {
 
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
-async fn snapshot_with_undecodable_stored_definition_is_a_storage_error() {
+async fn snapshot_with_undecodable_stored_definition_is_a_corrupt_error() {
     let f = Fixture::new().await;
     f.seed(PRODUCTION).await;
     f.publish(PRODUCTION).await;
@@ -510,7 +510,13 @@ async fn snapshot_with_undecodable_stored_definition_is_a_storage_error() {
 
     let result = f.repository.snapshot(f.study, f.name(), PRODUCTION).await;
 
-    assert!(matches!(result, Err(RepositoryError::Storage(_))));
+    assert!(matches!(
+        result,
+        Err(RepositoryError::Corrupt {
+            what: "dataset definition",
+            ..
+        })
+    ));
 }
 
 #[tokio::test]
