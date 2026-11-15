@@ -79,7 +79,6 @@ async fn run() -> EngineResult<()> {
     let user_study_repo = Arc::new(infra_pg::PgUserStudyRepository::new(pg_pool.clone()));
     let audit_repo = Arc::new(infra_pg::PgAuditRepository::new(pg_pool.clone()));
     let locator_repo = Arc::new(infra_pg::PgLocatorRepository::new(pg_pool.clone()));
-    let demographics_repo = Arc::new(infra_pg::PgDemographicsRepository::new(pg_pool.clone()));
     let block_cache = Arc::new(infra_redis::RedisBlockCache::new(Arc::clone(&redis_pool)));
     let study_cache = Arc::new(infra_redis::RedisStudyCache::new(Arc::clone(&redis_pool)));
     let pg_health = Arc::new(PgHealthCheck::new(pg_pool.clone()));
@@ -121,7 +120,6 @@ async fn run() -> EngineResult<()> {
         audit_repo,
         locator_repo,
         randomization_service,
-        demographics_repo,
         study_cache,
         environment_map: Arc::new(environment_map),
         pg_health,

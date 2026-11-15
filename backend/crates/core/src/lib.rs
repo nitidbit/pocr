@@ -8,7 +8,6 @@
 pub mod audit;
 pub mod cds_hooks;
 pub mod dataset;
-pub mod demographics;
 pub mod environment;
 pub mod error;
 pub mod ports;

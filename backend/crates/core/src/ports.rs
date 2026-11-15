@@ -12,7 +12,6 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::audit::AuditEvent;
-use crate::demographics::{PatientDemographics, PatientDemographicsWithArm};
 use crate::environment::Environment;
 use crate::error::RandomizationError;
 use crate::random::{RandomPermutedBlock, Randomization, RandomizationRequest};
@@ -110,7 +109,7 @@ pub trait StudyRepository: Send + Sync {
 
 /// Per-arm randomization tally for a study within one environment.
 ///
-/// Computed by the store (`GROUP BY` arm) so balance figures reflect every
+/// Computed by the store (`GROUP BY` arm) so counts reflect every
 /// record, not just a paginated page of the newest rows.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArmTally {
@@ -251,27 +250,6 @@ pub trait AuditRepository: Send + Sync {
     async fn append(&self, event: &AuditEvent) -> Result<(), RepositoryError>;
     /// Lists a study's audit events, ordered newest-first.
     async fn list_by_study(&self, study_id: &Uuid) -> Result<Vec<AuditEvent>, RepositoryError>;
-}
-
-/// Persistence for patient demographics used by balance assessment.
-///
-/// Demographics are synced in bulk from an external source (Caboodle) and read
-/// back joined with randomization arm assignments for parity reporting.
-#[async_trait]
-pub trait DemographicsRepository: Send + Sync {
-    /// Upserts a batch of demographic records, refreshing existing rows.
-    async fn upsert_batch(&self, batch: &[PatientDemographics]) -> Result<(), RepositoryError>;
-    /// Fetches demographics for a set of patient IDs.
-    async fn find_by_patient_ids(
-        &self,
-        patient_ids: &[String],
-    ) -> Result<Vec<PatientDemographics>, RepositoryError>;
-    /// Fetches demographics for all randomized patients in a study, joined
-    /// with their arm assignment.
-    async fn find_by_study(
-        &self,
-        study_id: &Uuid,
-    ) -> Result<Vec<PatientDemographicsWithArm>, RepositoryError>;
 }
 
 /// Cache for study configs on the CDS Hooks hot path.

@@ -3,7 +3,6 @@
 //! [`app`] assembles the full [`Router`] over an [`AppState`]; [`ApiError`]
 //! maps handler failures to JSON error responses.
 
-mod balance;
 mod cds_hooks;
 mod datasets;
 mod error;
@@ -13,7 +12,6 @@ mod me;
 mod members;
 mod randomizations;
 mod sharing;
-mod smd;
 mod studies;
 mod system;
 
@@ -28,15 +26,14 @@ use tower_http::trace::TraceLayer;
 
 use pocr_core::environment::EnvironmentMap;
 use pocr_core::ports::{
-    AuditRepository, BlockCacheRepository, DemographicsRepository, HealthCheckable,
-    LocatorRepository, RandomizationRepository, RandomizationService, StudyCache, StudyRepository,
+    AuditRepository, BlockCacheRepository, HealthCheckable, LocatorRepository,
+    RandomizationRepository, RandomizationService, StudyCache, StudyRepository,
     UserStudyRepository,
 };
 
 pub use datasets::{DatasetsState, router as datasets_router};
 pub use error::ApiError;
 
-use crate::balance::get_balance;
 use crate::randomizations::{count_randomizations, list_randomizations};
 use crate::studies::{create_study, get_study, list_studies};
 
@@ -59,8 +56,6 @@ pub struct AppState {
     pub locator_repo: Arc<dyn LocatorRepository>,
     /// Executes randomization requests against a study.
     pub randomization_service: Arc<dyn RandomizationService>,
-    /// Synced patient demographics read by the balance endpoint.
-    pub demographics_repo: Arc<dyn DemographicsRepository>,
     /// Cache of study bodies and locator mappings.
     pub study_cache: Arc<dyn StudyCache>,
     /// Maps CDS Hooks `fhirServer` URL prefixes to deployment environments.
@@ -135,7 +130,6 @@ pub fn app(state: AppState) -> Router {
             "/studies/{study_id}/randomizations/counts",
             get(count_randomizations),
         )
-        .route("/studies/{study_id}/balance", get(get_balance))
         .route("/system/status", get(system::get_system_status))
         .merge(datasets::router());
 

@@ -12,7 +12,6 @@ futures.workspace = true
 infra-pg = { path = "../../crates/infra-pg" }
 observability = { path = "../../crates/observability" }
 pocr-core = { path = "../../crates/core" }
-chrono.workspace = true
 sqlx.workspace = true
 thiserror.workspace = true
 tokio.workspace = true

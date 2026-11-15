@@ -5,7 +5,6 @@
 
 mod audit_repo;
 mod datasets;
-mod demographics;
 mod error;
 mod locator_repo;
 mod pool;
@@ -17,7 +16,6 @@ pub use audit_repo::PgAuditRepository;
 pub use datasets::{
     DatabaseFailure, PgDatasetRepository, RefreshLock, RefreshRun, RefreshStoreError, RefreshTarget,
 };
-pub use demographics::PgDemographicsRepository;
 pub use locator_repo::PgLocatorRepository;
 pub use pool::{create_pool, run_migrations};
 pub use randomization_repo::PgRandomizationRepository;

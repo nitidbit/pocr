@@ -1918,7 +1918,6 @@ name = "pocr-sync"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "chrono",
  "futures",
  "infra-caboodle",
  "infra-datasets",
