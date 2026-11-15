@@ -59,8 +59,8 @@ A multi-stage Docker build compiles the app with `vite build` and serves the sta
 
 Run `just fe-demo` from the repository root and open
 [the demo study](http://127.0.0.1:3011/studies/dataset-demo/monitor).
-A Mock Service Worker serves a read-only study with an Encounter Outcomes report
-below demographic balance. The worker starts only in `vite dev` with the flag set,
+A Mock Service Worker serves a read-only study with a Demographics report (SMD
+column and a suppressed cell) above Encounter Outcomes. The worker starts only in `vite dev` with the flag set,
 and the fixtures in `src/mocks` are not bundled. `public/mockServiceWorker.js` ships
 with the build but stays inert, because production never registers it; `npm install`
 keeps it in sync with `msw` through `msw.workerDirectory`.
