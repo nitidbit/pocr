@@ -46,8 +46,8 @@ the long-running stack (the production image ships only `pocr-engine`):
 
 - **`pocr-migrate`** — one-time ETL: legacy Redis → POCR Postgres + Redis.
   Idempotent, re-runnable via a persisted `migration-manifest.json`.
-- **`pocr-sync`** — pulls patient demographics from Caboodle for already-migrated
-  randomizations. Run after migration and on a schedule thereafter.
+- **`pocr-sync`** — refreshes attached datasets from Caboodle. Run after
+  migration and on a schedule thereafter.
 
 See §3 for how to run these on the box.
 
@@ -264,67 +264,78 @@ already-migrated records.
 
 ---
 
-## 5. SYNC — backfill patient demographics (post-migration)
+## 5. SYNC — refresh datasets
 
-`pocr-sync` reads randomized patients' Epic IDs from POCR Postgres, pulls
-demographics from Caboodle, and upserts them via the `DemographicsRepository`.
+`pocr-sync` refreshes every study dataset attachment: it reads each attached
+study's captured randomizations from POCR Postgres, calls the dataset's Caboodle
+stored procedure, and publishes the result as a snapshot. Package, procedure, and
+refresh details are in [backend/datasets/README.md](../backend/datasets/README.md).
 
 ### 5.1 Configuration
 
 | Var | Required | Default |
 |-----|----------|---------|
 | `DATABASE_URL` | no | `postgres://pocr:pocr@localhost:5432/pocr` (set in prod) |
+| `DATASETS_DIR` | yes | — (`/etc/pocr/datasets` in the compose tools service) |
+| `DATASET_ENVIRONMENT` | yes | — (`production` or `nonproduction`) |
+| `DATASET_REFRESH_CONCURRENCY` | no | `1` |
+| `DATASET_PROCEDURE_TIMEOUT_SECS` | no | `300` |
 | `CABOODLE_HOST` | yes | — |
 | `CABOODLE_PORT` | no | `1433` |
 | `CABOODLE_DATABASE` | yes | — |
 | `CABOODLE_USERNAME` | yes | — |
 | `CABOODLE_PASSWORD` | yes | — |
 
+Sync fails with a configuration error when `DATASETS_DIR` is unset.
+
 Only SQL Server authentication is supported. Supply a dedicated service account
-with read-only access to the required Caboodle tables through
-`CABOODLE_USERNAME` and `CABOODLE_PASSWORD`. Missing or blank required values
-and invalid ports fail configuration. Legacy AD environment variables are ignored.
+through `CABOODLE_USERNAME` and `CABOODLE_PASSWORD`. The account needs `EXECUTE`
+on the dataset stored procedures, not table reads. Missing or blank required
+values and invalid ports fail configuration. Legacy AD environment variables are
+ignored.
 
 Connections require TLS and validate the server certificate and hostname. Install
 the issuing CA in the runtime trust store and use the certificate's DNS hostname;
 certificate validation cannot be bypassed. Inject credentials through the deployment
 secret manager; do not commit credentials or place them in shell history.
 
-Query values use bound parameters; batches contain at most 1,000 parameters.
-Dynamic SQL must contain only generated placeholders, never patient data or
-caller-supplied identifiers. Application BMI warnings omit patient IDs and values.
-
 Caboodle uses Tiberius with SQL authentication and native TLS; integrated
 authentication features are disabled. PostgreSQL uses SQLx. Connection setup
 has a 15-second timeout. Database errors expose categories and server error
 codes, not raw driver messages that could contain patient data. The shared
 logging setup suppresses Tiberius internal events even when `RUST_LOG` enables
-TRACE, because the driver logs server messages and row values. Row decoding
-returns errors for missing columns, incompatible types, and NULL patient keys.
-
-Run the opt-in SQL Server binding/decoding test against a test database with
-`cargo test -p infra-caboodle bound_values_and_fallible_row_decoding -- --ignored`.
-It issues a SELECT with bound input and reads no patient tables.
+TRACE, because the driver logs server messages and row values.
 
 ### 5.2 Run
 
+The `migrate` tools service mounts the catalog at `/etc/pocr/datasets`. Supply the
+remaining variables with `-e`:
+
 ```bash
-cd backend
-export DATABASE_URL="postgres://pocr:$(cat ../secrets/postgres_password)@localhost:5432/pocr"
-export CABOODLE_HOST=<clarity-host> CABOODLE_DATABASE=<db> \
-       CABOODLE_USERNAME=<user> CABOODLE_PASSWORD=<pw>
-cargo run --release -p pocr-sync
-cd ..
+docker compose run --rm --entrypoint pocr-sync \
+  -e DATABASE_URL=... -e DATASET_ENVIRONMENT=production \
+  -e CABOODLE_HOST=... -e CABOODLE_DATABASE=... \
+  -e CABOODLE_USERNAME=... -e CABOODLE_PASSWORD=... \
+  migrate
 ```
 
-If there are no randomized patients with Epic IDs, sync logs "nothing to sync" and
-exits 0. Schedule it (cron/systemd timer) to keep demographics current.
+Schedule it (cron/systemd timer) to keep snapshots current.
+
+### 5.3 Demographics cutover
+
+1. The database owner deploys `backend/datasets/demographics/procedure.sql` and
+   grants the sync account `EXECUTE` on `[pocr].[EncounterBalance]`.
+2. Deploy. The migration drops `patient_demographics`, and the engine loads the
+   `demographics` package.
+3. The study owner attaches **Demographics** in the study's Datasets tab.
+4. Run sync with `DATASET_ENVIRONMENT=production`. The report appears at the top of
+   Monitor.
 
 ---
 
 ## 6. FULL DEPLOY — production cutover
 
-With migration verified (§4.4) and demographics synced (§5):
+With migration verified (§4.4) and datasets refreshed (§5):
 
 ```bash
 docker compose up -d          # nginx, vouch, app, engine, postgres, redis
@@ -399,9 +410,10 @@ docker compose build && docker compose config -q
 cd backend && LEGACY_REDIS_URL=... POCR_REDIS_URL=... DATABASE_URL=... \
   cargo run --release -p pocr-migrate && cd ..
 
-# Sync demographics
-cd backend && DATABASE_URL=... CABOODLE_HOST=... CABOODLE_DATABASE=... \
-  CABOODLE_USERNAME=... CABOODLE_PASSWORD=... cargo run --release -p pocr-sync && cd ..
+# Refresh datasets
+docker compose run --rm --entrypoint pocr-sync -e DATABASE_URL=... \
+  -e DATASET_ENVIRONMENT=production -e CABOODLE_HOST=... -e CABOODLE_DATABASE=... \
+  -e CABOODLE_USERNAME=... -e CABOODLE_PASSWORD=... migrate
 
 # Deploy
 docker compose up -d && docker compose ps

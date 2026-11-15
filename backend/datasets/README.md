@@ -19,6 +19,11 @@ datasets/
   tests/                shared contract corpus; ignored by the loader
 ```
 
+This directory is the shipped catalog. Compose mounts it read-only at
+`/etc/pocr/datasets` on `engine` and on the `migrate` tools service (which runs
+`pocr-sync`). Deploying a package is a pull plus a restart of `engine`. A dataset
+directory may hold supporting files such as `procedure.sql`; the loader ignores them.
+
 - A dataset directory name equals the dataset `name`; a report directory name equals
   the report `name`. Report and dataset names are separate namespaces.
 - Every non-hidden directory at the root except `reports` and `tests` is a dataset
@@ -30,10 +35,11 @@ datasets/
   dataset has zero or more reports.
 - Engine and sync read the same `DATASETS_DIR`. Definitions load and validate at
   startup; restart both after deploying a package.
-- An unset `DATASETS_DIR` disables the catalog and the refresh phase; existing
-  snapshots stay readable. An invalid directory or definition fails startup with
-  the file path and, for YAML errors, the line and column. A report naming an
-  undeployed dataset fails startup, so retiring a dataset retires its reports.
+- An unset `DATASETS_DIR` makes the engine serve an empty catalog (existing
+  snapshots stay readable) and makes sync fail with a configuration error. An
+  invalid directory or definition fails startup with the file path and, for YAML
+  errors, the line and column. A report naming an undeployed dataset fails startup,
+  so retiring a dataset retires its reports.
 
 ## Definition contract (version 1)
 
@@ -171,16 +177,16 @@ DATASETS_DIR="$PWD/datasets" DATASET_ENVIRONMENT=nonproduction cargo run -p pocr
 
 | Variable | Used by | Meaning |
 |---|---|---|
-| `DATASETS_DIR` | engine, sync | package directory |
-| `DATASET_ENVIRONMENT` | sync | `production` or `nonproduction`; required when `DATASETS_DIR` is set |
+| `DATASETS_DIR` | engine, sync | package directory; required by sync |
+| `DATASET_ENVIRONMENT` | sync | `production` or `nonproduction`; required |
 | `DATASET_REFRESH_CONCURRENCY` | sync | attachments refreshed at once; positive integer, defaults to 1 |
 | `DATASET_PROCEDURE_TIMEOUT_SECS` | sync | time limit per procedure call in seconds; positive integer, defaults to 300 |
 | `DATABASE_URL` | engine, sync | PostgreSQL |
 | `CABOODLE_HOST`, `CABOODLE_DATABASE`, `CABOODLE_USERNAME`, `CABOODLE_PASSWORD` | sync | SQL Server connection |
 | `CABOODLE_PORT` | sync | defaults to 1433 |
 
-Sync runs the dataset phase, then the demographics phase. There is no UI refresh
-action and no in-process scheduler; invoke the job from the deployment's scheduler.
+There is no UI refresh action and no in-process scheduler; invoke the job from the
+deployment's scheduler.
 
 Every run refreshes the full captured cohort: all assignments of the attached study
 in the chosen environment at the moment the run begins. The cohort is read in
@@ -209,9 +215,18 @@ Per attachment and environment:
   is rejected.
 
 **Exit status.** Nonzero for a configuration error, an unreadable attachment list, a
-failed dataset refresh (`failed > 0`), or a demographics failure. Skipped attachments
+failed dataset refresh (`failed > 0`), or an unset `DATASETS_DIR`. Skipped attachments
 do not affect it. The run ends with an `INFO` summary of published, skipped, and
 failed counts.
+
+### Shipped packages
+
+- `demographics` runs `[pocr].[EncounterBalance]`; the deployment example is
+  [demographics/procedure.sql](demographics/procedure.sql).
+- Race is a single value: the patient's one distinct race name, or `Multiracial` when
+  there are several.
+- BMI is weight in ounces converted to kilograms (divisor 35.274) over height in meters
+  squared, from the latest flowsheet values at or before randomization.
 
 ## Snapshots and presentation
 
