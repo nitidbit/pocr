@@ -1,0 +1,35 @@
+version: 1
+name: demographics
+dataset: demographics
+title: Demographics
+description: Patient characteristics at randomization by study arm, with standardized mean differences.
+smd: true
+variables:
+  - field: age
+    label: Age
+    analysis: continuous
+    unit: years
+    decimals: 1
+  - field: sex
+    label: Sex
+    analysis: categorical
+  - field: race
+    label: Race
+    analysis: categorical
+  - field: ethnicity
+    label: Ethnicity
+    analysis: categorical
+  - field: primary_language
+    label: Primary Language
+    analysis: categorical
+  - field: insurance_type
+    label: Insurance
+    analysis: categorical
+  - field: smoking_status
+    label: Smoking Status
+    analysis: categorical
+  - field: bmi
+    label: BMI
+    analysis: continuous
+    unit: kg/m²
+    decimals: 1

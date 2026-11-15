@@ -1,0 +1,33 @@
+version: 1
+name: demographics
+title: Demographics
+description: Patient characteristics at randomization.
+source: caboodle
+stored_procedure:
+  schema: pocr
+  name: EncounterBalance
+fields:
+  - name: age
+    type: number
+    column: age
+  - name: sex
+    type: string
+    column: sex
+  - name: race
+    type: string
+    column: race
+  - name: ethnicity
+    type: string
+    column: ethnicity
+  - name: primary_language
+    type: string
+    column: primary_language
+  - name: insurance_type
+    type: string
+    column: insurance_type
+  - name: smoking_status
+    type: string
+    column: smoking_status
+  - name: bmi
+    type: number
+    column: bmi
