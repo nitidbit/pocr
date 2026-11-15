@@ -1,9 +1,11 @@
 import type {
+	CategoricalField,
 	ContinuousField,
 	DatasetAttachment,
 	DatasetField,
 	DatasetList,
 	DatasetReport,
+	FieldBalance,
 	PublishedReport,
 	PublishedReportBase,
 } from "#/api/datasets";
@@ -11,17 +13,23 @@ import type {
 function categorical(
 	name: string,
 	labels: string[],
-	counts: [number[], number[]],
-): DatasetField {
+	counts: [(number | null)[], (number | null)[]],
+	balance: FieldBalance = {},
+	missing?: [number, number],
+): CategoricalField {
+	const categories = labels.map((label, index) => ({
+		id: label,
+		label,
+		counts: [counts[0][index], counts[1][index]],
+	}));
 	return {
+		...balance,
 		analysis: "categorical",
 		id: name,
 		name,
-		categories: labels.map((label, index) => ({
-			id: label,
-			label,
-			counts: [counts[0][index], counts[1][index]],
-		})),
+		categories: missing
+			? [...categories, { id: null, label: "Missing", counts: missing }]
+			: categories,
 	};
 }
 
@@ -30,9 +38,11 @@ function continuous(
 	stats: Pick<
 		ContinuousField,
 		"means" | "standardDeviations" | "denominators" | "decimals"
-	> & { unit?: string; note?: string },
+	> & { unit?: string; note?: string } & FieldBalance,
 ): DatasetField {
 	return {
+		smd: stats.smd,
+		imbalanced: stats.imbalanced,
 		analysis: "continuous",
 		id: name,
 		name,
@@ -51,6 +61,7 @@ export function syntheticReport(): DatasetReport {
 		title: "Encounter Outcomes",
 		description:
 			"Admission characteristics, discharge details, and post-discharge outcomes by study arm.",
+		smd: false,
 		arms: [
 			{ id: "intervention", name: "Enhanced Coordination", count: 120 },
 			{ id: "control", name: "Usual Care", count: 120 },
@@ -133,6 +144,80 @@ export function syntheticReport(): DatasetReport {
 					[24, 96],
 				],
 			),
+		],
+	};
+}
+
+/** Demographics with SMD; Race carries a suppressed category and an imbalance. */
+export function demographicsReport(): DatasetReport {
+	const { arms } = syntheticReport();
+	return {
+		title: "Demographics",
+		description: "Patient characteristics at randomization by study arm.",
+		smd: true,
+		arms,
+		fields: [
+			continuous("Age", {
+				means: [61.4, 60.9],
+				standardDeviations: [14.2, 15],
+				denominators: [120, 119],
+				unit: "years",
+				decimals: 1,
+				smd: 0.03,
+				imbalanced: false,
+			}),
+			categorical(
+				"Sex",
+				["Female", "Male"],
+				[
+					[64, 56],
+					[58, 62],
+				],
+				{ smd: 0.05, imbalanced: false },
+			),
+			categorical(
+				"Race",
+				[
+					"White",
+					"Black or African American",
+					"Asian",
+					"American Indian or Alaska Native",
+				],
+				[
+					[58, 24, 26, null],
+					[61, 22, 28, null],
+				],
+				{ smd: 0.18, imbalanced: true },
+				[9, 7],
+			),
+			categorical(
+				"Ethnicity",
+				["Hispanic or Latino", "Not Hispanic or Latino"],
+				[
+					[30, 84],
+					[27, 88],
+				],
+				{ smd: 0.04, imbalanced: false },
+				[6, 5],
+			),
+			categorical(
+				"Insurance",
+				["Medicare", "Medicaid", "Commercial", "Self-pay"],
+				[
+					[58, 31, 26, 5],
+					[61, 29, 24, 6],
+				],
+				{ smd: 0.06, imbalanced: false },
+			),
+			continuous("BMI", {
+				means: [28.4, 29.1],
+				standardDeviations: [5.6, 6],
+				denominators: [112, 108],
+				unit: "kg/m²",
+				decimals: 1,
+				smd: null,
+				imbalanced: null,
+			}),
 		],
 	};
 }

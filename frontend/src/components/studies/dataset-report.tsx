@@ -1,9 +1,179 @@
-import { Database } from "lucide-react";
+import { Database, TriangleAlert } from "lucide-react";
 import { useId } from "react";
-import type { DatasetReport } from "#/api/datasets";
+import type {
+	CategoricalField,
+	ContinuousField,
+	DatasetReport,
+	FieldBalance,
+} from "#/api/datasets";
 
 function percent(count: number, total: number) {
 	return ((count / (total || 1)) * 100).toFixed(1);
+}
+
+function SmdCell({
+	balance,
+	className,
+}: {
+	balance: FieldBalance;
+	className: string;
+}) {
+	const { smd, imbalanced } = balance;
+	return (
+		<td
+			className={`whitespace-nowrap px-4 text-right tabular-nums ${className}`}
+		>
+			{smd == null ? (
+				"—"
+			) : (
+				<>
+					{smd.toFixed(2)}
+					{imbalanced === true && (
+						<TriangleAlert
+							role="img"
+							aria-label="Imbalanced"
+							className="ml-1 inline size-4 align-text-bottom text-amber-700 dark:text-amber-400"
+						/>
+					)}
+				</>
+			)}
+		</td>
+	);
+}
+
+function CountCell({ count, total }: { count: number | null; total: number }) {
+	return (
+		<td className="whitespace-nowrap px-4 py-2 text-right tabular-nums">
+			{count === null ? (
+				"<5"
+			) : (
+				<>
+					{count}{" "}
+					<span className="text-muted-foreground">
+						({percent(count, total)})
+					</span>
+				</>
+			)}
+		</td>
+	);
+}
+
+function CategoricalRows({
+	field,
+	report,
+}: {
+	field: CategoricalField;
+	report: DatasetReport;
+}) {
+	return (
+		<>
+			<tr className="bg-muted/30">
+				<th
+					scope="rowgroup"
+					colSpan={report.arms.length + 1}
+					className="px-4 py-2 text-left font-medium"
+				>
+					{field.name}, n (%)
+				</th>
+				{report.smd && <SmdCell balance={field} className="py-2" />}
+			</tr>
+			{field.categories.map((category) => (
+				<tr
+					key={
+						category.id === null ? "missing-category" : `value:${category.id}`
+					}
+					className="border-t border-border/50"
+				>
+					<th
+						scope="row"
+						className="min-w-64 px-4 py-2 pl-8 text-left font-normal"
+					>
+						{category.label}
+					</th>
+					{report.arms.map((arm, index) => (
+						<CountCell
+							key={arm.id}
+							count={category.counts[index]}
+							total={arm.count}
+						/>
+					))}
+					{report.smd && <td />}
+				</tr>
+			))}
+		</>
+	);
+}
+
+function ContinuousRow({
+	field,
+	report,
+}: {
+	field: ContinuousField;
+	report: DatasetReport;
+}) {
+	return (
+		<tr>
+			<th scope="row" className="px-4 py-3 text-left font-medium">
+				{field.name}, mean (SD)
+				{field.unit ? `, ${field.unit}` : ""}
+				{field.note && (
+					<span className="block text-xs font-normal text-muted-foreground">
+						{field.note}
+					</span>
+				)}
+			</th>
+			{report.arms.map((arm, index) => {
+				const denominator = field.denominators[index];
+				return (
+					<td
+						key={arm.id}
+						className="whitespace-nowrap px-4 py-3 text-right tabular-nums"
+					>
+						{denominator === null ? (
+							"<5"
+						) : (
+							<>
+								{field.means[index]?.toFixed(field.decimals) ?? "—"}{" "}
+								<span className="text-muted-foreground">
+									(
+									{field.standardDeviations[index]?.toFixed(field.decimals) ??
+										"—"}
+									)
+								</span>
+							</>
+						)}
+						{denominator !== null && denominator !== arm.count && (
+							<span className="block text-xs text-muted-foreground">
+								n = {denominator}
+							</span>
+						)}
+					</td>
+				);
+			})}
+			{report.smd && <SmdCell balance={field} className="py-3" />}
+		</tr>
+	);
+}
+
+function hasSuppressedCell({ fields }: DatasetReport) {
+	return fields.some((field) =>
+		field.analysis === "categorical"
+			? field.categories.some((category) => category.counts.includes(null))
+			: field.denominators.includes(null),
+	);
+}
+
+function Legend({ report }: { report: DatasetReport }) {
+	const suppressed = hasSuppressedCell(report);
+	if (!report.smd && !suppressed) return null;
+	return (
+		<p className="mt-2 text-xs text-muted-foreground">
+			{report.smd &&
+				"SMD: largest absolute standardized mean difference between arms; values above 0.1 are flagged."}
+			{report.smd && suppressed && " "}
+			{suppressed && "<5: a count from 1 to 4, suppressed to protect privacy."}
+		</p>
+	);
 }
 
 export function DatasetReportCard({ report }: { report: DatasetReport }) {
@@ -49,88 +219,29 @@ export function DatasetReportCard({ report }: { report: DatasetReport }) {
 										</span>
 									</th>
 								))}
+								{report.smd && (
+									<th
+										scope="col"
+										className="px-4 py-3 text-right font-medium text-muted-foreground"
+									>
+										SMD
+									</th>
+								)}
 							</tr>
 						</thead>
 						{report.fields.map((field) => (
 							<tbody key={field.id} className="border-b last:border-b-0">
 								{field.analysis === "categorical" ? (
-									<>
-										<tr className="bg-muted/30">
-											<th
-												scope="rowgroup"
-												colSpan={report.arms.length + 1}
-												className="px-4 py-2 text-left font-medium"
-											>
-												{field.name}, n (%)
-											</th>
-										</tr>
-										{field.categories.map((category) => (
-											<tr
-												key={
-													category.id === null
-														? "missing-category"
-														: `value:${category.id}`
-												}
-												className="border-t border-border/50"
-											>
-												<th
-													scope="row"
-													className="min-w-64 px-4 py-2 pl-8 text-left font-normal"
-												>
-													{category.label}
-												</th>
-												{report.arms.map((arm, index) => (
-													<td
-														key={arm.id}
-														className="whitespace-nowrap px-4 py-2 text-right tabular-nums"
-													>
-														{category.counts[index]}{" "}
-														<span className="text-muted-foreground">
-															({percent(category.counts[index], arm.count)})
-														</span>
-													</td>
-												))}
-											</tr>
-										))}
-									</>
+									<CategoricalRows field={field} report={report} />
 								) : (
-									<tr>
-										<th scope="row" className="px-4 py-3 text-left font-medium">
-											{field.name}, mean (SD)
-											{field.unit ? `, ${field.unit}` : ""}
-											{field.note && (
-												<span className="block text-xs font-normal text-muted-foreground">
-													{field.note}
-												</span>
-											)}
-										</th>
-										{report.arms.map((arm, index) => (
-											<td
-												key={arm.id}
-												className="whitespace-nowrap px-4 py-3 text-right tabular-nums"
-											>
-												{field.means[index]?.toFixed(field.decimals) ?? "—"}{" "}
-												<span className="text-muted-foreground">
-													(
-													{field.standardDeviations[index]?.toFixed(
-														field.decimals,
-													) ?? "—"}
-													)
-												</span>
-												{field.denominators[index] !== arm.count && (
-													<span className="block text-xs text-muted-foreground">
-														n = {field.denominators[index]}
-													</span>
-												)}
-											</td>
-										))}
-									</tr>
+									<ContinuousRow field={field} report={report} />
 								)}
 							</tbody>
 						))}
 					</table>
 				</div>
 			)}
+			<Legend report={report} />
 		</section>
 	);
 }

@@ -1,11 +1,13 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { DatasetField, DatasetReport } from "#/api/datasets";
+import { demographicsReport } from "#/mocks/fixtures";
 import { DatasetReportCard } from "./dataset-report";
 
 const report: DatasetReport = {
 	title: "Outcomes",
 	description: "By arm",
+	smd: false,
 	arms: [
 		{ id: "a", name: "Treatment", count: 10 },
 		{ id: "b", name: "Control", count: 0 },
@@ -135,5 +137,81 @@ describe("DatasetReportCard", () => {
 		expect(
 			screen.getByRole("region", { name: "Utilization" }),
 		).toBeInTheDocument();
+	});
+
+	it("renders <5 without a percentage for a suppressed category", () => {
+		const field: DatasetField = {
+			analysis: "categorical",
+			id: "race",
+			name: "Race",
+			categories: [{ id: "a", label: "Small group", counts: [null, 0] }],
+		};
+		render(<DatasetReportCard report={{ ...report, fields: [field] }} />);
+		const row = screen.getByRole("row", { name: /Small group/ });
+		expect(within(row).getAllByRole("cell")[0]).toHaveTextContent(/^<5$/);
+	});
+
+	it("renders <5 for a suppressed continuous arm and omits its n line", () => {
+		const field: DatasetField = {
+			analysis: "continuous",
+			id: "age",
+			name: "Age",
+			unit: null,
+			note: null,
+			decimals: 1,
+			means: [null, 5],
+			standardDeviations: [null, 1],
+			denominators: [null, 0],
+		};
+		render(<DatasetReportCard report={{ ...report, fields: [field] }} />);
+		const row = screen.getByRole("row", { name: /Age/ });
+		expect(within(row).getByText("<5")).toBeInTheDocument();
+		expect(within(row).queryByText(/n = /)).not.toBeInTheDocument();
+	});
+
+	it("shows no SMD column when the report disables SMD", () => {
+		render(<DatasetReportCard report={report} />);
+		expect(
+			screen.queryByRole("columnheader", { name: "SMD" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("shows each field's SMD to two decimals when the report enables SMD", () => {
+		render(<DatasetReportCard report={demographicsReport()} />);
+		expect(screen.getByRole("columnheader", { name: "SMD" })).toBeVisible();
+		expect(
+			within(screen.getByRole("row", { name: /^Age/ })).getByText("0.03"),
+		).toBeInTheDocument();
+		expect(
+			within(screen.getByRole("row", { name: /^Race/ })).getByText("0.18"),
+		).toBeInTheDocument();
+	});
+
+	it("renders a dash for a null SMD", () => {
+		render(<DatasetReportCard report={demographicsReport()} />);
+		expect(
+			within(screen.getByRole("row", { name: /^BMI/ })).getByText("—"),
+		).toBeInTheDocument();
+	});
+
+	it("marks an imbalanced field", () => {
+		render(<DatasetReportCard report={demographicsReport()} />);
+		expect(
+			within(screen.getByRole("row", { name: /^Race/ })).getByRole("img", {
+				name: "Imbalanced",
+			}),
+		).toBeInTheDocument();
+		expect(
+			within(screen.getByRole("row", { name: /^Age/ })).queryByRole("img"),
+		).not.toBeInTheDocument();
+	});
+
+	it("explains suppression only when a cell is suppressed", () => {
+		const { unmount } = render(<DatasetReportCard report={report} />);
+		expect(screen.queryByText(/suppressed/)).not.toBeInTheDocument();
+		unmount();
+		render(<DatasetReportCard report={demographicsReport()} />);
+		expect(screen.getByText(/suppressed to protect privacy/)).toBeVisible();
+		expect(screen.getByText(/SMD: largest absolute/)).toBeVisible();
 	});
 });

@@ -27,16 +27,25 @@ export interface DatasetList {
 	canManage: boolean;
 }
 
+/** SMD of one variable; both keys are present exactly when the report's `smd` is true. */
+export interface FieldBalance {
+	/** Largest absolute pairwise SMD; `null` when no pair of arms yields one. */
+	smd?: number | null;
+	/** Whether `smd` exceeds 0.1; `null` when `smd` is `null`. */
+	imbalanced?: boolean | null;
+}
+
 /** One category of a categorical field; `id: null` is the missing category. */
 export interface DatasetCategory {
 	/** The stored value; boolean fields use `"true"` and `"false"`. */
 	id: string | null;
 	label: string;
-	counts: number[];
+	/** Rows per arm; `null` marks a suppressed small cell. */
+	counts: (number | null)[];
 }
 
 /** A categorical field's per-arm counts align with `DatasetReport.arms`. */
-export interface CategoricalField {
+export interface CategoricalField extends FieldBalance {
 	analysis: "categorical";
 	id: string;
 	name: string;
@@ -44,7 +53,7 @@ export interface CategoricalField {
 }
 
 /** A continuous field's per-arm arrays align with `DatasetReport.arms`. */
-export interface ContinuousField {
+export interface ContinuousField extends FieldBalance {
 	analysis: "continuous";
 	id: string;
 	name: string;
@@ -53,7 +62,8 @@ export interface ContinuousField {
 	decimals: number;
 	means: (number | null)[];
 	standardDeviations: (number | null)[];
-	denominators: number[];
+	/** Eligible values per arm; `null` marks a suppressed arm (its mean and SD are `null`). */
+	denominators: (number | null)[];
 }
 
 export type DatasetField = CategoricalField | ContinuousField;
@@ -67,6 +77,8 @@ export interface ReportArm {
 export interface DatasetReport {
 	title: string;
 	description: string;
+	/** Whether the report shows an SMD column. */
+	smd: boolean;
 	arms: ReportArm[];
 	fields: DatasetField[];
 }

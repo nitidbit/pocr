@@ -2,7 +2,11 @@ import { screen } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import type { PublishedReport } from "#/api/datasets";
-import { incompatibleReport, publishedReport } from "#/mocks/fixtures";
+import {
+	demographicsReport,
+	incompatibleReport,
+	publishedReport,
+} from "#/mocks/fixtures";
 import { apiUrl, renderWithProviders, setupMockServer } from "#/test/msw";
 import { DatasetReports } from "./dataset-reports";
 
@@ -76,6 +80,19 @@ describe("DatasetReports", () => {
 		expect(
 			screen.getByRole("heading", { name: "Readmissions" }),
 		).toBeInTheDocument();
+	});
+
+	it("renders reports in the order the server returns them", async () => {
+		serveReports([
+			publishedReport({ name: "a", report: demographicsReport() }),
+			publishedReport({ name: "b" }),
+		]);
+		renderReports();
+		const headings = await screen.findAllByRole("heading", { level: 2 });
+		expect(headings.map((heading) => heading.textContent)).toEqual([
+			"Demographics",
+			"Encounter Outcomes",
+		]);
 	});
 
 	it("notes when the latest refresh did not succeed", async () => {
