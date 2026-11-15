@@ -325,8 +325,8 @@ pub async fn download(
 }
 
 /// Renders every deployed report of each attachment that has a published
-/// snapshot. Attachments without deployed reports are skipped without reading
-/// their snapshots.
+/// snapshot, in report-name order across datasets. Attachments without deployed
+/// reports are skipped without reading their snapshots.
 async fn published_reports(
     datasets: &dyn DatasetRepository,
     catalog: &Catalog,
@@ -380,6 +380,7 @@ async fn published_reports(
             });
         }
     }
+    reports.sort_unstable_by(|a, b| a.name.cmp(&b.name));
     Ok(reports)
 }
 
@@ -522,6 +523,101 @@ mod tests {
 
         assert!(reports.is_empty());
         assert_eq!(repository.snapshot_reads.load(Ordering::SeqCst), 1);
+    }
+
+    /// Serves one fixed snapshot per dataset name.
+    struct SnapshotRepository {
+        attachments: Vec<Attachment>,
+        snapshots: Vec<Snapshot>,
+    }
+
+    #[async_trait]
+    impl DatasetRepository for SnapshotRepository {
+        async fn list(&self, _: Uuid, _: Environment) -> Result<Vec<Attachment>, RepositoryError> {
+            Ok(self.attachments.clone())
+        }
+
+        async fn attach(&self, _: Uuid, _: &DatasetDefinition) -> Result<(), RepositoryError> {
+            unreachable!("reports never attach")
+        }
+
+        async fn detach(&self, _: Uuid, _: &DatasetName) -> Result<(), RepositoryError> {
+            unreachable!("reports never detach")
+        }
+
+        async fn snapshot(
+            &self,
+            _: Uuid,
+            name: &DatasetName,
+            _: Environment,
+        ) -> Result<Option<Snapshot>, RepositoryError> {
+            Ok(self
+                .snapshots
+                .iter()
+                .find(|snapshot| snapshot.definition.name() == name)
+                .cloned())
+        }
+    }
+
+    #[tokio::test]
+    async fn published_reports_orders_reports_by_name_across_datasets() {
+        let mut registry = DatasetRegistry::default();
+        let mut catalog_reports = Vec::new();
+        let mut attachments = Vec::new();
+        let mut snapshots = Vec::new();
+        for (dataset_name, title, report_name) in [
+            ("first-data", "A first", "zeta"),
+            ("second-data", "B second", "alpha"),
+        ] {
+            let definition: DatasetDefinition = serde_json::from_value(json!({
+                "version": 1, "name": dataset_name, "title": title, "source": "caboodle",
+                "stored_procedure": {"schema": "pocr", "name": "Outcomes"},
+                "fields": [{"name": "los", "type": "number", "column": "LOS"}]
+            }))
+            .expect("valid dataset");
+            catalog_reports.push(
+                serde_json::from_value::<ReportDefinition>(json!({
+                    "version": 1, "name": report_name, "dataset": dataset_name,
+                    "title": report_name, "description": "By arm",
+                    "variables": [{"field": "los", "label": "LOS", "analysis": "continuous"}]
+                }))
+                .expect("valid report"),
+            );
+            attachments.push(Attachment {
+                name: definition.name().clone(),
+                title: title.into(),
+                ..attachment(None)
+            });
+            snapshots.push(Snapshot {
+                run_id: Uuid::from_u128(9),
+                completed_at: Utc::now(),
+                status: DatasetStatus::Succeeded,
+                definition: definition.clone(),
+                rows: Vec::new(),
+            });
+            registry.insert(definition).expect("unique dataset");
+        }
+        let mut catalog = Catalog::new(registry);
+        for report in catalog_reports {
+            catalog.insert_report(report).expect("report binds");
+        }
+        let repository = SnapshotRepository {
+            attachments,
+            snapshots,
+        };
+
+        let reports = published_reports(
+            &repository,
+            &catalog,
+            Uuid::from_u128(2),
+            Environment::Production,
+            &[],
+        )
+        .await
+        .expect("reports load");
+
+        let names: Vec<_> = reports.iter().map(|report| report.name.as_ref()).collect();
+        assert_eq!(names, ["alpha", "zeta"]);
     }
 
     fn attachment(snapshot: Option<PublishedSummary>) -> Attachment {
