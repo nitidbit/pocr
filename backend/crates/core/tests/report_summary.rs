@@ -65,6 +65,13 @@ fn row(index: u128, arm_id: Uuid, values: Value) -> DatasetRow {
     }
 }
 
+/// `count` rows in `arm_id` sharing `values`, numbered from `first`.
+fn rows(first: u128, arm_id: Uuid, count: u128, values: &Value) -> Vec<DatasetRow> {
+    (first..first + count)
+        .map(|index| row(index, arm_id, values.clone()))
+        .collect()
+}
+
 fn categorical(report: &Report, index: usize) -> &[Category] {
     let ReportField::Categorical { categories, .. } = &report.fields[index] else {
         panic!("field {index} is not categorical");
@@ -72,7 +79,10 @@ fn categorical(report: &Report, index: usize) -> &[Category] {
     categories
 }
 
-fn continuous(report: &Report, index: usize) -> (&[Option<f64>], &[Option<f64>], &[usize]) {
+/// Means, standard deviations, and denominators of a continuous field.
+type Summary<'a> = (&'a [Option<f64>], &'a [Option<f64>], &'a [Option<usize>]);
+
+fn continuous(report: &Report, index: usize) -> Summary<'_> {
     let ReportField::Continuous {
         means,
         standard_deviations,
@@ -106,14 +116,14 @@ fn readmit_when_los(equals: &Value) -> Fixture {
 
 #[test]
 fn summarize_includes_configured_arm_without_rows() {
-    let rows = [row(1, ARM_A, json!({"day": "Monday"}))];
+    let rows = rows(1, ARM_A, 5, &json!({"day": "Monday"}));
 
     let summary = day_report().summarize(&[arm(ARM_A, "A"), arm(ARM_B, "B")], &rows);
 
     let counts: Vec<_> = summary.arms.iter().map(|a| a.count).collect();
-    assert_eq!(counts, [1, 0]);
+    assert_eq!(counts, [5, 0]);
     assert_eq!(summary.arms[1].name, "B");
-    assert_eq!(categorical(&summary, 0)[0].counts, [1, 0]);
+    assert_eq!(categorical(&summary, 0)[0].counts, [Some(5), Some(0)]);
 }
 
 #[test]
@@ -226,99 +236,84 @@ fn summarize_averages_only_eligible_nonnull_values() {
         "field": "days_to_readmit", "label": "Readmission", "analysis": "continuous",
         "unit": "days", "include_when": {"field": "readmitted", "equals": true}
     }]));
-    let rows = [
+    let mut rows: Vec<_> = (1..)
+        .zip([2.0, 4.0, 2.0, 4.0, 3.0])
+        .map(|(index, days)| {
+            let values = json!({"readmitted": true, "days_to_readmit": days});
+            row(index, ARM_A, values)
+        })
+        .collect();
+    rows.extend([
         row(
-            1,
-            ARM_A,
-            json!({"readmitted": true, "days_to_readmit": 2.0}),
-        ),
-        row(
-            2,
-            ARM_A,
-            json!({"readmitted": true, "days_to_readmit": 4.0}),
-        ),
-        row(
-            3,
+            10,
             ARM_A,
             json!({"readmitted": true, "days_to_readmit": null}),
         ),
         row(
-            4,
+            11,
             ARM_A,
             json!({"readmitted": false, "days_to_readmit": 100.0}),
         ),
-    ];
+    ]);
 
     let summary = report.summarize(&[arm(ARM_A, "A")], &rows);
 
     let (means, _, denominators) = continuous(&summary, 0);
-    assert_eq!(summary.arms[0].count, 4);
+    assert_eq!(summary.arms[0].count, 7);
     assert_eq!(means, [Some(3.0)]);
-    assert_eq!(denominators, [2]);
+    assert_eq!(denominators, [Some(5)]);
 }
 
 #[test]
 fn summarize_reports_sample_standard_deviation() {
-    let rows = [
-        row(1, ARM_A, json!({"los": 1.0})),
-        row(2, ARM_A, json!({"los": 2.0})),
-        row(3, ARM_A, json!({"los": 3.0})),
-    ];
+    let rows: Vec<_> = (1..)
+        .zip([1.0, 2.0, 3.0, 4.0, 5.0])
+        .map(|(index, los)| row(index, ARM_A, json!({"los": los})))
+        .collect();
 
     let summary = los_report().summarize(&[arm(ARM_A, "A")], &rows);
 
     let (_, sds, _) = continuous(&summary, 0);
-    assert_eq!(sds, [Some(1.0)]);
-}
-
-#[test]
-fn summarize_reports_no_standard_deviation_for_a_single_value() {
-    let rows = [row(1, ARM_A, json!({"los": 3.0}))];
-
-    let summary = los_report().summarize(&[arm(ARM_A, "A")], &rows);
-
-    let (means, sds, denominators) = continuous(&summary, 0);
-    assert_eq!(means, [Some(3.0)]);
-    assert_eq!(sds, [None]);
-    assert_eq!(denominators, [1]);
+    let sd = sds[0].expect("five values have a standard deviation");
+    assert!((sd - 2.5_f64.sqrt()).abs() < 1e-12);
 }
 
 #[test]
 fn summarize_gives_empty_arm_no_mean_and_zero_denominator() {
-    let rows = [row(1, ARM_A, json!({"los": 3.0}))];
+    let rows = rows(1, ARM_A, 5, &json!({"los": 3.0}));
 
     let summary = los_report().summarize(&[arm(ARM_A, "A"), arm(ARM_B, "B")], &rows);
 
     let (means, _, denominators) = continuous(&summary, 0);
     assert_eq!(means, [Some(3.0), None]);
-    assert_eq!(denominators, [1, 0]);
+    assert_eq!(denominators, [Some(5), Some(0)]);
 }
 
 #[test]
 fn summarize_matches_float_value_against_integer_condition() {
-    let rows = [row(1, ARM_A, json!({"los": 1.0, "days_to_readmit": 5.0}))];
+    let rows = rows(1, ARM_A, 5, &json!({"los": 1.0, "days_to_readmit": 5.0}));
 
     let summary = readmit_when_los(&json!(1)).summarize(&[arm(ARM_A, "A")], &rows);
 
-    assert_eq!(continuous(&summary, 0).2, [1]);
+    assert_eq!(continuous(&summary, 0).2, [Some(5)]);
 }
 
 #[test]
 fn summarize_matches_integer_value_against_float_condition() {
-    let rows = [row(1, ARM_A, json!({"los": 1, "days_to_readmit": 5.0}))];
+    let rows = rows(1, ARM_A, 5, &json!({"los": 1, "days_to_readmit": 5.0}));
 
     let summary = readmit_when_los(&json!(1.0)).summarize(&[arm(ARM_A, "A")], &rows);
 
-    assert_eq!(continuous(&summary, 0).2, [1]);
+    assert_eq!(continuous(&summary, 0).2, [Some(5)]);
 }
 
 #[test]
 fn summarize_excludes_fractional_value_from_integer_condition() {
-    let rows = [row(1, ARM_A, json!({"los": 1.1, "days_to_readmit": 5.0}))];
+    let rows = rows(1, ARM_A, 5, &json!({"los": 1.1, "days_to_readmit": 5.0}));
 
     let summary = readmit_when_los(&json!(1)).summarize(&[arm(ARM_A, "A")], &rows);
 
-    assert_eq!(continuous(&summary, 0).2, [0]);
+    assert_eq!(continuous(&summary, 0).2, [Some(0)]);
 }
 
 #[test]
@@ -332,7 +327,7 @@ fn summarize_excludes_integer_beyond_float_precision_from_nearest_float_conditio
     let summary =
         readmit_when_los(&json!(9_007_199_254_740_992.0)).summarize(&[arm(ARM_A, "A")], &rows);
 
-    assert_eq!(continuous(&summary, 0).2, [0]);
+    assert_eq!(continuous(&summary, 0).2, [Some(0)]);
 }
 
 #[test]

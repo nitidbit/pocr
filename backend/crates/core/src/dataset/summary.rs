@@ -9,11 +9,23 @@ use crate::random::Arm;
 use super::definition::{FieldName, FieldType};
 use super::record::DatasetRow;
 use super::report::{Analysis, BoundReport, Condition, Variable};
+use super::smd::{self, IMBALANCE_THRESHOLD};
 
 /// Decimal places for a continuous variable that declares none.
 ///
 /// The datasets README documents this default as part of the report contract.
 const DEFAULT_DECIMALS: u8 = 1;
+
+/// Counts from 1 up to but not including this value are suppressed.
+///
+/// The datasets README documents the rule as part of the report contract.
+/// Changing the value changes what every report discloses.
+const SMALL_CELL_THRESHOLD: usize = 5;
+
+/// Whether `count` is a small cell: nonzero and below [`SMALL_CELL_THRESHOLD`].
+fn is_small_cell(count: usize) -> bool {
+    (1..SMALL_CELL_THRESHOLD).contains(&count)
+}
 
 /// A report ready to serialize: one column per arm and one entry per variable.
 #[derive(Debug, Serialize)]
@@ -24,10 +36,33 @@ pub struct Report {
     pub title: String,
     /// Report description from the definition.
     pub description: String,
+    /// Whether every field carries a [`Balance`].
+    pub smd: bool,
     /// Arm columns: configured arms in order, then arms found only in the rows.
     pub arms: Vec<ReportArm>,
     /// One entry per report variable, in definition order.
     pub fields: Vec<ReportField>,
+}
+
+/// Standardized mean difference of one variable across arms.
+///
+/// Computed from the real values, before small cells are suppressed.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[non_exhaustive]
+pub struct Balance {
+    /// Largest absolute pairwise SMD; `None` when no pair of arms yields one.
+    pub smd: Option<f64>,
+    /// Whether `smd` exceeds the imbalance threshold; `None` when `smd` is.
+    pub imbalanced: Option<bool>,
+}
+
+impl Balance {
+    fn of(smd: Option<f64>) -> Self {
+        Self {
+            smd,
+            imbalanced: smd.map(|value| value > IMBALANCE_THRESHOLD),
+        }
+    }
 }
 
 /// One arm column with the number of snapshot rows assigned to it.
@@ -60,6 +95,9 @@ pub enum ReportField {
         label: String,
         /// Observed categories only, in display order.
         categories: Vec<Category>,
+        /// Present exactly when the report enables SMD.
+        #[serde(flatten)]
+        balance: Option<Balance>,
     },
     /// Mean, sample standard deviation, and eligible-row count.
     #[serde(rename_all = "camelCase")]
@@ -77,13 +115,19 @@ pub enum ReportField {
         note: Option<String>,
         /// Display precision; defaults to 1.
         decimals: u8,
-        /// Mean per arm; `None` when the arm has no eligible values.
+        /// Mean per arm; `None` when the arm has no eligible values or is
+        /// suppressed.
         means: Vec<Option<f64>>,
-        /// Sample standard deviation per arm; `None` below two values.
+        /// Sample standard deviation per arm; `None` below two values or when
+        /// the arm is suppressed.
         standard_deviations: Vec<Option<f64>>,
         /// Eligible non-null values per arm; rows excluded by the
-        /// `include_when` condition or holding null are not counted.
-        denominators: Vec<usize>,
+        /// `include_when` condition or holding null are not counted. `None`
+        /// when the arm has one to four values and is suppressed.
+        denominators: Vec<Option<usize>>,
+        /// Present exactly when the report enables SMD.
+        #[serde(flatten)]
+        balance: Option<Balance>,
     },
 }
 
@@ -97,22 +141,25 @@ pub struct Category {
     pub id: Option<String>,
     /// Display label: `Yes`/`No` for booleans, `Missing` for `None`, otherwise the value.
     pub label: String,
-    /// Rows in the category per arm, aligned with [`Report::arms`].
-    pub counts: Vec<usize>,
+    /// Rows in the category per arm, aligned with [`Report::arms`]; every
+    /// entry is `None` when any arm has one to four rows in the category.
+    pub counts: Vec<Option<usize>>,
 }
 
 pub(super) fn summarize(report: &BoundReport<'_>, arms: &[Arm], rows: &[DatasetRow]) -> Report {
     let groups = ArmGroups::new(arms, rows);
+    let smd = report.definition().has_smd();
     let fields = report
         .typed_variables()
         .map(|(variable, kind)| match variable.analysis() {
-            Analysis::Categorical => summarize_categorical(variable, kind, &groups),
-            Analysis::Continuous => summarize_continuous(variable, &groups),
+            Analysis::Categorical => summarize_categorical(variable, kind, smd, &groups),
+            Analysis::Continuous => summarize_continuous(variable, smd, &groups),
         })
         .collect();
     Report {
         title: report.definition().title().to_owned(),
         description: report.definition().description().to_owned(),
+        smd,
         arms: groups.report_arms(),
         fields,
     }
@@ -164,6 +211,10 @@ impl<'a> ArmGroups<'a> {
                 count: column.rows.len(),
             })
             .collect()
+    }
+
+    fn row_counts(&self) -> Vec<usize> {
+        self.0.iter().map(|column| column.rows.len()).collect()
     }
 
     fn per_arm<T>(&self, summarize: impl Fn(&[&DatasetRow]) -> T) -> Vec<T> {
@@ -234,6 +285,7 @@ impl CategoryValue {
 fn summarize_categorical(
     variable: &Variable,
     kind: FieldType,
+    smd: bool,
     groups: &ArmGroups<'_>,
 ) -> ReportField {
     let tallies = groups.per_arm(|rows| {
@@ -248,22 +300,40 @@ fn summarize_categorical(
     let observed: HashSet<&CategoryValue> = tallies.iter().flat_map(HashMap::keys).collect();
     let mut observed: Vec<&CategoryValue> = observed.into_iter().collect();
     observed.sort_by_cached_key(|value| value.sort_key(&variable.category_order));
-    let categories = observed
-        .into_iter()
-        .map(|value| Category {
-            id: value.id(),
-            label: value.label(),
-            counts: tallies
+    let counts: Vec<Vec<usize>> = observed
+        .iter()
+        .map(|value| {
+            tallies
                 .iter()
                 .map(|tally| tally.get(value).copied().unwrap_or(0))
-                .collect(),
+                .collect()
+        })
+        .collect();
+    let balance = smd.then(|| Balance::of(smd::categorical(&groups.row_counts(), &counts)));
+    let categories = observed
+        .into_iter()
+        .zip(counts)
+        .map(|(value, counts)| Category {
+            id: value.id(),
+            label: value.label(),
+            counts: suppress_category(counts),
         })
         .collect();
     ReportField::Categorical {
         field: variable.field.clone(),
         label: variable.label.clone(),
         categories,
+        balance,
     }
+}
+
+/// Hides every arm's count when any arm's count is a small cell.
+fn suppress_category(counts: Vec<usize>) -> Vec<Option<usize>> {
+    let hidden = counts.iter().any(|&count| is_small_cell(count));
+    counts
+        .into_iter()
+        .map(|count| (!hidden).then_some(count))
+        .collect()
 }
 
 fn is_eligible(condition: Option<&Condition>, row: &DatasetRow) -> bool {
@@ -274,7 +344,7 @@ fn is_eligible(condition: Option<&Condition>, row: &DatasetRow) -> bool {
     })
 }
 
-fn summarize_continuous(variable: &Variable, groups: &ArmGroups<'_>) -> ReportField {
+fn summarize_continuous(variable: &Variable, smd: bool, groups: &ArmGroups<'_>) -> ReportField {
     let moments = groups.per_arm(|rows| {
         let values: Vec<f64> = rows
             .iter()
@@ -283,15 +353,20 @@ fn summarize_continuous(variable: &Variable, groups: &ArmGroups<'_>) -> ReportFi
             .collect();
         Moments::of(&values)
     });
+    let balance = smd.then(|| Balance::of(smd::continuous(&moments)));
     ReportField::Continuous {
         field: variable.field.clone(),
         label: variable.label.clone(),
         unit: variable.unit.clone(),
         note: variable.note.clone(),
         decimals: variable.decimals.unwrap_or(DEFAULT_DECIMALS),
-        means: moments.iter().map(|m| m.mean).collect(),
-        standard_deviations: moments.iter().map(|m| m.standard_deviation).collect(),
-        denominators: moments.iter().map(|m| m.count).collect(),
+        means: moments.iter().map(|m| m.shown(m.mean)).collect(),
+        standard_deviations: moments
+            .iter()
+            .map(|m| m.shown(m.standard_deviation))
+            .collect(),
+        denominators: moments.iter().map(|m| m.shown(Some(m.count))).collect(),
+        balance,
     }
 }
 
@@ -330,17 +405,23 @@ fn float_equals_integer(float: &Number, whole: i128) -> bool {
     clippy::cast_precision_loss,
     reason = "sample counts are far below 2^52, where usize converts to f64 exactly"
 )]
-fn count_as_f64(count: usize) -> f64 {
+pub(super) fn count_as_f64(count: usize) -> f64 {
     count as f64
 }
 
-struct Moments {
-    mean: Option<f64>,
-    standard_deviation: Option<f64>,
-    count: usize,
+/// Mean, sample standard deviation, and count of one arm's eligible values.
+pub(super) struct Moments {
+    pub(super) mean: Option<f64>,
+    pub(super) standard_deviation: Option<f64>,
+    pub(super) count: usize,
 }
 
 impl Moments {
+    /// `value` unless the arm's count is a small cell.
+    fn shown<T>(&self, value: Option<T>) -> Option<T> {
+        value.filter(|_| !is_small_cell(self.count))
+    }
+
     /// Mean and sample standard deviation (Welford); the SD needs two values.
     fn of(values: &[f64]) -> Self {
         let mut mean = 0.0;

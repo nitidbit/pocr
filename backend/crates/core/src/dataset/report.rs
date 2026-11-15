@@ -63,6 +63,8 @@ struct RawReport {
     dataset: String,
     title: String,
     description: String,
+    #[serde(default)]
+    smd: bool,
     variables: Vec<Variable>,
 }
 
@@ -78,6 +80,7 @@ pub struct ReportDefinition {
     dataset: DatasetName,
     title: String,
     description: String,
+    smd: bool,
     variables: Vec<Variable>,
 }
 
@@ -110,6 +113,7 @@ impl TryFrom<RawReport> for ReportDefinition {
             dataset,
             title: raw.title,
             description: raw.description,
+            smd: raw.smd,
             variables: raw.variables,
         })
     }
@@ -258,6 +262,12 @@ impl ReportDefinition {
     #[must_use]
     pub fn description(&self) -> &str {
         &self.description
+    }
+
+    /// Whether the report adds a standardized mean difference to every variable.
+    #[must_use]
+    pub fn has_smd(&self) -> bool {
+        self.smd
     }
 
     /// Variables in display order.

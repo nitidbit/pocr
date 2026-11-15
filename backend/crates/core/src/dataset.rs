@@ -33,6 +33,7 @@ mod definition;
 mod record;
 mod report;
 mod repository;
+mod smd;
 mod summary;
 
 pub use catalog::{Catalog, CatalogError, DatasetRegistry};
@@ -50,4 +51,4 @@ pub use report::{
     Variable,
 };
 pub use repository::{Attachment, DatasetRepository, DatasetStatus, PublishedSummary, Snapshot};
-pub use summary::{Category, Report, ReportArm, ReportField};
+pub use summary::{Balance, Category, Report, ReportArm, ReportField};
