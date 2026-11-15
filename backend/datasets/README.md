@@ -66,6 +66,7 @@ column order.
 | `name` | 1-128 characters of `[a-z0-9-]`; equals the directory name |
 | `dataset` | name of a deployed dataset, same character rule |
 | `title`, `description` | `title` is not blank |
+| `smd` | optional boolean, default `false`; `true` adds a standardized mean difference to every variable |
 | `variables` | at least one; each dataset field appears at most once |
 
 A variable has `field`, `label`, `analysis`, and optional `unit`, `decimals`, `note`,
@@ -87,6 +88,36 @@ A variable has `field`, `label`, `analysis`, and optional `unit`, `decimals`, `n
   `Yes`, `No`, `Missing`.
 - Labels reach the UI verbatim.
 
+#### Standardized mean difference
+
+With `smd: true`, every variable reports the largest absolute pairwise standardized
+mean difference across arms, computed from the real values before small cells are
+suppressed:
+
+- Continuous: `|m1 - m2| / sqrt((s1² + s2²) / 2)` from the arm means and sample SDs.
+- Categorical: per category, `|p1 - p2| / sqrt((p1(1-p1) + p2(1-p2)) / 2)` with `p`
+  the category's share of all arm rows, `Missing` included as a category. The
+  variable's value is the largest over its categories.
+
+Arms without data (no eligible values, or no rows) are excluded. The SMD is `null`
+when fewer than two arms remain, when a remaining continuous arm has a single value
+(no SD), or when no pair has a nonzero pooled variance. It is never `0` for an
+undefined comparison.
+
+A variable is `imbalanced` when its SMD exceeds 0.1, the conventional cutoff; it is
+`null` exactly when the SMD is.
+
+#### Small-cell suppression
+
+Every report suppresses small cells, so counts that identify few patients are never
+sent:
+
+- A category count of 1-4 in any arm hides that category in every arm, `Missing`
+  included. A count of 0 or at least 5 is shown.
+- A continuous arm with 1-4 eligible values hides its mean, SD, and denominator. A
+  denominator of 0 is shown.
+- Arm row counts (`arms[].count`) are never suppressed.
+
 The checks above that depend only on the report file are made when it loads. The
 checks against the dataset (each `field` exists, the analysis fits the field type,
 `include_when` compares with the field's type, and no category order on a boolean
@@ -96,6 +127,11 @@ captured definition when the report is rendered.
 In the report JSON, a category `id` is the stored value: `"true"` or `"false"` for
 boolean fields, the string itself for string fields, and `null` for the missing
 category.
+
+Hidden cells are `null`: `counts` and `denominators` entries, and `means` and
+`standardDeviations` entries of a suppressed arm. `null` therefore only ever means
+suppressed (or, for a mean and SD, no data). The report has a top-level `smd`
+boolean, and each variable carries `smd` and `imbalanced` only when it is `true`.
 
 ## Procedure contract
 
@@ -204,6 +240,8 @@ and downloads are per environment. Dataset access follows study roles.
 CSV columns are `randomization_id`, `arm_id`, `arm_name`, then the declared fields in
 order. Cells are quoted and formula-like text is prefixed with an apostrophe. Context
 values are never exported.
+
+Reports are returned in report-name order across all attached datasets.
 
 A report has one column per study arm in configuration order, including arms with no
 rows. Arms present only in the snapshot follow, under their stored names. Percentages

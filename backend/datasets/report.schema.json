@@ -32,6 +32,9 @@
     "description": {
       "type": "string"
     },
+    "smd": {
+      "type": "boolean"
+    },
     "variables": {
       "type": "array",
       "minItems": 1,

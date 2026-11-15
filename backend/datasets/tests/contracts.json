@@ -34,6 +34,7 @@
       "dataset": "outcomes",
       "title": "Outcomes",
       "description": "By arm",
+      "smd": false,
       "variables": [
         {
           "field": "los",
@@ -181,6 +182,22 @@
       "value": 1,
       "valid": true,
       "schema_valid": true
+    },
+    {
+      "name": "smd enabled",
+      "target": "report",
+      "pointer": "/smd",
+      "value": true,
+      "valid": true,
+      "schema_valid": true
+    },
+    {
+      "name": "smd not boolean",
+      "target": "report",
+      "pointer": "/smd",
+      "value": "yes",
+      "valid": false,
+      "schema_valid": false
     },
     {
       "name": "report unsupported version",
