@@ -131,50 +131,6 @@ export interface RandomizationCounts {
 	arms: ArmCount[];
 }
 
-export interface BalanceArmSummary {
-	id: string;
-	count: number;
-}
-
-export interface ContinuousArmData {
-	arm_id: string;
-	mean: number;
-	sd: number;
-	missing: number;
-}
-
-export interface CategoricalArmData {
-	arm_id: string;
-	count: number | string;
-	pct: number | string;
-}
-
-export interface CategoryData {
-	value: string;
-	arms: CategoricalArmData[];
-}
-
-export type BalanceVariable =
-	| {
-			type: "continuous";
-			name: string;
-			arms: ContinuousArmData[];
-			smd: number;
-	  }
-	| {
-			type: "categorical";
-			name: string;
-			categories: CategoryData[];
-			smd: number;
-	  };
-
-export interface BalanceResponse {
-	study_id: string;
-	total_patients: number;
-	arms: BalanceArmSummary[];
-	variables: BalanceVariable[];
-}
-
 export interface SystemStatus {
 	status: "healthy" | "degraded" | "unhealthy";
 	uptimeSeconds: number;
@@ -287,18 +243,6 @@ export const api = {
 			const qs = search.toString();
 			return request<RandomizationCounts>(
 				`/studies/${studyId}/randomizations/counts${qs ? `?${qs}` : ""}`,
-			);
-		},
-	},
-	balance: {
-		// The backend balance endpoint currently ignores the environment param;
-		// we thread it through defensively so it works once the backend adds it.
-		get: (studyId: string, environment?: Environment) => {
-			const search = new URLSearchParams();
-			if (environment) search.set("environment", environment);
-			const qs = search.toString();
-			return request<BalanceResponse>(
-				`/studies/${studyId}/balance${qs ? `?${qs}` : ""}`,
 			);
 		},
 	},

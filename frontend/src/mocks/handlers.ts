@@ -1,9 +1,10 @@
 import { HttpResponse, http } from "msw";
 import { API_BASE } from "#/api/client";
-import { DEMO_STUDY_ID, demoBalance, demoCounts, demoStudy } from "./demo";
+import { DEMO_STUDY_ID, demoCounts, demoStudy } from "./demo";
 import {
 	datasetAttachment,
 	datasetList,
+	demographicsReport,
 	publishedReport,
 	syntheticReport,
 } from "./fixtures";
@@ -17,19 +18,33 @@ export const handlers = [
 	http.get(`${study}/randomizations/counts`, () =>
 		HttpResponse.json(demoCounts),
 	),
-	http.get(`${study}/balance`, () => HttpResponse.json(demoBalance)),
 	http.get(`${study}/randomizations`, () => HttpResponse.json([])),
 	http.get(`${study}/members`, () => HttpResponse.json([])),
 	http.get(`${study}/audit`, () => HttpResponse.json([])),
 	http.get(`${study}/datasets`, () =>
 		HttpResponse.json(
 			datasetList({
-				attachments: [datasetAttachment({ rowCount: demoCounts.total })],
+				attachments: [
+					datasetAttachment({
+						id: "attachment-demographics",
+						name: "demographics",
+						title: "Demographics",
+						rowCount: demoCounts.total,
+					}),
+					datasetAttachment({ rowCount: demoCounts.total }),
+				],
 			}),
 		),
 	),
 	http.get(`${study}/dataset-reports`, () =>
-		HttpResponse.json([publishedReport({ report: syntheticReport() })]),
+		HttpResponse.json([
+			publishedReport({
+				name: "demographics",
+				dataset: "demographics",
+				report: demographicsReport(),
+			}),
+			publishedReport({ report: syntheticReport() }),
+		]),
 	),
 	http.all(`${API_BASE}/*`, ({ request }) =>
 		request.method === "GET"

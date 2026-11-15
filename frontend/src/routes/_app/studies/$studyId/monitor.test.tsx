@@ -21,7 +21,6 @@ vi.mock("#/api/queries", () => ({
 	useStudy: vi.fn(),
 	useRandomizations: vi.fn(),
 	useRandomizationCounts: vi.fn(),
-	useBalance: vi.fn(),
 	usePurgeNonProduction: vi.fn(),
 }));
 
@@ -40,7 +39,6 @@ vi.mock("#/lib/environment", async () => {
 });
 
 import {
-	useBalance,
 	useRandomizationCounts,
 	useRandomizations,
 	useStudy,
@@ -86,7 +84,6 @@ function renderMonitor(randomizations: RandomizationResponse[]) {
 			arms: [...armTotals].map(([armId, count]) => ({ armId, count })),
 		}),
 	);
-	vi.mocked(useBalance).mockReturnValue(stubQuery(undefined));
 
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
@@ -178,6 +175,15 @@ describe("StudyMonitorPage", () => {
 			),
 		).toBeInTheDocument();
 		expect(screen.queryByText("Invalid Date")).not.toBeInTheDocument();
+	});
+
+	it("does not render a Demographic Balance section", async () => {
+		renderMonitor([makeRandomization({ id: "arm-001", name: "A", ratio: 1 })]);
+
+		await screen.findByText(RANDOMIZATION_ID);
+		expect(
+			screen.queryByRole("heading", { name: /Demographic Balance/ }),
+		).not.toBeInTheDocument();
 	});
 
 	it("falls back to the full arm id when the randomization arm has no name", async () => {

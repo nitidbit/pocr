@@ -19,8 +19,6 @@ export const studyKeys = {
 		["studies", studyId, "randomizations", environment] as const,
 	randomizationCounts: (studyId: string, environment: Environment) =>
 		["studies", studyId, "randomizationCounts", environment] as const,
-	balance: (studyId: string, environment: Environment) =>
-		["studies", studyId, "balance", environment] as const,
 	members: (id: string) => ["studies", id, "members"] as const,
 	audit: (id: string) => ["studies", id, "audit"] as const,
 	datasetsAll: (studyId: string) => ["studies", studyId, "datasets"] as const,
@@ -157,13 +155,6 @@ export function useRandomizationCounts(
 	});
 }
 
-export function useBalance(studyId: string, environment: Environment) {
-	return useQuery({
-		queryKey: studyKeys.balance(studyId, environment),
-		queryFn: () => api.balance.get(studyId, environment),
-	});
-}
-
 export function usePurgeNonProduction(studyId: string) {
 	const queryClient = useQueryClient();
 	return useMutation({
@@ -176,7 +167,7 @@ export function usePurgeNonProduction(studyId: string) {
 				queryKey: ["studies", studyId, "randomizationCounts"],
 			});
 			queryClient.invalidateQueries({
-				queryKey: ["studies", studyId, "balance"],
+				queryKey: studyKeys.datasetsAll(studyId),
 			});
 			toast.success(`Purged ${data.recordsRemoved} test randomizations`);
 		},

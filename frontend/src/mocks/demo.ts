@@ -1,4 +1,4 @@
-import type { BalanceResponse, StudyResponse } from "#/api/client";
+import type { StudyResponse } from "#/api/client";
 import { syntheticReport } from "./fixtures";
 
 export const DEMO_STUDY_ID = "dataset-demo";
@@ -27,11 +27,4 @@ const total = arms.reduce((sum, arm) => sum + arm.count, 0);
 export const demoCounts = {
 	total,
 	arms: arms.map(({ id, count }) => ({ armId: id, count })),
-};
-
-export const demoBalance: BalanceResponse = {
-	study_id: DEMO_STUDY_ID,
-	total_patients: total,
-	arms: arms.map(({ id, count }) => ({ id, count })),
-	variables: [],
 };
