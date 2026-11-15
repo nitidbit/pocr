@@ -11,18 +11,10 @@ function percent(count: number, total: number) {
 	return ((count / (total || 1)) * 100).toFixed(1);
 }
 
-function SmdCell({
-	balance,
-	className,
-}: {
-	balance: FieldBalance;
-	className: string;
-}) {
+function SmdCell({ balance }: { balance: FieldBalance }) {
 	const { smd, imbalanced } = balance;
 	return (
-		<td
-			className={`whitespace-nowrap px-4 text-right tabular-nums ${className}`}
-		>
+		<td className="whitespace-nowrap px-4 py-2 text-right tabular-nums">
 			{smd == null ? (
 				"—"
 			) : (
@@ -75,7 +67,7 @@ function CategoricalRows({
 				>
 					{field.name}, n (%)
 				</th>
-				{report.smd && <SmdCell balance={field} className="py-2" />}
+				{report.smd && <SmdCell balance={field} />}
 			</tr>
 			{field.categories.map((category) => (
 				<tr
@@ -112,7 +104,7 @@ function ContinuousRow({
 	report: DatasetReport;
 }) {
 	return (
-		<tr>
+		<tr className="[&>td]:py-3">
 			<th scope="row" className="px-4 py-3 text-left font-medium">
 				{field.name}, mean (SD)
 				{field.unit ? `, ${field.unit}` : ""}
@@ -127,7 +119,7 @@ function ContinuousRow({
 				return (
 					<td
 						key={arm.id}
-						className="whitespace-nowrap px-4 py-3 text-right tabular-nums"
+						className="whitespace-nowrap px-4 text-right tabular-nums"
 					>
 						{denominator === null ? (
 							"<5"
@@ -150,7 +142,7 @@ function ContinuousRow({
 					</td>
 				);
 			})}
-			{report.smd && <SmdCell balance={field} className="py-3" />}
+			{report.smd && <SmdCell balance={field} />}
 		</tr>
 	);
 }

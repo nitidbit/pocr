@@ -38,11 +38,11 @@ function continuous(
 	stats: Pick<
 		ContinuousField,
 		"means" | "standardDeviations" | "denominators" | "decimals"
-	> & { unit?: string; note?: string } & FieldBalance,
+	> & { unit?: string; note?: string },
+	balance: FieldBalance = {},
 ): DatasetField {
 	return {
-		smd: stats.smd,
-		imbalanced: stats.imbalanced,
+		...balance,
 		analysis: "continuous",
 		id: name,
 		name,
@@ -157,15 +157,17 @@ export function demographicsReport(): DatasetReport {
 		smd: true,
 		arms,
 		fields: [
-			continuous("Age", {
-				means: [61.4, 60.9],
-				standardDeviations: [14.2, 15],
-				denominators: [120, 119],
-				unit: "years",
-				decimals: 1,
-				smd: 0.03,
-				imbalanced: false,
-			}),
+			continuous(
+				"Age",
+				{
+					means: [61.4, 60.9],
+					standardDeviations: [14.2, 15],
+					denominators: [120, 119],
+					unit: "years",
+					decimals: 1,
+				},
+				{ smd: 0.03, imbalanced: false },
+			),
 			categorical(
 				"Sex",
 				["Female", "Male"],
@@ -209,15 +211,17 @@ export function demographicsReport(): DatasetReport {
 				],
 				{ smd: 0.06, imbalanced: false },
 			),
-			continuous("BMI", {
-				means: [28.4, 29.1],
-				standardDeviations: [5.6, 6],
-				denominators: [112, 108],
-				unit: "kg/m²",
-				decimals: 1,
-				smd: null,
-				imbalanced: null,
-			}),
+			continuous(
+				"BMI",
+				{
+					means: [28.4, 29.1],
+					standardDeviations: [5.6, 6],
+					denominators: [112, 108],
+					unit: "kg/m²",
+					decimals: 1,
+				},
+				{ smd: null, imbalanced: null },
+			),
 		],
 	};
 }
