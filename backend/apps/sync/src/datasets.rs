@@ -260,6 +260,7 @@ mod tests {
             database: "unused".into(),
             username: "unused".into(),
             password: SecretString::from("unused"),
+            trust_server_certificate: false,
         }
     }
 

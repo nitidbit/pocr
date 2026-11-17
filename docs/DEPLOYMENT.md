@@ -285,19 +285,30 @@ refresh details are in [backend/datasets/README.md](../backend/datasets/README.m
 | `CABOODLE_DATABASE` | yes | — |
 | `CABOODLE_USERNAME` | yes | — |
 | `CABOODLE_PASSWORD` | yes | — |
+| `CABOODLE_TRUST_SERVER_CERTIFICATE` | no | `false` (`true` or `false`) |
 
 Sync fails with a configuration error when `DATASETS_DIR` is unset.
 
 Only SQL Server authentication is supported. Supply a dedicated service account
 through `CABOODLE_USERNAME` and `CABOODLE_PASSWORD`. The account needs `EXECUTE`
 on the dataset stored procedures, not table reads. Missing or blank required
-values and invalid ports fail configuration. Legacy AD environment variables are
-ignored.
+values, invalid ports, and a trust setting other than `true` or `false` fail
+configuration. Legacy AD environment variables are ignored.
 
-Connections require TLS and validate the server certificate and hostname. Install
-the issuing CA in the runtime trust store and use the certificate's DNS hostname;
-certificate validation cannot be bypassed. Inject credentials through the deployment
-secret manager; do not commit credentials or place them in shell history.
+Connections require TLS and by default validate the server certificate and
+hostname. Install the issuing CA in the runtime trust store and use the
+certificate's DNS hostname.
+
+`CABOODLE_TRUST_SERVER_CERTIFICATE=true` accepts any server certificate, for
+instances that present only SQL Server's self-signed fallback certificate
+(`SSL_Self_Signed_Fallback`), which rotates on restart and never matches the host.
+Traffic stays encrypted, but the server is not authenticated: anyone able to
+intercept the connection can impersonate Caboodle and capture the service-account
+password and procedure results. Sync logs a `WARN` on each connection while it is
+set. Use it only on a trusted network path.
+
+Inject credentials through the deployment secret manager; do not commit
+credentials or place them in shell history.
 
 Caboodle uses Tiberius with SQL authentication and native TLS; integrated
 authentication features are disabled. PostgreSQL uses SQLx. Connection setup

@@ -5,7 +5,7 @@ use secrecy::ExposeSecret;
 use tiberius::{AuthMethod, Client, Config as TiberiusConfig, EncryptionLevel, Query};
 use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
-use tracing::{info, instrument};
+use tracing::{info, instrument, warn};
 
 use crate::config::CaboodleConfig;
 use crate::error::{CaboodleError, CaboodleResult, DriverFailure};
@@ -40,6 +40,12 @@ impl CaboodleClient {
             config.password.expose_secret(),
         ));
         tib_config.encryption(EncryptionLevel::Required);
+        if config.trust_server_certificate {
+            warn!(
+                "CABOODLE_TRUST_SERVER_CERTIFICATE is set; the server certificate is not validated"
+            );
+            tib_config.trust_cert();
+        }
 
         let client = tokio::time::timeout(Duration::from_secs(15), async {
             let tcp = TcpStream::connect(tib_config.get_addr())

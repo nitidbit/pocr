@@ -15,18 +15,23 @@ pub struct CaboodleConfig {
     pub username: String,
     /// Password for `username`; redacted in `Debug` output.
     pub password: SecretString,
+    /// Accepts any server certificate instead of validating its chain and host
+    /// name. The connection is still encrypted, but the server is not
+    /// authenticated.
+    pub trust_server_certificate: bool,
 }
 
 impl CaboodleConfig {
     /// Reads required `CABOODLE_HOST`, `CABOODLE_DATABASE`, `CABOODLE_USERNAME`,
-    /// and `CABOODLE_PASSWORD`, with `CABOODLE_PORT` defaulting to 1433.
+    /// and `CABOODLE_PASSWORD`, with `CABOODLE_PORT` defaulting to 1433 and
+    /// `CABOODLE_TRUST_SERVER_CERTIFICATE` (`true` or `false`) to `false`.
     ///
     /// Only SQL Server authentication is supported.
     ///
     /// # Errors
     ///
     /// Returns [`CaboodleError::Config`] for missing or blank required values,
-    /// or an invalid or zero port.
+    /// an invalid or zero port, or a trust setting other than `true` or `false`.
     pub fn from_env() -> CaboodleResult<Self> {
         Self::from_lookup(|name| std::env::var(name).ok())
     }
@@ -42,12 +47,23 @@ impl CaboodleConfig {
                     CaboodleError::Config("CABOODLE_PORT must be between 1 and 65535".into())
                 })?,
         };
+        let trust_server_certificate = match lookup("CABOODLE_TRUST_SERVER_CERTIFICATE").as_deref()
+        {
+            None | Some("false") => false,
+            Some("true") => true,
+            Some(_) => {
+                return Err(CaboodleError::Config(
+                    "CABOODLE_TRUST_SERVER_CERTIFICATE must be true or false".into(),
+                ));
+            }
+        };
         Ok(Self {
             host: require(&lookup, "CABOODLE_HOST")?,
             port,
             database: require(&lookup, "CABOODLE_DATABASE")?,
             username: require(&lookup, "CABOODLE_USERNAME")?,
             password: SecretString::from(require(&lookup, "CABOODLE_PASSWORD")?),
+            trust_server_certificate,
         })
     }
 }
@@ -112,6 +128,30 @@ mod tests {
         );
         for value in ["", "0", "invalid", "65536"] {
             config(&[("CABOODLE_PORT", Some(value))]).unwrap_err();
+        }
+    }
+
+    #[test]
+    fn server_certificate_is_validated_by_default() {
+        assert!(!config(&[]).unwrap().trust_server_certificate);
+    }
+
+    #[test]
+    fn trust_server_certificate_true_disables_validation() {
+        let config = config(&[("CABOODLE_TRUST_SERVER_CERTIFICATE", Some("true"))]).unwrap();
+        assert!(config.trust_server_certificate);
+    }
+
+    #[test]
+    fn trust_server_certificate_false_keeps_validation() {
+        let config = config(&[("CABOODLE_TRUST_SERVER_CERTIFICATE", Some("false"))]).unwrap();
+        assert!(!config.trust_server_certificate);
+    }
+
+    #[test]
+    fn trust_server_certificate_rejects_other_values() {
+        for value in ["", "1", "yes", "TRUE", " true"] {
+            config(&[("CABOODLE_TRUST_SERVER_CERTIFICATE", Some(value))]).unwrap_err();
         }
     }
 

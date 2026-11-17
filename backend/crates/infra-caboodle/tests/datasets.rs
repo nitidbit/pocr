@@ -21,6 +21,8 @@ fn config() -> CaboodleConfig {
         database: required("DATABASE"),
         username: required("USERNAME"),
         password: secrecy::SecretString::from(required("PASSWORD")),
+        trust_server_certificate: std::env::var("DATASET_TEST_SQLSERVER_TRUST_SERVER_CERTIFICATE")
+            .is_ok_and(|value| value == "true"),
     }
 }
 

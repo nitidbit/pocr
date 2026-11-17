@@ -184,6 +184,7 @@ DATASETS_DIR="$PWD/datasets" DATASET_ENVIRONMENT=nonproduction cargo run -p pocr
 | `DATABASE_URL` | engine, sync | PostgreSQL |
 | `CABOODLE_HOST`, `CABOODLE_DATABASE`, `CABOODLE_USERNAME`, `CABOODLE_PASSWORD` | sync | SQL Server connection |
 | `CABOODLE_PORT` | sync | defaults to 1433 |
+| `CABOODLE_TRUST_SERVER_CERTIFICATE` | sync | `true` skips server certificate validation (connection stays encrypted); defaults to `false`. See [DEPLOYMENT.md §5.1](../../docs/DEPLOYMENT.md#51-configuration) |
 
 There is no UI refresh action and no in-process scheduler; invoke the job from the
 deployment's scheduler.
