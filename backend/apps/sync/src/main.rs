@@ -4,6 +4,7 @@ mod datasets;
 
 use std::env;
 use std::num::{NonZeroU64, NonZeroUsize};
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Duration;
 
@@ -34,8 +35,7 @@ async fn main() -> ExitCode {
 ///
 /// Returns [`SyncError::CatalogUnset`] when no catalog is configured.
 async fn run() -> Result<(), SyncError> {
-    let database_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://pocr:pocr@localhost:5432/pocr".into());
+    let database_url = database_url(|name| env::var(name).ok())?;
     let pg_pool = infra_pg::create_pool(&database_url).await?;
     infra_pg::run_migrations(&pg_pool).await?;
     info!("connected to PostgreSQL");
@@ -44,6 +44,39 @@ async fn run() -> Result<(), SyncError> {
         .map_err(SyncError::Catalog)?
         .ok_or(SyncError::CatalogUnset)?;
     refresh_datasets(&pg_pool, catalog.datasets()).await
+}
+
+/// Resolves the PostgreSQL URL from `DATABASE_URL_FILE` (a mounted secret),
+/// else `DATABASE_URL`, else the local development default.
+///
+/// # Errors
+///
+/// Returns [`SyncError::SecretFile`] if `DATABASE_URL_FILE` is set but unreadable,
+/// and [`SyncError::EmptySecretFile`] if the file holds only whitespace.
+fn database_url(lookup: impl Fn(&str) -> Option<String>) -> Result<String, SyncError> {
+    const VARIABLE: &str = "DATABASE_URL_FILE";
+    if let Some(path) = lookup(VARIABLE) {
+        let path = PathBuf::from(path);
+        let contents = match std::fs::read_to_string(&path) {
+            Ok(contents) => contents,
+            Err(source) => {
+                return Err(SyncError::SecretFile {
+                    variable: VARIABLE,
+                    path,
+                    source,
+                });
+            }
+        };
+        let url = contents.trim();
+        if url.is_empty() {
+            return Err(SyncError::EmptySecretFile {
+                variable: VARIABLE,
+                path,
+            });
+        }
+        return Ok(url.to_owned());
+    }
+    Ok(lookup("DATABASE_URL").unwrap_or_else(|| "postgres://pocr:pocr@localhost:5432/pocr".into()))
 }
 
 /// Refreshes every dataset attachment using settings read from the environment.
@@ -94,6 +127,27 @@ enum SyncError {
     /// The dataset catalog could not be loaded.
     #[error("failed to load dataset catalog")]
     Catalog(#[source] infra_datasets::LoadError),
+
+    /// A `*_FILE` secret could not be read.
+    #[error("failed to read {variable} at {}", path.display())]
+    SecretFile {
+        /// Variable naming the file.
+        variable: &'static str,
+        /// Path named by the variable.
+        path: PathBuf,
+        /// Underlying I/O failure.
+        #[source]
+        source: std::io::Error,
+    },
+
+    /// A `*_FILE` secret holds only whitespace.
+    #[error("{variable} at {} is empty", path.display())]
+    EmptySecretFile {
+        /// Variable naming the file.
+        variable: &'static str,
+        /// Path named by the variable.
+        path: PathBuf,
+    },
 
     /// `DATASETS_DIR` is unset, so there is no catalog to refresh.
     #[error("DATASETS_DIR is not set; sync has nothing to refresh")]
