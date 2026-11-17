@@ -129,9 +129,20 @@ async fn refresh_one(
             info!(%run_id, row_count, "dataset refresh published");
         }
         Ok(RefreshOutcome::AlreadyRunning | RefreshOutcome::DefinitionUnavailable) => {}
-        Err(error) => error!(error_message = %error, "dataset refresh failed"),
+        Err(error) => error!(error_message = %error_chain(error), "dataset refresh failed"),
     }
     outcome
+}
+
+/// Renders `error` and each of its sources, outermost first, joined by `": "`.
+///
+/// Refresh errors carry identifiers and counts only, never row or context
+/// values, so the full chain is safe to log.
+fn error_chain(error: &(dyn std::error::Error + 'static)) -> String {
+    std::iter::successors(Some(error), |e| e.source())
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(": ")
 }
 
 async fn refresh_target(
