@@ -32,11 +32,7 @@ use pocr_core::{
     role::Role,
 };
 
-use crate::{
-    error::ApiError,
-    extractors::AuthUser,
-    members::caller_role,
-};
+use crate::{error::ApiError, extractors::AuthUser, members::caller_role};
 
 /// Dependencies of the dataset handlers.
 ///
@@ -449,11 +445,11 @@ mod tests {
             Ok(self.attachments.clone())
         }
 
-        async fn attach(&self, _: Uuid, _: &DatasetDefinition) -> Result<(), RepositoryError> {
+        async fn attach(&self, _: Uuid, _: &DatasetDefinition) -> Result<bool, RepositoryError> {
             unreachable!("reports never attach")
         }
 
-        async fn detach(&self, _: Uuid, _: &DatasetName) -> Result<(), RepositoryError> {
+        async fn detach(&self, _: Uuid, _: &DatasetName) -> Result<bool, RepositoryError> {
             unreachable!("reports never detach")
         }
 
@@ -538,11 +534,11 @@ mod tests {
             Ok(self.attachments.clone())
         }
 
-        async fn attach(&self, _: Uuid, _: &DatasetDefinition) -> Result<(), RepositoryError> {
+        async fn attach(&self, _: Uuid, _: &DatasetDefinition) -> Result<bool, RepositoryError> {
             unreachable!("reports never attach")
         }
 
-        async fn detach(&self, _: Uuid, _: &DatasetName) -> Result<(), RepositoryError> {
+        async fn detach(&self, _: Uuid, _: &DatasetName) -> Result<bool, RepositoryError> {
             unreachable!("reports never detach")
         }
 

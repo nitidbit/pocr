@@ -104,6 +104,8 @@ pub trait DatasetRepository: Send + Sync {
     /// Attaches a dataset to a study for both environments. Attaching an
     /// already attached dataset changes nothing.
     ///
+    /// Returns whether a new attachment was created.
+    ///
     /// # Errors
     ///
     /// Returns [`RepositoryError::Storage`] if the store fails.
@@ -111,16 +113,18 @@ pub trait DatasetRepository: Send + Sync {
         &self,
         study: Uuid,
         definition: &DatasetDefinition,
-    ) -> Result<(), RepositoryError>;
+    ) -> Result<bool, RepositoryError>;
 
     /// Detaches a dataset from a study, deleting its runs and snapshots in both
     /// environments. A later attach creates a new attachment, so runs started
     /// before the detach can no longer publish.
     ///
+    /// Returns whether an attachment was removed.
+    ///
     /// # Errors
     ///
     /// Returns [`RepositoryError::Storage`] if the store fails.
-    async fn detach(&self, study: Uuid, name: &DatasetName) -> Result<(), RepositoryError>;
+    async fn detach(&self, study: Uuid, name: &DatasetName) -> Result<bool, RepositoryError>;
 
     /// Reads the latest published snapshot, or `None` if the dataset has
     /// never published in `environment`.

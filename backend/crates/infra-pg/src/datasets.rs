@@ -67,8 +67,8 @@ impl DatasetRepository for PgDatasetRepository {
         &self,
         study: Uuid,
         definition: &DatasetDefinition,
-    ) -> Result<(), RepositoryError> {
-        sqlx::query(
+    ) -> Result<bool, RepositoryError> {
+        let result = sqlx::query(
             "INSERT INTO study_datasets(id,study_id,name)
             VALUES ($1,$2,$3)
             ON CONFLICT (study_id,name) DO NOTHING",
@@ -79,17 +79,17 @@ impl DatasetRepository for PgDatasetRepository {
         .execute(&self.pool)
         .await
         .map_err(database_error("attach dataset"))?;
-        Ok(())
+        Ok(result.rows_affected() > 0)
     }
 
-    async fn detach(&self, study: Uuid, name: &DatasetName) -> Result<(), RepositoryError> {
-        sqlx::query("DELETE FROM study_datasets WHERE study_id=$1 AND name=$2")
+    async fn detach(&self, study: Uuid, name: &DatasetName) -> Result<bool, RepositoryError> {
+        let result = sqlx::query("DELETE FROM study_datasets WHERE study_id=$1 AND name=$2")
             .bind(study)
             .bind(name.as_ref())
             .execute(&self.pool)
             .await
             .map_err(database_error("detach dataset"))?;
-        Ok(())
+        Ok(result.rows_affected() > 0)
     }
 
     async fn snapshot(

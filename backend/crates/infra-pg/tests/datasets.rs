@@ -543,3 +543,36 @@ async fn published_run_stores_the_dataset_definition_without_a_report() {
     assert_eq!(stored["name"], "sample-outcomes");
     assert_eq!(snapshot.fingerprint(), f.definition.fingerprint());
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
+async fn attaching_an_attached_dataset_reports_no_change() {
+    let f = Fixture::new().await;
+
+    let attached = f.repository.attach(f.study, &f.definition).await.unwrap();
+
+    assert!(!attached);
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
+async fn detach_reports_whether_an_attachment_was_removed() {
+    let f = Fixture::new().await;
+
+    let first = f.repository.detach(f.study, f.name()).await.unwrap();
+    let second = f.repository.detach(f.study, f.name()).await.unwrap();
+
+    assert!(first);
+    assert!(!second);
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
+async fn attaching_a_detached_dataset_reports_a_change() {
+    let f = Fixture::new().await;
+    f.repository.detach(f.study, f.name()).await.unwrap();
+
+    let attached = f.repository.attach(f.study, &f.definition).await.unwrap();
+
+    assert!(attached);
+}
