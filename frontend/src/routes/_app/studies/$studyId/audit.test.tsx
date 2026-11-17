@@ -168,6 +168,34 @@ describe("StudyAuditPage", () => {
 		expect(await screen.findByText("Study deleted")).toBeInTheDocument();
 	});
 
+	it("describes a dataset attach event", async () => {
+		vi.mocked(api.studies.audit).mockResolvedValue([
+			auditEvent({
+				eventType: "study.dataset_attached",
+				detail: { name: "demographics" },
+			}),
+		]);
+		renderAudit();
+
+		expect(
+			await screen.findByText("Attached dataset demographics"),
+		).toBeInTheDocument();
+	});
+
+	it("describes a dataset detach event", async () => {
+		vi.mocked(api.studies.audit).mockResolvedValue([
+			auditEvent({
+				eventType: "study.dataset_detached",
+				detail: { name: "demographics" },
+			}),
+		]);
+		renderAudit();
+
+		expect(
+			await screen.findByText("Detached dataset demographics"),
+		).toBeInTheDocument();
+	});
+
 	it("falls back to the full arm id when the arm name is empty", async () => {
 		vi.mocked(api.studies.get).mockResolvedValue({
 			...STUDY,

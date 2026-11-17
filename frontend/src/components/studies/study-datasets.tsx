@@ -103,7 +103,8 @@ export function StudyDatasets({ studyId }: { studyId: string }) {
 							</p>
 							{!item.definitionAvailable && (
 								<p className="mt-2 text-xs text-muted-foreground">
-									Definition unavailable. Saved data remains downloadable.
+									Definition unavailable. Saved data can no longer be
+									downloaded.
 								</p>
 							)}
 							{item.definitionChanged && item.hasSnapshot && (
@@ -112,22 +113,26 @@ export function StudyDatasets({ studyId }: { studyId: string }) {
 									next successful refresh.
 								</p>
 							)}
-							{item.status === "failed" && item.hasSnapshot && (
-								<p className="mt-2 text-xs text-muted-foreground">
-									Downloads contain the last successful snapshot.
-								</p>
-							)}
+							{item.status === "failed" &&
+								item.hasSnapshot &&
+								item.canDownload && (
+									<p className="mt-2 text-xs text-muted-foreground">
+										Downloads contain the last successful snapshot.
+									</p>
+								)}
 						</div>
 						<div className="flex gap-2">
-							<Button
-								variant="outline"
-								disabled={!item.hasSnapshot || download.isPending}
-								onClick={() => download.mutate(item.name)}
-							>
-								{download.isPending && download.variables === item.name
-									? "Downloading..."
-									: "Download CSV"}
-							</Button>
+							{item.canDownload && (
+								<Button
+									variant="outline"
+									disabled={!item.hasSnapshot || download.isPending}
+									onClick={() => download.mutate(item.name)}
+								>
+									{download.isPending && download.variables === item.name
+										? "Downloading..."
+										: "Download CSV"}
+								</Button>
+							)}
 							{data.canManage && (
 								<Button
 									variant="ghost"

@@ -168,11 +168,31 @@ describe("StudyDatasets", () => {
 		expect(screen.getByRole("button", { name: "Download CSV" })).toBeEnabled();
 	});
 
+	it("hides download when the caller's role cannot download", async () => {
+		serveAttachment({ canDownload: false });
+		renderWithProviders(<StudyDatasets studyId="study" />);
+		await screen.findByRole("heading", { name: "Encounter Outcomes" });
+		expect(
+			screen.queryByRole("button", { name: "Download CSV" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("omits the snapshot download note when download is not allowed", async () => {
+		serveAttachment({ status: "failed", canDownload: false });
+		renderWithProviders(<StudyDatasets studyId="study" />);
+		expect(await screen.findByText(/Refresh failed/)).toBeInTheDocument();
+		expect(
+			screen.queryByText("Downloads contain the last successful snapshot."),
+		).not.toBeInTheDocument();
+	});
+
 	it("explains an unavailable definition", async () => {
 		serveAttachment({ definitionAvailable: false });
 		renderWithProviders(<StudyDatasets studyId="study" />);
 		expect(
-			await screen.findByText(/Definition unavailable/),
+			await screen.findByText(
+				"Definition unavailable. Saved data can no longer be downloaded.",
+			),
 		).toBeInTheDocument();
 	});
 

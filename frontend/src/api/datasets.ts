@@ -19,6 +19,8 @@ export interface DatasetAttachment extends DatasetCatalogItem {
 	hasSnapshot: boolean;
 	definitionAvailable: boolean;
 	definitionChanged: boolean;
+	/** Whether the caller's role may download this dataset's CSV. */
+	canDownload: boolean;
 }
 
 export interface DatasetList {

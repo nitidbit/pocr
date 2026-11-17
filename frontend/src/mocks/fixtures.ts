@@ -240,6 +240,7 @@ export function datasetAttachment(
 		hasSnapshot: true,
 		definitionAvailable: true,
 		definitionChanged: false,
+		canDownload: true,
 		...overrides,
 	};
 }

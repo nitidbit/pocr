@@ -108,6 +108,10 @@ export function describeEvent(
 			return `Changed ${armLabel(detail.armId, study)} allocation ratio from ${asText(detail.from)} to ${asText(detail.to)}`;
 		case "study.nonproduction_purged":
 			return `Purged ${asText(detail.recordsRemoved)} non-production randomizations`;
+		case "study.dataset_attached":
+			return `Attached dataset ${asText(detail.name)}`;
+		case "study.dataset_detached":
+			return `Detached dataset ${asText(detail.name)}`;
 		case "study.deleted":
 			return "Study deleted";
 		default:
