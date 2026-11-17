@@ -141,7 +141,10 @@ function EmptyState() {
 			<p className="text-sm text-muted-foreground">
 				Create your first randomization study to get started.
 			</p>
-			<Button render={<Link to="/studies/new" search={{ step: 1 }} />}>
+			<Button
+				nativeButton={false}
+				render={<Link to="/studies/new" search={{ step: 1 }} />}
+			>
 				<Plus className="size-4" />
 				Create New Study
 			</Button>
