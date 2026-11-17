@@ -6,6 +6,7 @@ source: caboodle
 stored_procedure:
   schema: pocr
   name: EncounterBalance
+allow_download: [owner]
 fields:
   - name: age
     type: number

@@ -6,6 +6,7 @@ source: caboodle
 stored_procedure:
   schema: pocr
   name: SampleOutcomes
+allow_download: [owner, member]
 fields:
   - name: disposition
     type: string

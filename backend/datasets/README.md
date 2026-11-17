@@ -59,12 +59,18 @@ the Rust and the JSON Schema tests. Duplicate YAML keys are rejected.
 | `source` | `caboodle` |
 | `stored_procedure` | `{schema, name}`, each a bare SQL identifier (`[A-Za-z_][A-Za-z0-9_]*`, at most 128 characters) |
 | `fields` | ordered list of `{name, type, column}`, at least one |
+| `allow_download` | optional list of study roles (`owner`, `member`) that may download snapshots as CSV; roles match exactly; missing or `[]` means no one can download |
 
 Field `name` is a bare identifier and not `randomization_id`, `arm_id`, or `arm_name`.
 `type` is `string`, `number`, or `boolean`; every value may be null. `column` is the
 procedure's result column and is unique and non-blank. `randomization_id` is the
 fixed row key, never a field. Reordering fields changes the fingerprint and the CSV
 column order.
+
+`allow_download` is read from the deployed definition at download time and is excluded
+from the fingerprint, so changing it takes effect without a refresh and never marks a
+snapshot as changed. A dataset whose definition is no longer deployed cannot be
+downloaded.
 
 ### `report.yaml`
 

@@ -8,6 +8,7 @@ use sha2::{Digest, Sha256};
 use super::column::SystemColumn;
 use super::record::{self, ContextRecord, DatasetRecord, ResultRow, ResultsError};
 use super::report::MAX_DECIMALS;
+use crate::role::Role;
 
 /// Longest SQL Server identifier: `sysname` is `nvarchar(128)`.
 ///
@@ -50,6 +51,12 @@ pub enum DefinitionError {
     /// The dataset declares no fields.
     #[error("dataset declares no fields")]
     NoFields,
+    /// A role appears more than once in `allow_download`.
+    #[error("duplicate download role {}", role.as_str())]
+    DuplicateDownloadRole {
+        /// The repeated role.
+        role: Role,
+    },
     /// A field uses a name owned by the system columns.
     #[error("field name {name:?} is reserved")]
     ReservedField {
@@ -404,6 +411,8 @@ struct RawDatasetDefinition {
     source: Source,
     stored_procedure: RawProcedure,
     fields: Vec<RawField>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    allow_download: Vec<Role>,
 }
 
 /// A validated dataset: identity, source procedure, and ordered fields.
@@ -420,6 +429,7 @@ pub struct DatasetDefinition {
     source: Source,
     procedure: Procedure,
     fields: Vec<Field>,
+    allow_download: BTreeSet<Role>,
     fingerprint: String,
 }
 
@@ -451,10 +461,15 @@ impl TryFrom<RawDatasetDefinition> for DatasetDefinition {
             source: raw.source,
             procedure,
             fields: parse_fields(raw.fields)?,
+            allow_download: parse_download_roles(raw.allow_download)?,
             fingerprint: String::new(),
         };
-        let encoded = serde_json::to_vec(&RawDatasetDefinition::from(definition.clone()))
-            .expect("raw dataset definition serializes to JSON");
+        // The fingerprint covers the data shape only; access policy is excluded
+        // so editing it never marks published snapshots as changed.
+        let mut canonical = RawDatasetDefinition::from(definition.clone());
+        canonical.allow_download.clear();
+        let encoded =
+            serde_json::to_vec(&canonical).expect("raw dataset definition serializes to JSON");
         definition.fingerprint = format!("{:x}", Sha256::digest(encoded));
         Ok(definition)
     }
@@ -482,6 +497,16 @@ fn parse_fields(raw_fields: Vec<RawField>) -> Result<Vec<Field>, DefinitionError
     Ok(fields)
 }
 
+fn parse_download_roles(raw_roles: Vec<Role>) -> Result<BTreeSet<Role>, DefinitionError> {
+    let mut roles = BTreeSet::new();
+    for role in raw_roles {
+        if !roles.insert(role) {
+            return Err(DefinitionError::DuplicateDownloadRole { role });
+        }
+    }
+    Ok(roles)
+}
+
 impl From<DatasetDefinition> for RawDatasetDefinition {
     fn from(definition: DatasetDefinition) -> Self {
         Self {
@@ -503,6 +528,7 @@ impl From<DatasetDefinition> for RawDatasetDefinition {
                     column: field.column.into(),
                 })
                 .collect(),
+            allow_download: definition.allow_download.into_iter().collect(),
         }
     }
 }
@@ -542,6 +568,13 @@ impl DatasetDefinition {
     #[must_use]
     pub fn fields(&self) -> &[Field] {
         &self.fields
+    }
+
+    /// Whether `role` may download this dataset's snapshots. Roles match
+    /// exactly; an empty set allows no one.
+    #[must_use]
+    pub fn allows_download(&self, role: Role) -> bool {
+        self.allow_download.contains(&role)
     }
 
     /// Hex SHA-256 of the canonical JSON form; changes whenever the
@@ -618,6 +651,95 @@ mod tests {
         edit(&mut value);
         let raw: RawDatasetDefinition = serde_json::from_value(value).expect("raw shape");
         DatasetDefinition::try_from(raw).expect_err("definition should be rejected")
+    }
+
+    fn dataset_with(edit: impl FnOnce(&mut Value)) -> DatasetDefinition {
+        let mut value = dataset_json();
+        edit(&mut value);
+        serde_json::from_value(value).expect("definition should be accepted")
+    }
+
+    #[test]
+    fn missing_allow_download_allows_no_role() {
+        let definition = dataset_with(|_| {});
+
+        assert!(!definition.allows_download(Role::Owner));
+        assert!(!definition.allows_download(Role::Member));
+    }
+
+    #[test]
+    fn empty_allow_download_allows_no_role() {
+        let definition = dataset_with(|v| v["allow_download"] = json!([]));
+
+        assert!(!definition.allows_download(Role::Owner));
+        assert!(!definition.allows_download(Role::Member));
+    }
+
+    #[test]
+    fn allow_download_matches_listed_roles_exactly() {
+        let owner_only = dataset_with(|v| v["allow_download"] = json!(["owner"]));
+        let member_only = dataset_with(|v| v["allow_download"] = json!(["member"]));
+
+        assert!(owner_only.allows_download(Role::Owner));
+        assert!(!owner_only.allows_download(Role::Member));
+        assert!(member_only.allows_download(Role::Member));
+        assert!(!member_only.allows_download(Role::Owner));
+    }
+
+    #[test]
+    fn duplicate_download_role_is_rejected() {
+        let error = dataset_error(|v| v["allow_download"] = json!(["owner", "owner"]));
+
+        assert!(matches!(
+            error,
+            DefinitionError::DuplicateDownloadRole { role: Role::Owner }
+        ));
+    }
+
+    #[test]
+    fn unknown_download_role_is_rejected() {
+        let mut value = dataset_json();
+        value["allow_download"] = json!(["admin"]);
+
+        serde_json::from_value::<DatasetDefinition>(value).unwrap_err();
+    }
+
+    #[test]
+    fn fingerprint_of_a_definition_without_allow_download_is_stable() {
+        let definition = dataset_with(|_| {});
+
+        // Computed before `allow_download` existed; a change means stored
+        // fingerprints would drift and mark every snapshot as changed.
+        assert_eq!(
+            definition.fingerprint(),
+            "04f4ac441a97751c0709d5c44b95bdd2c640fa88c7daa56bb5dee9c5a25027ba"
+        );
+    }
+
+    #[test]
+    fn fingerprint_ignores_allow_download() {
+        let unrestricted = dataset_with(|_| {});
+        let restricted = dataset_with(|v| v["allow_download"] = json!(["owner", "member"]));
+
+        assert_eq!(unrestricted.fingerprint(), restricted.fingerprint());
+    }
+
+    #[test]
+    fn allow_download_round_trips() {
+        let definition = dataset_with(|v| v["allow_download"] = json!(["member", "owner"]));
+
+        let encoded = serde_json::to_value(&definition).unwrap();
+        let decoded: DatasetDefinition = serde_json::from_value(encoded.clone()).unwrap();
+
+        assert_eq!(encoded["allow_download"], json!(["member", "owner"]));
+        assert_eq!(decoded, definition);
+    }
+
+    #[test]
+    fn empty_allow_download_is_not_serialized() {
+        let encoded = serde_json::to_value(dataset_with(|_| {})).unwrap();
+
+        assert!(encoded.get("allow_download").is_none());
     }
 
     #[test]

@@ -91,6 +91,16 @@
           }
         }
       }
+    },
+    "allow_download": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "owner",
+          "member"
+        ]
+      }
     }
   }
 }

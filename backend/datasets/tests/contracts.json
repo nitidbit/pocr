@@ -26,6 +26,9 @@
           "type": "string",
           "column": "DISPOSITION"
         }
+      ],
+      "allow_download": [
+        "owner"
       ]
     },
     "report": {
@@ -410,6 +413,46 @@
       "target": "report",
       "pointer": "/variables/1/unit",
       "value": "days",
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "allow_download empty",
+      "target": "dataset",
+      "pointer": "/allow_download",
+      "value": [],
+      "valid": true,
+      "schema_valid": true
+    },
+    {
+      "name": "allow_download both roles",
+      "target": "dataset",
+      "pointer": "/allow_download",
+      "value": ["owner", "member"],
+      "valid": true,
+      "schema_valid": true
+    },
+    {
+      "name": "allow_download duplicate role",
+      "target": "dataset",
+      "pointer": "/allow_download",
+      "value": ["owner", "owner"],
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "allow_download unknown role",
+      "target": "dataset",
+      "pointer": "/allow_download",
+      "value": ["admin"],
+      "valid": false,
+      "schema_valid": false
+    },
+    {
+      "name": "allow_download not a list",
+      "target": "dataset",
+      "pointer": "/allow_download",
+      "value": "owner",
       "valid": false,
       "schema_valid": false
     }
