@@ -19,10 +19,11 @@ datasets/
   tests/                shared contract corpus; ignored by the loader
 ```
 
-This directory is the shipped catalog. Compose mounts it read-only at
-`/etc/pocr/datasets` on `engine` and on the `migrate` tools service (which runs
-`pocr-sync`). Deploying a package is a pull plus a restart of `engine`. A dataset
-directory may hold supporting files such as `procedure.sql`; the loader ignores them.
+This directory is the shipped catalog. On the server it is copied to `./datasets`
+beside `compose.yaml`, which mounts it read-only at `/etc/datasets` on `engine`
+and on the `sync` tools service (which runs `pocr-sync`). Deploying a package is
+a copy plus a restart of `engine`. A dataset directory may hold supporting files such
+as `procedure.sql`; the loader ignores them.
 
 - A dataset directory name equals the dataset `name`; a report directory name equals
   the report `name`. Report and dataset names are separate namespaces.
@@ -182,6 +183,7 @@ DATASETS_DIR="$PWD/datasets" DATASET_ENVIRONMENT=nonproduction cargo run -p pocr
 | `DATASET_REFRESH_CONCURRENCY` | sync | attachments refreshed at once; positive integer, defaults to 1 |
 | `DATASET_PROCEDURE_TIMEOUT_SECS` | sync | time limit per procedure call in seconds; positive integer, defaults to 300 |
 | `DATABASE_URL` | engine, sync | PostgreSQL |
+| `DATABASE_URL_FILE` | engine, sync | file holding the PostgreSQL URL; takes precedence over `DATABASE_URL` |
 | `CABOODLE_HOST`, `CABOODLE_DATABASE`, `CABOODLE_USERNAME`, `CABOODLE_PASSWORD` | sync | SQL Server connection |
 | `CABOODLE_PORT` | sync | defaults to 1433 |
 | `CABOODLE_TRUST_SERVER_CERTIFICATE` | sync | `true` skips server certificate validation (connection stays encrypted); defaults to `false`. See [DEPLOYMENT.md §5.1](../../docs/DEPLOYMENT.md#51-configuration) |

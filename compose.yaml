@@ -55,7 +55,7 @@ services:
     expose:
       - "8080"
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://localhost:8080/ || exit 1"]
+      test: [ "CMD-SHELL", "wget --spider -q http://localhost:8080/ || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -84,10 +84,15 @@ services:
       # The engine reads JWT_SECRET as a plain env var (no _FILE variant). Source
       # it from the host secret file so it is not committed or shown on the CLI.
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env from secrets/jwt_secret}
-      DATASETS_DIR: /etc/pocr/datasets
+      DATASETS_DIR: /etc/datasets
     volumes:
       - ./certs:/etc/certs:ro
-      - ./backend/datasets:/etc/pocr/datasets:ro
+      - type: bind
+        source: ./datasets
+        target: /etc/datasets
+        read_only: true
+        bind:
+          create_host_path: false
     secrets:
       - database_url
       - redis_url
@@ -107,15 +112,15 @@ services:
       retries: 3
       start_period: 10s
 
-  # One-shot tools (pocr-migrate / pocr-sync). Never started by `up` or pulled
-  # by `pull` — guarded behind the "tools" profile. Uses the engine image, which
-  # ships all three binaries. Attached to BOTH networks: `backend` for POCR
-  # postgres/redis (internal), `frontend` + host-gateway for egress to the
-  # legacy Redis running on the host.
+  # One-shot tools (migrate, sync). Never started by `up` or pulled by `pull` —
+  # guarded behind profiles ("tools", "sync"). Both use the engine image, which ships all
+  # three binaries, so they always match the engine's migrations and catalog
+  # contract. Attached to BOTH networks: `backend` for POCR postgres/redis
+  # (internal) and `satellite_backend` for the legacy Redis.
   migrate:
     image: andrewdrobinson/ucsf:pocr-engine
-    profiles: ["tools"]
-    entrypoint: ["pocr-migrate"]
+    profiles: [ "tools" ]
+    entrypoint: [ "pocr-migrate" ]
     restart: "no"
     depends_on:
       redis:
@@ -124,16 +129,9 @@ services:
         condition: service_healthy
     environment:
       RUST_LOG: info
-      DATASETS_DIR: /etc/pocr/datasets
-    volumes:
-      - ./backend/datasets:/etc/pocr/datasets:ro
     # DATABASE_URL, POCR_REDIS_URL, LEGACY_REDIS_URL are supplied at runtime via
-    # `docker compose run -e ...` — pocr-migrate/pocr-sync read these directly (not
-    # the *_FILE secrets the engine uses). DATASET_ENVIRONMENT and CABOODLE_* are
-    # supplied the same way for `--entrypoint pocr-sync`.
-    #
-    # CABOODLE_USERNAME/CABOODLE_PASSWORD must identify a SQL Server service
-    # account. See docs/DEPLOYMENT.md section 5.
+    # `docker compose run -e ...` — pocr-migrate reads these directly (not the
+    # *_FILE secrets the engine uses).
     #
     # Joined to satellite_backend (the legacy stack's network) so it can reach the
     # legacy Redis, which publishes no host port. NOTE: both networks expose a
@@ -142,6 +140,38 @@ services:
     networks:
       - backend
       - satellite_backend
+
+  # Refreshes every study dataset attachment once, then exits:
+  #   docker compose run --rm sync
+  #   docker compose run --rm -e DATASET_ENVIRONMENT=nonproduction sync
+  # Schedule it from cron or a systemd timer. See docs/DEPLOYMENT.md section 5.
+  sync:
+    image: andrewdrobinson/ucsf:pocr-engine
+    profiles: [ "sync" ]
+    entrypoint: [ "pocr-sync" ]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: ./secrets/caboodle.env
+    environment:
+      RUST_LOG: info
+      DATABASE_URL_FILE: /run/secrets/database_url
+      DATASETS_DIR: /etc/datasets
+      DATASET_ENVIRONMENT: production
+    secrets:
+      - database_url
+    volumes:
+      - type: bind
+        source: ./datasets
+        target: /etc/datasets
+        read_only: true
+        bind:
+          create_host_path: false
+    # `backend` for postgres (internal); `caboodle` for egress to SQL Server.
+    networks:
+      - backend
+      - caboodle
 
   postgres:
     image: postgres:18-alpine
@@ -157,7 +187,7 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pocr"]
+      test: [ "CMD-SHELL", "pg_isready -U pocr" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -174,7 +204,7 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -188,6 +218,9 @@ networks:
   # the existing network rather than creating one.
   satellite_backend:
     external: true
+  # Outbound-only bridge for the profiled `sync` service to reach Caboodle; no
+  # other service joins it.
+  caboodle:
 
 volumes:
   pg_data:

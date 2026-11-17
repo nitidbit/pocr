@@ -3,8 +3,8 @@
 End-to-end procedure for standing up POCR on a single Linux host, migrating a
 live study from the legacy POC engine, and cutting over to production.
 
-**Audience:** operator with root/`docker` access to the target box.
-**Model:** everything runs via `docker compose`. The production stack is
+**Audience:** operator with root/`docker` access to the target box. **Model:** everything runs via `docker compose`. The
+production stack is
 `compose.yaml`; hot-reload dev is `compose.dev.yaml`.
 
 > **Convention:** commands are run from the repo root on the Linux host unless a
@@ -15,14 +15,14 @@ live study from the legacy POC engine, and cutting over to production.
 
 ## 0. Prerequisites
 
-| Requirement | Check |
-|-------------|-------|
-| Docker Engine + Compose v2 | `docker compose version` |
-| Git checkout of this repo on the box | `git rev-parse HEAD` |
-| Rust toolchain (only if running migrate/sync outside Docker) | `cargo --version` (see §3) |
-| TLS cert + key for the server name | see §2.2 |
-| Network reachability to legacy Redis (migration source) | see §3.1 |
-| Network reachability to Caboodle / Epic Clarity (sync source) | see §5 |
+| Requirement                                                   | Check                      |
+|---------------------------------------------------------------|----------------------------|
+| Docker Engine + Compose v2                                    | `docker compose version`   |
+| Git checkout of this repo on the box                          | `git rev-parse HEAD`       |
+| Rust toolchain (only if running migrate/sync outside Docker)  | `cargo --version` (see §3) |
+| TLS cert + key for the server name                            | see §2.2                   |
+| Network reachability to legacy Redis (migration source)       | see §3.1                   |
+| Network reachability to Caboodle / Epic Clarity (sync source) | see §5                     |
 
 The production `backend` compose network is `internal: true` — no outbound
 internet. Only `nginx` and `vouch` are internet-facing. Plan firewall rules for
@@ -32,24 +32,24 @@ internet. Only `nginx` and `vouch` are internet-facing. Plan firewall rules for
 
 ## 1. Services & binaries (what you are deploying)
 
-| Service | Image | Role | Ports |
-|---------|-------|------|-------|
-| `nginx` | `pocr-nginx` | TLS termination, reverse proxy | 443, 1443 |
-| `vouch` | `vouch-proxy:0.48.0` | OIDC auth proxy | 9090 (internal) |
-| `app` | `pocr-app` | React SPA (nginx-served) | 8080 (internal) |
-| `engine` | `pocr-engine` | axum HTTP + tonic gRPC backend | 3000, 50051 (internal) |
-| `postgres` | `postgres:17-alpine` | Primary store | 5432 (internal) |
-| `redis` | `pocr-redis` | Randomization block cache | 6379 (internal) |
+| Service    | Image                | Role                           | Ports                  |
+|------------|----------------------|--------------------------------|------------------------|
+| `nginx`    | `pocr-nginx`         | TLS termination, reverse proxy | 443, 1443              |
+| `vouch`    | `vouch-proxy:0.48.0` | OIDC auth proxy                | 9090 (internal)        |
+| `app`      | `pocr-app`           | React SPA (nginx-served)       | 8080 (internal)        |
+| `engine`   | `pocr-engine`        | axum HTTP + tonic gRPC backend | 3000, 50051 (internal) |
+| `postgres` | `postgres:18-alpine` | Primary store                  | 5432 (internal)        |
+| `redis`    | `pocr-redis`         | Randomization block cache      | 6379 (internal)        |
 
-Two **one-shot** binaries live in the same Rust workspace but are **not** part of
-the long-running stack (the production image ships only `pocr-engine`):
+Two **one-shot** binaries ship in the engine image but are **not** part of the
+long-running stack; they run as the profiled compose services `migrate` and `sync`:
 
 - **`pocr-migrate`** — one-time ETL: legacy Redis → POCR Postgres + Redis.
   Idempotent, re-runnable via a persisted `migration-manifest.json`.
 - **`pocr-sync`** — refreshes attached datasets from Caboodle. Run after
   migration and on a schedule thereafter.
 
-See §3 for how to run these on the box.
+See §4.3 and §5.2 for how to run these on the box.
 
 ---
 
@@ -96,12 +96,12 @@ printf 'redis://default:%s@redis:6379'          "$REDIS_PW" > secrets/redis_url
 chmod 600 secrets/*
 ```
 
-| File | Contents |
-|------|----------|
-| `secrets/database_url` | `postgres://pocr:<PG_PW>@postgres:5432/pocr` |
-| `secrets/redis_url` | `redis://default:<REDIS_PW>@redis:6379` |
-| `secrets/postgres_password` | `<PG_PW>` (bare) |
-| `secrets/redis_password` | `<REDIS_PW>` (bare) |
+| File                        | Contents                                     |
+|-----------------------------|----------------------------------------------|
+| `secrets/database_url`      | `postgres://pocr:<PG_PW>@postgres:5432/pocr` |
+| `secrets/redis_url`         | `redis://default:<REDIS_PW>@redis:6379`      |
+| `secrets/postgres_password` | `<PG_PW>` (bare)                             |
+| `secrets/redis_password`    | `<REDIS_PW>` (bare)                          |
 
 ### 2.4 Vouch (OIDC) config
 
@@ -176,17 +176,17 @@ docker compose down -v
 
 `pocr-migrate` reads the **legacy** Redis directly (read-only), transforms records
 against the real `pocr-core` models, and writes POCR Postgres rows + Redis block
-state. It runs its own Postgres schema migrations first (`run_migrations`), and is
-**idempotent** via `migration-manifest.json`.
+state. It runs its own Postgres schema migrations first (`run_migrations`), and is **idempotent** via
+`migration-manifest.json`.
 
 ### 4.1 Configuration (environment variables)
 
-| Var | Required | Meaning |
-|-----|----------|---------|
-| `LEGACY_REDIS_URL` | yes | Source Redis (legacy POC engine), read-only |
-| `POCR_REDIS_URL` | yes | Destination POCR Redis block cache |
-| `DATABASE_URL` | no (defaults to local dev URL) | Destination POCR Postgres — **set this in prod** |
-| `MIGRATION_MANIFEST` | no (default `migration-manifest.json`) | Idempotency manifest path |
+| Var                  | Required                               | Meaning                                          |
+|----------------------|----------------------------------------|--------------------------------------------------|
+| `LEGACY_REDIS_URL`   | yes                                    | Source Redis (legacy POC engine), read-only      |
+| `POCR_REDIS_URL`     | yes                                    | Destination POCR Redis block cache               |
+| `DATABASE_URL`       | no (defaults to local dev URL)         | Destination POCR Postgres — **set this in prod** |
+| `MIGRATION_MANIFEST` | no (default `migration-manifest.json`) | Idempotency manifest path                        |
 
 > In production the Postgres/Redis passwords are the ones from §2.3. Build the
 > URLs to point at the **running compose services** (`postgres`, `redis`) or at
@@ -211,8 +211,7 @@ state. It runs its own Postgres schema migrations first (`run_migrations`), and 
 
 ### 4.3 Run the migration
 
-Because the production image ships only `pocr-engine`, run the one-shot binary
-one of two ways:
+Run the one-shot binary one of two ways:
 
 **Option A — build & run the binary on the host** (simplest if Rust is installed):
 
@@ -230,23 +229,21 @@ cargo run --release -p pocr-migrate
 cd ..
 ```
 
-**Option B — run inside the backend network via a one-off container** (no host
-port exposure needed; uses service DNS names `postgres`/`redis`):
+**Option B — run the `migrate` tools service** (engine image, profile `tools`; no
+host port exposure). It joins `backend` and the legacy `satellite_backend` network;
+both define a `redis` alias, so address every endpoint by container name. Mount a
+host directory writable by uid 1001 so the idempotency manifest survives `--rm`:
 
 ```bash
-docker compose run --rm --no-deps \
-  -e LEGACY_REDIS_URL='redis://<legacy-host>:6379' \
-  -e POCR_REDIS_URL="redis://default:$(cat secrets/redis_password)@redis:6379" \
-  -e DATABASE_URL="postgres://pocr:$(cat secrets/postgres_password)@postgres:5432/pocr" \
-  -e MIGRATION_MANIFEST=/tmp/migration-manifest.json \
-  --entrypoint sh engine -c \
-  'echo "Option B requires a migrate binary in the image — see note below"'
+mkdir -p migration && sudo chown 1001 migration
+docker compose run --rm \
+  -v "$PWD/migration:/migration" \
+  -e LEGACY_REDIS_URL='redis://satellite-redis-1:6379' \
+  -e POCR_REDIS_URL="redis://default:$(cat secrets/redis_password)@pocr-redis-1:6379" \
+  -e DATABASE_URL="postgres://pocr:$(cat secrets/postgres_password)@pocr-postgres-1:5432/pocr" \
+  -e MIGRATION_MANIFEST=/migration/migration-manifest.json \
+  migrate
 ```
-
-> **Note (packaging gap):** the production `backend/Dockerfile` only copies
-> `pocr-engine`. To use Option B, add `pocr-migrate`/`pocr-sync` to the builder
-> `COPY` layer (or build a dedicated `tools` image target). Until then, use
-> Option A. This is called out in §7.
 
 ### 4.4 Verify the migration
 
@@ -273,19 +270,20 @@ refresh details are in [backend/datasets/README.md](../backend/datasets/README.m
 
 ### 5.1 Configuration
 
-| Var | Required | Default |
-|-----|----------|---------|
-| `DATABASE_URL` | no | `postgres://pocr:pocr@localhost:5432/pocr` (set in prod) |
-| `DATASETS_DIR` | yes | — (`/etc/pocr/datasets` in the compose tools service) |
-| `DATASET_ENVIRONMENT` | yes | — (`production` or `nonproduction`) |
-| `DATASET_REFRESH_CONCURRENCY` | no | `1` |
-| `DATASET_PROCEDURE_TIMEOUT_SECS` | no | `300` |
-| `CABOODLE_HOST` | yes | — |
-| `CABOODLE_PORT` | no | `1433` |
-| `CABOODLE_DATABASE` | yes | — |
-| `CABOODLE_USERNAME` | yes | — |
-| `CABOODLE_PASSWORD` | yes | — |
-| `CABOODLE_TRUST_SERVER_CERTIFICATE` | no | `false` (`true` or `false`) |
+| Var                                 | Required | Default                                                                                                                |
+|-------------------------------------|----------|------------------------------------------------------------------------------------------------------------------------|
+| `DATABASE_URL_FILE`                 | no       | — (`/run/secrets/database_url` in the compose `sync` service); read and trimmed, takes precedence over `DATABASE_URL`  |
+| `DATABASE_URL`                      | no       | `postgres://pocr:pocr@localhost:5432/pocr`; inside a container this fails as connection refused, so set one of the two |
+| `DATASETS_DIR`                      | yes      | — (`/etc/datasets` in the compose `sync` service)                                                                      |
+| `DATASET_ENVIRONMENT`               | yes      | — (`production` or `nonproduction`; `production` in the compose `sync` service)                                        |
+| `DATASET_REFRESH_CONCURRENCY`       | no       | `1`                                                                                                                    |
+| `DATASET_PROCEDURE_TIMEOUT_SECS`    | no       | `300`                                                                                                                  |
+| `CABOODLE_HOST`                     | yes      | —                                                                                                                      |
+| `CABOODLE_PORT`                     | no       | `1433`                                                                                                                 |
+| `CABOODLE_DATABASE`                 | yes      | —                                                                                                                      |
+| `CABOODLE_USERNAME`                 | yes      | —                                                                                                                      |
+| `CABOODLE_PASSWORD`                 | yes      | —                                                                                                                      |
+| `CABOODLE_TRUST_SERVER_CERTIFICATE` | no       | `false` (`true` or `false`)                                                                                            |
 
 Sync fails with a configuration error when `DATASETS_DIR` is unset.
 
@@ -300,15 +298,17 @@ hostname. Install the issuing CA in the runtime trust store and use the
 certificate's DNS hostname.
 
 `CABOODLE_TRUST_SERVER_CERTIFICATE=true` accepts any server certificate, for
-instances that present only SQL Server's self-signed fallback certificate
-(`SSL_Self_Signed_Fallback`), which rotates on restart and never matches the host.
+instances that present only SQL Server's self-signed fallback certificate (`SSL_Self_Signed_Fallback`), which rotates on
+restart and never matches the host.
 Traffic stays encrypted, but the server is not authenticated: anyone able to
 intercept the connection can impersonate Caboodle and capture the service-account
 password and procedure results. Sync logs a `WARN` on each connection while it is
 set. Use it only on a trusted network path.
 
 Inject credentials through the deployment secret manager; do not commit
-credentials or place them in shell history.
+credentials or place them in shell history. The compose `sync` service reads the
+`CABOODLE_*` settings from `secrets/caboodle.env` (mode 600) and the PostgreSQL URL
+from the `database_url` secret.
 
 Caboodle uses Tiberius with SQL authentication and native TLS; integrated
 authentication features are disabled. PostgreSQL uses SQLx. Connection setup
@@ -319,25 +319,38 @@ TRACE, because the driver logs server messages and row values.
 
 ### 5.2 Run
 
-The `migrate` tools service mounts the catalog at `/etc/pocr/datasets`. Supply the
-remaining variables with `-e`:
+Sync runs as the one-shot compose service `sync` (profile `sync`), from the engine
+image so it always matches the engine's migrations. It needs, beside `compose.yaml`:
+
+| Path                     | Contents                                                                                                                                                                                                            |
+|--------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `./datasets/`            | copy of `backend/datasets/`; mounted read-only at `/etc/datasets` on `engine` and `sync`. **Required**: new on upgrade; `engine` and `sync` refuse to start without it. Restart `engine` after changing it.         |
+| `./secrets/caboodle.env` | `CABOODLE_HOST`, `CABOODLE_PORT`, `CABOODLE_DATABASE`, `CABOODLE_USERNAME`, `CABOODLE_PASSWORD`, and `CABOODLE_TRUST_SERVER_CERTIFICATE` as `NAME=value` lines; mode 600 (read by Compose on the host, not mounted) |
+| `./secrets/database_url` | existing engine secret, readable by uid 1001 (§2.3)                                                                                                                                                                 |
+
+Compose interpolates `caboodle.env`: `$NAME` in a value is replaced (an unset name
+becomes empty) and `$$` becomes `$`. Single-quote any value containing `$`, e.g.
+`CABOODLE_PASSWORD='pa$word'`.
 
 ```bash
-docker compose run --rm --entrypoint pocr-sync \
-  -e DATABASE_URL=... -e DATASET_ENVIRONMENT=production \
-  -e CABOODLE_HOST=... -e CABOODLE_DATABASE=... \
-  -e CABOODLE_USERNAME=... -e CABOODLE_PASSWORD=... \
-  migrate
+docker compose run --rm sync                                         # production
+docker compose run --rm -e DATASET_ENVIRONMENT=nonproduction sync
 ```
 
-Schedule it (cron/systemd timer) to keep snapshots current.
+`sync` joins `backend` for PostgreSQL and the non-internal `caboodle` network for
+egress to SQL Server. Exit status is nonzero when any refresh fails. Schedule it (cron/systemd timer) to keep snapshots
+current, e.g.:
+
+```cron
+15 2 * * * cd /path/to/pocr && docker compose run --rm sync >> sync.log 2>&1
+```
 
 ### 5.3 Demographics cutover
 
 1. The database owner deploys `backend/datasets/demographics/procedure.sql` and
    grants the sync account `EXECUTE` on `[pocr].[EncounterBalance]`.
-2. Deploy. The migration drops `patient_demographics`, and the engine loads the
-   `demographics` package.
+2. Copy `backend/datasets/` to `./datasets` on the host and deploy. The migration
+   drops `patient_demographics`, and the engine loads the `demographics` package.
 3. The study owner attaches **Demographics** in the study's Datasets tab.
 4. Run sync with `DATASET_ENVIRONMENT=production`. The report appears at the top of
    Monitor.
@@ -394,19 +407,20 @@ docker compose up -d
 
 ## 7. Known gaps / operator notes
 
-1. **Migrate/sync not in the production image.** `backend/Dockerfile` production
-   target ships only `pocr-engine`. Run `pocr-migrate`/`pocr-sync` via Option A
-   (§4.3) until a tools image or extra `COPY` layer is added.
-2. **Internal network vs. host ports.** `compose.yaml` keeps `postgres`/`redis`
-   ports internal. Running the ETL binaries on the host (Option A) requires either
-   publishing those ports or running against the compose network (Option B).
-3. **Secret sync invariant.** Regenerating any password means regenerating BOTH
+1. **Tools share the engine image.** The production image ships `pocr-engine`,
+   `pocr-migrate`, and `pocr-sync`; the `migrate` and `sync` services run the
+   latter two. Deploy them with the same image tag as `engine`: both apply
+   migrations at startup, and a binary older than the database refuses to run.
+2. **Sync on macOS.** On macOS, Tiberius's native TLS (Secure Transport)
+   intermittently aborts the TDS TLS handshake with Caboodle (`connection closed
+   via error`). Run sync on Linux, where OpenSSL connects reliably.
+3. **Internal network vs. host ports.** `compose.yaml` keeps `postgres`/`redis`
+   ports internal. Running `pocr-migrate` on the host (§4.3 Option A) requires
+   publishing those ports; the `migrate` service (Option B) and `sync` run on the
+   compose network instead.
+4. **Secret sync invariant.** Regenerating any password means regenerating BOTH
    the `*_password` and the matching `*_url` file (§2.3). A mismatch = engine
    cannot authenticate.
-4. **`backend/CLAUDE.md`** is gitignored; its service-name references are local
-   only and do not affect deploys.
-5. **Docker Hub namespace** is `andrewdrobinson/ucsf:pocr-*`. Confirm the registry
-   before pushing images for institutional use.
 
 ---
 
@@ -421,10 +435,8 @@ docker compose build && docker compose config -q
 cd backend && LEGACY_REDIS_URL=... POCR_REDIS_URL=... DATABASE_URL=... \
   cargo run --release -p pocr-migrate && cd ..
 
-# Refresh datasets
-docker compose run --rm --entrypoint pocr-sync -e DATABASE_URL=... \
-  -e DATASET_ENVIRONMENT=production -e CABOODLE_HOST=... -e CABOODLE_DATABASE=... \
-  -e CABOODLE_USERNAME=... -e CABOODLE_PASSWORD=... migrate
+# Refresh datasets (needs ./datasets and secrets/caboodle.env)
+docker compose run --rm sync
 
 # Deploy
 docker compose up -d && docker compose ps
