@@ -20,8 +20,8 @@ use uuid::Uuid;
 
 use pocr_core::{
     dataset::{
-        Catalog, ContextRecord, DatasetDefinition, DatasetName, DatasetRecord, DatasetRepository,
-        ReportDefinition, ResultRow,
+        Catalog, ContextRecord, DatasetDefinition, DatasetName, DatasetRecord, DatasetRegistry,
+        DatasetRepository, ReportDefinition, ResultRow,
     },
     environment::Environment,
     ports::UserStudyRepository,
@@ -247,6 +247,23 @@ fn catalog_with_reports(reports: &[Value]) -> Catalog {
         catalog.insert_report(report).unwrap();
     }
     catalog
+}
+
+/// The fixture dataset with `allow_download` set to `roles`.
+fn catalog_allowing(roles: &[&str]) -> Catalog {
+    let mut value = serde_json::to_value(
+        fixture_catalog()
+            .datasets()
+            .get(&DatasetName::parse(DATASET).unwrap())
+            .unwrap(),
+    )
+    .unwrap();
+    value["allow_download"] = json!(roles);
+    let mut datasets = DatasetRegistry::default();
+    datasets
+        .insert(serde_json::from_value(value).unwrap())
+        .unwrap();
+    Catalog::new(datasets)
 }
 
 /// A report of `los` for the fixture dataset.
@@ -539,26 +556,131 @@ async fn missing_environment_query_is_a_bad_request() {
 
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
-async fn download_serves_the_captured_snapshot_when_the_definition_is_undeployed() {
+async fn download_is_forbidden_when_the_definition_is_undeployed() {
     let h = Harness::new().await;
     h.publish(Environment::Production, "Home").await;
 
-    let (status, body) = send(
+    let (status, _) = send(
         h.router_with(Catalog::default()),
+        Method::GET,
+        &h.download_uri("production"),
+        OWNER,
+        None,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
+async fn download_renders_the_captured_definition() {
+    let h = Harness::new().await;
+    let captured = definition_with_los(&h, |los| los["name"] = json!("length_of_stay"));
+    h.publish_under(Environment::Production, "Home", &captured)
+        .await;
+
+    let (status, body) = get(&h, &h.download_uri("production"), MEMBER).await;
+
+    let header = body.split("\r\n").next().unwrap();
+    assert_eq!(status, StatusCode::OK);
+    assert!(header.contains("\"length_of_stay\""), "{header}");
+    assert!(!header.contains("\"los\""), "{header}");
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
+async fn unlisted_role_cannot_download() {
+    let h = Harness::new().await;
+    h.publish(Environment::Production, "Home").await;
+    let router = || h.router_with(catalog_allowing(&["owner"]));
+
+    let (member, _) = send(
+        router(),
         Method::GET,
         &h.download_uri("production"),
         MEMBER,
         None,
     )
     .await;
+    let (owner, _) = send(
+        router(),
+        Method::GET,
+        &h.download_uri("production"),
+        OWNER,
+        None,
+    )
+    .await;
 
-    let expected: Vec<String> = ["randomization_id", "arm_id", "arm_name"]
-        .into_iter()
-        .chain(FIELD_NAMES)
-        .map(|name| format!("\"{name}\""))
-        .collect();
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(body.split("\r\n").next().unwrap(), expected.join(","));
+    assert_eq!(member, StatusCode::FORBIDDEN);
+    assert_eq!(owner, StatusCode::OK);
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
+async fn empty_allow_download_forbids_everyone() {
+    let h = Harness::new().await;
+    h.publish(Environment::Production, "Home").await;
+
+    let (status, _) = send(
+        h.router_with(catalog_allowing(&[])),
+        Method::GET,
+        &h.download_uri("production"),
+        OWNER,
+        None,
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
+async fn list_reports_can_download_per_role() {
+    let h = Harness::new().await;
+    h.attach().await;
+    let router = || h.router_with(catalog_allowing(&["owner"]));
+
+    let (_, member) = send(
+        router(),
+        Method::GET,
+        &h.datasets_uri("production"),
+        MEMBER,
+        None,
+    )
+    .await;
+    let (_, owner) = send(
+        router(),
+        Method::GET,
+        &h.datasets_uri("production"),
+        OWNER,
+        None,
+    )
+    .await;
+
+    let member: Value = serde_json::from_str(&member).unwrap();
+    let owner: Value = serde_json::from_str(&owner).unwrap();
+    assert_eq!(member["attachments"][0]["canDownload"], json!(false));
+    assert_eq!(owner["attachments"][0]["canDownload"], json!(true));
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
+async fn list_reports_undeployed_dataset_as_not_downloadable() {
+    let h = Harness::new().await;
+    h.attach().await;
+
+    let (_, body) = send(
+        h.router_with(Catalog::default()),
+        Method::GET,
+        &h.datasets_uri("production"),
+        OWNER,
+        None,
+    )
+    .await;
+
+    let list: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(list["attachments"][0]["canDownload"], json!(false));
 }
 
 #[tokio::test]

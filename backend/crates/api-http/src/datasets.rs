@@ -1,8 +1,9 @@
 //! Study dataset attachments, downloads, and reports.
 //!
-//! Members can list, download, and read reports; owners also attach and
-//! detach. Handlers read [`DatasetsState`] only, so they can be exercised
-//! with the repositories alone.
+//! Members can list and read reports, and may download where the dataset's
+//! `allow_download` lists their role; owners also attach and detach. Handlers
+//! read [`DatasetsState`] only, so they can be exercised with the repositories
+//! alone.
 
 mod export;
 
@@ -92,6 +93,10 @@ pub struct AttachRequest {
 }
 
 /// An attachment together with how it compares to the deployed definition.
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "flat wire shape; each flag is independent"
+)]
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DatasetAttachment {
@@ -116,6 +121,9 @@ pub struct DatasetAttachment {
     /// published snapshot's. False when there is no snapshot or no deployed
     /// definition to compare.
     definition_changed: bool,
+    /// Whether the caller's role may download this dataset under the deployed
+    /// definition. False when the definition is no longer deployed.
+    can_download: bool,
 }
 
 /// A deployed dataset that can be attached.
@@ -174,8 +182,13 @@ struct Incompatibility {
     reason: IncompatibilityKind,
 }
 
-/// Overlays deployed title and description on an attachment and flags drift.
-fn describe(attachment: Attachment, current: Option<&DatasetDefinition>) -> DatasetAttachment {
+/// Overlays deployed title and description on an attachment, flags drift, and
+/// resolves whether `role` may download it.
+fn describe(
+    attachment: Attachment,
+    current: Option<&DatasetDefinition>,
+    role: Role,
+) -> DatasetAttachment {
     let definition_changed = match (&attachment.snapshot, current) {
         (Some(published), Some(deployed)) => deployed.fingerprint() != published.fingerprint,
         _ => false,
@@ -201,6 +214,7 @@ fn describe(attachment: Attachment, current: Option<&DatasetDefinition>) -> Data
         fingerprint: snapshot.map(|published| published.fingerprint),
         definition_available: current.is_some(),
         definition_changed,
+        can_download: current.is_some_and(|definition| definition.allows_download(role)),
     }
 }
 
@@ -237,7 +251,7 @@ pub async fn list(
         .into_iter()
         .map(|attachment| {
             let current = state.catalog.datasets().get(&attachment.name);
-            describe(attachment, current)
+            describe(attachment, current, role)
         })
         .collect();
     let catalog = state
@@ -296,20 +310,53 @@ pub async fn detach(
 }
 
 /// `GET /studies/{study_id}/datasets/{name}/download` — the latest published
-/// snapshot as CSV, even if the definition is no longer deployed. Any member.
-#[instrument(skip_all, fields(study_id = %study, dataset_name = %name))]
+/// snapshot as CSV. The deployed definition's `allow_download` must list the
+/// caller's role; an undeployed dataset cannot be downloaded. The CSV follows
+/// the snapshot's captured definition.
+#[instrument(
+    skip_all,
+    fields(
+        study_id = %study,
+        dataset_name = %name,
+        environment = %scope.environment,
+        actor = %user.id(),
+    )
+)]
 pub async fn download(
     State(state): State<DatasetsState>,
     Path((study, name)): Path<(Uuid, DatasetName)>,
     Query(scope): Query<Scope>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, ApiError> {
-    caller_role(state.members.as_ref(), &study, &user).await?;
+    let role = caller_role(state.members.as_ref(), &study, &user).await?;
+    match state.catalog.datasets().get(&name) {
+        None => {
+            warn!(
+                role = role.as_str(),
+                "dataset download denied: definition not deployed"
+            );
+            return Err(download_forbidden());
+        }
+        Some(definition) if !definition.allows_download(role) => {
+            warn!(
+                role = role.as_str(),
+                "dataset download denied: role not allowed"
+            );
+            return Err(download_forbidden());
+        }
+        Some(_) => {}
+    }
     let snapshot = state
         .datasets
         .snapshot(study, &name, scope.environment)
         .await?
         .ok_or(ApiError::NotFound)?;
+    let csv = export::render(&snapshot).map_err(ApiError::internal)?;
+    info!(
+        row_count = snapshot.rows.len(),
+        run_id = %snapshot.run_id,
+        "dataset downloaded"
+    );
     let disposition = format!("attachment; filename=\"{name}-{}.csv\"", scope.environment);
     Ok((
         [
@@ -317,8 +364,12 @@ pub async fn download(
             (header::CONTENT_DISPOSITION, disposition),
             (header::CACHE_CONTROL, "no-store".into()),
         ],
-        export::render(&snapshot).map_err(ApiError::internal)?,
+        csv,
     ))
+}
+
+fn download_forbidden() -> ApiError {
+    ApiError::Forbidden("your role cannot download this dataset".to_owned())
 }
 
 /// Renders every deployed report of each attachment that has a published
@@ -638,7 +689,8 @@ mod tests {
         };
 
         let encoded =
-            serde_json::to_value(describe(attachment(Some(published)), None)).expect("serializes");
+            serde_json::to_value(describe(attachment(Some(published)), None, Role::Owner))
+                .expect("serializes");
 
         assert_eq!(
             encoded,
@@ -654,14 +706,36 @@ mod tests {
                 "fingerprint": "abc",
                 "hasSnapshot": true,
                 "definitionAvailable": false,
-                "definitionChanged": false
+                "definitionChanged": false,
+                "canDownload": false
             })
         );
     }
 
     #[test]
+    fn describe_resolves_can_download_from_the_deployed_definition() {
+        let definition: DatasetDefinition = serde_json::from_value(json!({
+            "version": 1,
+            "name": "outcomes",
+            "title": "Outcomes",
+            "source": "caboodle",
+            "stored_procedure": {"schema": "pocr", "name": "Outcomes"},
+            "fields": [{"name": "los", "type": "number", "column": "LOS"}],
+            "allow_download": ["owner"]
+        }))
+        .expect("valid definition");
+
+        let owner = describe(attachment(None), Some(&definition), Role::Owner);
+        let member = describe(attachment(None), Some(&definition), Role::Member);
+
+        assert!(owner.can_download);
+        assert!(!member.can_download);
+    }
+
+    #[test]
     fn attachment_without_snapshot_serializes_empty_snapshot_fields() {
-        let encoded = serde_json::to_value(describe(attachment(None), None)).expect("serializes");
+        let encoded = serde_json::to_value(describe(attachment(None), None, Role::Owner))
+            .expect("serializes");
 
         assert_eq!(encoded["completedAt"], json!(null));
         assert_eq!(encoded["rowCount"], json!(0));
