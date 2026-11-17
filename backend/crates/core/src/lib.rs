@@ -12,4 +12,5 @@ pub mod environment;
 pub mod error;
 pub mod ports;
 pub mod random;
+pub mod role;
 pub mod study;

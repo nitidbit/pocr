@@ -13,41 +13,11 @@ use tracing::info;
 use uuid::Uuid;
 
 use pocr_core::ports::{StudyMember, UserStudyRepository};
+use pocr_core::role::Role;
 
 use crate::AppState;
 use crate::error::ApiError;
 use crate::extractors::{AuthUser, normalize_email};
-
-/// A study access role, ordered so that `Owner >= Member`.
-///
-/// Declaration order defines the ordering: [`Role::Member`] is the lower
-/// privilege, [`Role::Owner`] the higher.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Role {
-    /// Read-only access to the study.
-    Member,
-    /// Full access, including membership management.
-    Owner,
-}
-
-impl Role {
-    /// The wire/database string form of the role.
-    fn as_str(self) -> &'static str {
-        match self {
-            Role::Member => "member",
-            Role::Owner => "owner",
-        }
-    }
-}
-
-/// Parses a role string, returning `None` for any unrecognized value.
-fn parse_role(raw: &str) -> Option<Role> {
-    match raw {
-        "member" => Some(Role::Member),
-        "owner" => Some(Role::Owner),
-        _ => None,
-    }
-}
 
 /// Validates a normalized email address. Requires a non-empty value containing
 /// an `@`.
@@ -100,7 +70,7 @@ pub(crate) async fn caller_role(
         .get_role(user.id(), study_id)
         .await?
         .as_deref()
-        .and_then(parse_role)
+        .and_then(Role::parse)
         .ok_or(ApiError::NotFound)
 }
 
@@ -176,7 +146,7 @@ pub async fn add(
 
     let email = normalize_email(&req.email);
     validate_email(&email)?;
-    let role = parse_role(&req.role)
+    let role = Role::parse(&req.role)
         .ok_or_else(|| ApiError::BadRequest(format!("invalid role: {}", req.role)))?;
 
     if role == Role::Member {
@@ -219,7 +189,7 @@ pub async fn update_role(
 
     let email = normalize_email(&email);
     validate_email(&email)?;
-    let role = parse_role(&req.role)
+    let role = Role::parse(&req.role)
         .ok_or_else(|| ApiError::BadRequest(format!("invalid role: {}", req.role)))?;
 
     if role == Role::Member {
@@ -291,27 +261,6 @@ mod tests {
             role: role.to_string(),
             joined_at: Utc::now(),
         }
-    }
-
-    #[test]
-    fn parse_role_accepts_known_roles() {
-        assert_eq!(parse_role("member"), Some(Role::Member));
-        assert_eq!(parse_role("owner"), Some(Role::Owner));
-    }
-
-    #[test]
-    fn parse_role_rejects_unknown_role() {
-        assert_eq!(parse_role("admin"), None);
-        assert_eq!(parse_role(""), None);
-        assert_eq!(parse_role("Owner"), None);
-    }
-
-    #[test]
-    fn owner_outranks_member() {
-        assert!(Role::Owner >= Role::Member);
-        assert!(Role::Owner >= Role::Owner);
-        assert!(Role::Member >= Role::Member);
-        assert!(Role::Member < Role::Owner);
     }
 
     #[test]

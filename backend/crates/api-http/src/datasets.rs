@@ -29,12 +29,13 @@ use pocr_core::{
     environment::Environment,
     ports::{RepositoryError, StudyRepository, UserStudyRepository},
     random::Arm,
+    role::Role,
 };
 
 use crate::{
     error::ApiError,
     extractors::AuthUser,
-    members::{Role, caller_role},
+    members::caller_role,
 };
 
 /// Dependencies of the dataset handlers.
