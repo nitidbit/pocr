@@ -9,25 +9,25 @@ stored_procedure:
 fields:
   - name: age
     type: number
-    column: age
+    column: Age
   - name: sex
     type: string
-    column: sex
+    column: Sex
   - name: race
     type: string
-    column: race
+    column: Race
   - name: ethnicity
     type: string
-    column: ethnicity
+    column: Ethnicity
   - name: primary_language
     type: string
-    column: primary_language
-  - name: insurance_type
+    column: PreferredLanguage
+  - name: insurance
     type: string
-    column: insurance_type
+    column: PayorFinancialClass
   - name: smoking_status
     type: string
-    column: smoking_status
+    column: SmokingStatus
   - name: bmi
     type: number
-    column: bmi
+    column: BMI

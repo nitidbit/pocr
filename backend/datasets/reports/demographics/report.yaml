@@ -22,7 +22,7 @@ variables:
   - field: primary_language
     label: Primary Language
     analysis: categorical
-  - field: insurance_type
+  - field: insurance
     label: Insurance
     analysis: categorical
   - field: smoking_status

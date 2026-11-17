@@ -1,81 +1,91 @@
 -- Database deployment example only. Never executed or uploaded by POCR.
 -- The result columns must match dataset.yaml in this directory: randomization_id
 -- plus each declared column, with no other identifier columns.
--- Grant the sync account EXECUTE on this procedure.
--- Verify source mappings before deployment. Requires an existing pocr schema.
--- DB OWNER TO CONFIRM: FlowsheetValueFact.TakenInstant must use the same time
--- basis as randomization_time (UTC). If TakenInstant is local time, convert it
--- (for example AT TIME ZONE) in the two flowsheet comparisons below.
-CREATE OR ALTER PROCEDURE [pocr].[EncounterBalance]
+create procedure [pocr].[EncounterBalance]
     @context_json nvarchar(max)
-AS
-BEGIN
-    SET NOCOUNT ON;
+as
+begin
+    set transaction isolation level snapshot;
+    set nocount on;
 
-    IF @context_json IS NULL OR ISJSON(@context_json) <> 1
-        THROW 50001, 'Expected a JSON batch.', 1;
-
-    -- ISJSON alone also accepts objects; the common envelope must be an array.
-    IF LEFT(LTRIM(REPLACE(REPLACE(REPLACE(@context_json,
-        CHAR(9), ' '), CHAR(10), ' '), CHAR(13), ' ')), 1) <> '['
-        THROW 50002, 'Expected a JSON array.', 1;
-
-    WITH inputs AS (
-        SELECT randomization_id, encounter_id, randomization_time
-        FROM OPENJSON(@context_json) WITH (
-            randomization_id uniqueidentifier '$.randomization_id',
-            encounter_id nvarchar(100) '$.context.epic_csn',
-            randomization_time datetime2 '$.randomization_time'
-        )
+    drop table if exists #context;
+    with input as (
+        select randomization_id, EncounterEpicCsn, RandomizationTime
+        from openjson(@context_json)
+                      with (
+                          randomization_id uniqueidentifier '$.randomization_id',
+                          EncounterEpicCsn numeric(18) '$.context.epic_csn',
+                          RandomizationTime datetime2 '$.randomization_time'
+                          )
     )
-    SELECT input.randomization_id,
-           CASE
-               WHEN pd.BirthDate <= CAST(input.randomization_time AS date) THEN
-                   DATEDIFF(year, pd.BirthDate, input.randomization_time)
-                       - CASE
-                             WHEN DATEADD(year, DATEDIFF(year, pd.BirthDate, input.randomization_time), pd.BirthDate)
-                                 > CAST(input.randomization_time AS date) THEN 1
-                             ELSE 0 END
-               END                      AS age,
-           pd.Sex                       AS sex,
-           races.value                  AS race,
-           pd.Ethnicity                 AS ethnicity,
-           pd.PreferredLanguage         AS primary_language,
-           coverage.PayorFinancialClass AS insurance_type,
-           pd.SmokingStatus             AS smoking_status,
-           CASE
-               WHEN weight.value > 0 AND height.value > 0 THEN
-                   (weight.value / 35.274) / NULLIF(POWER(height.value * 0.0254, 2), 0)
-               END                      AS bmi
-    FROM inputs AS input
-             LEFT JOIN EncounterFact AS encounter
-                       ON encounter.EncounterEpicCsn = input.encounter_id
-             LEFT JOIN PatientDim AS pd ON pd.PatientKey = encounter.PatientKey
-             LEFT JOIN CoverageDim AS coverage ON coverage.CoverageKey = encounter.CoverageKey
-             OUTER APPLY (SELECT TOP (1) TRY_CONVERT(float, fvf.Value) AS value
-                          FROM FlowsheetValueFact AS fvf
-                                   INNER JOIN FlowsheetRowDim AS row_dim
-                                              ON row_dim.FlowsheetRowKey = fvf.FlowsheetRowKey
-                          WHERE fvf.EncounterKey = encounter.EncounterKey
-                            AND row_dim.FlowsheetRowEpicId = '14'
-                            AND fvf.TakenInstant <= input.randomization_time
-                          ORDER BY fvf.TakenInstant DESC) AS weight
-             OUTER APPLY (SELECT TOP (1) TRY_CONVERT(float, fvf.Value) AS value
-                          FROM FlowsheetValueFact AS fvf
-                                   INNER JOIN FlowsheetRowDim AS row_dim
-                                              ON row_dim.FlowsheetRowKey = fvf.FlowsheetRowKey
-                          WHERE fvf.EncounterKey = encounter.EncounterKey
-                            AND row_dim.FlowsheetRowEpicId = '11'
-                            AND fvf.TakenInstant <= input.randomization_time
-                          ORDER BY fvf.TakenInstant DESC) AS height
-             OUTER APPLY (
-        -- Several distinct races collapse to 'Multiracial'.
-        -- DB OWNER TO DECIDE: whether to exclude 'Unknown'/'Declined' names
-        -- (add a predicate on bridge.Name below) so they do not count as a race.
-        SELECT CASE WHEN COUNT(*) > 1 THEN N'Multiracial' ELSE MAX(race.Name) END AS value
-        FROM (SELECT DISTINCT bridge.Name
-              FROM PatientRaceBridge AS bridge
-              WHERE bridge.PatientRaceComboKey = pd.PatientRaceComboKey
-                AND bridge.Name IS NOT NULL) AS race
-    ) AS races;
-END;
+    select randomization_id, RandomizationTime, EncounterKey, PatientKey
+    into #context
+    from input
+             left join CDW.FilteredAccess.EncounterFact ef on ef.EncounterEpicCsn = input.EncounterEpicCsn;
+    create clustered index idx_encounter on #context(EncounterKey);
+    create index idx_patient on #context(PatientKey);
+    -- select * from #context;
+
+    drop table if exists #race;
+    with PatientRace as (
+        select ctx.randomization_id, prb.Name as Race
+        from #context ctx
+                 join CDW.FilteredAccess.PatientDim pd on pd.PatientKey = ctx.PatientKey
+                 join CDW.FilteredAccess.PatientRaceBridge prb on prb.PatientRaceComboKey = pd.PatientRaceComboKey
+    )
+    select randomization_id, iif(count(*) > 1, N'Multiracial', max(Race)) as Race
+    into #race
+    from PatientRace
+    group by randomization_id;
+    -- select * from #race;
+
+    drop table if exists #measurements;
+    with
+        Flowsheets as (
+            select
+                ctx.randomization_id,
+                fvf.FlowsheetRowEpicId,
+                fvf.NumericValue,
+                row_number() over (
+                    partition by ctx.randomization_id, fvf.FlowsheetRowEpicId
+                    order by fvf.Instant desc
+                    ) as rn
+            from #context ctx
+                     join CDW.FilteredAccess.FlowsheetValueFact fvf on fvf.PatientKey = ctx.PatientKey
+            where fvf.FlowsheetRowEpicId IN ('11', '14')
+              and fvf.Instant < ctx.RandomizationTime
+        ),
+        Measurements AS (
+            select
+                randomization_id,
+                MAX(case when FlowsheetRowEpicId = '11' then NumericValue end) as Height,
+                MAX(case when FlowsheetRowEpicId = '14' then NumericValue end) as Weight
+            from Flowsheets
+            where rn = 1
+            group by randomization_id
+        )
+    select
+        randomization_id,
+        Height,
+        Weight
+    into #measurements
+    from measurements;
+    -- select * from #measurements;
+
+    select
+        ctx.randomization_id,
+        floor(datediff(day, pat.BirthDate, getdate()) / 365.25)          as Age,
+        pat.Sex,
+        race.Race,
+        pat.Ethnicity,
+        pat.PreferredLanguage,
+        cvg.PayorFinancialClass,
+        pat.SmokingStatus,
+        (flo.Weight / 35.274) / nullif(power(flo.Height * 0.0254, 2), 0) as BMI
+    from #context ctx
+             left join CDW.FilteredAccess.EncounterFact enc on enc.EncounterKey = ctx.EncounterKey
+             left join CDW.FilteredAccess.PatientDim pat on pat.PatientKey = ctx.PatientKey
+             left join CDW.FilteredAccess.CoverageDim cvg on cvg.CoverageKey = enc.PrimaryCoverageKey
+             left join #race race on race.randomization_id = ctx.randomization_id
+             left join #measurements flo on flo.randomization_id = ctx.randomization_id;
+end;
