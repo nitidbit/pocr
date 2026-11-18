@@ -34,7 +34,6 @@ async fn main() -> ExitCode {
 async fn run() -> EngineResult<()> {
     let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".into());
     let port = env::var("API_PORT").unwrap_or_else(|_| "3000".into());
-    let _grpc_port = env::var("GRPC_PORT").unwrap_or_else(|_| "50051".into());
     let database_url = resolve_secret("DATABASE_URL", "postgres://pocr:pocr@localhost:5432/pocr")?;
     let redis_url = resolve_secret("REDIS_URL", "redis://localhost:6379")?;
 

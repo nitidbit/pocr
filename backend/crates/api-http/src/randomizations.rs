@@ -35,9 +35,6 @@ fn default_limit() -> u32 {
 }
 
 /// HTTP view of a [`Randomization`] with `camelCase` top-level field names.
-///
-/// The core type serializes `snake_case` fields shared with the repository and
-/// gRPC layers. `unit`, `strata`, and `arm` keep their core serde shapes.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RandomizationResponse {
