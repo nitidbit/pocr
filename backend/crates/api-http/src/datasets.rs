@@ -19,21 +19,23 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use tracing::{info, instrument, warn};
 use uuid::Uuid;
 
 use pocr_core::{
+    audit::event_type,
     dataset::{
         Attachment, Catalog, DatasetDefinition, DatasetName, DatasetRepository, DatasetStatus,
         FieldName, IncompatibilityKind, Report, ReportName,
     },
     environment::Environment,
-    ports::{RepositoryError, StudyRepository, UserStudyRepository},
+    ports::{AuditRepository, RepositoryError, StudyRepository, UserStudyRepository},
     random::Arm,
     role::Role,
 };
 
-use crate::{error::ApiError, extractors::AuthUser, members::caller_role};
+use crate::{error::ApiError, extractors::AuthUser, members::caller_role, studies::record_audit};
 
 /// Dependencies of the dataset handlers.
 ///
@@ -48,6 +50,8 @@ pub struct DatasetsState {
     pub members: Arc<dyn UserStudyRepository>,
     /// Study lookup.
     pub studies: Arc<dyn StudyRepository>,
+    /// Append-only study history; records attach and detach.
+    pub audit: Arc<dyn AuditRepository>,
 }
 
 impl fmt::Debug for DatasetsState {
@@ -290,8 +294,17 @@ pub async fn attach(
         .datasets()
         .get(&body.name)
         .ok_or_else(|| ApiError::BadRequest("unknown dataset".into()))?;
-    state.datasets.attach(study, definition).await?;
-    info!("dataset attached");
+    if state.datasets.attach(study, definition).await? {
+        record_audit(
+            state.audit.as_ref(),
+            &study,
+            event_type::DATASET_ATTACHED,
+            user.id(),
+            json!({ "name": body.name.as_ref() }),
+        )
+        .await;
+        info!("dataset attached");
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -304,8 +317,17 @@ pub async fn detach(
     user: AuthUser,
 ) -> Result<StatusCode, ApiError> {
     require_owner(&state, &study, &user).await?;
-    state.datasets.detach(study, &name).await?;
-    info!("dataset detached");
+    if state.datasets.detach(study, &name).await? {
+        record_audit(
+            state.audit.as_ref(),
+            &study,
+            event_type::DATASET_DETACHED,
+            user.id(),
+            json!({ "name": name.as_ref() }),
+        )
+        .await;
+        info!("dataset detached");
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 

@@ -12,7 +12,7 @@ use axum::{
     http::{Method, Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use infra_pg::{PgDatasetRepository, PgStudyRepository, PgUserStudyRepository};
+use infra_pg::{PgAuditRepository, PgDatasetRepository, PgStudyRepository, PgUserStudyRepository};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use tower::ServiceExt;
@@ -24,7 +24,7 @@ use pocr_core::{
         DatasetRepository, ReportDefinition, ResultRow,
     },
     environment::Environment,
-    ports::UserStudyRepository,
+    ports::{AuditRepository, UserStudyRepository},
 };
 
 const OWNER: &str = "owner@example.com";
@@ -61,6 +61,7 @@ struct Harness {
     pool: PgPool,
     repository: Arc<PgDatasetRepository>,
     members: Arc<PgUserStudyRepository>,
+    audit: Arc<PgAuditRepository>,
     study: Uuid,
     definition: DatasetDefinition,
 }
@@ -97,6 +98,7 @@ impl Harness {
             .clone();
         Self {
             repository: Arc::new(PgDatasetRepository::new(pool.clone())),
+            audit: Arc::new(PgAuditRepository::new(pool.clone())),
             pool,
             members,
             study,
@@ -110,6 +112,7 @@ impl Harness {
             datasets: Arc::<PgDatasetRepository>::clone(&self.repository),
             members: Arc::<PgUserStudyRepository>::clone(&self.members),
             studies: Arc::new(PgStudyRepository::new(self.pool.clone())),
+            audit: Arc::<PgAuditRepository>::clone(&self.audit),
         })
     }
 
@@ -203,6 +206,17 @@ impl Harness {
             "/studies/{}/dataset-reports?environment={environment}",
             self.study
         )
+    }
+
+    /// The study's audit events as `(event_type, detail.name)`, newest first.
+    async fn dataset_events(&self) -> Vec<(String, Value)> {
+        self.audit
+            .list_by_study(&self.study)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|event| (event.event_type, event.detail["name"].clone()))
+            .collect()
     }
 
     fn attach_uri(&self) -> String {
@@ -935,4 +949,87 @@ async fn attached_dataset_without_a_deployed_report_is_omitted() {
 
     assert_eq!(status, StatusCode::OK);
     assert_eq!(serde_json::from_str::<Value>(&body).unwrap(), json!([]));
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
+async fn attaching_records_an_audit_event() {
+    let h = Harness::new().await;
+
+    send(
+        h.router(),
+        Method::POST,
+        &h.attach_uri(),
+        OWNER,
+        Some(attach_body()),
+    )
+    .await;
+
+    assert_eq!(
+        h.dataset_events().await,
+        [("study.dataset_attached".to_owned(), json!(DATASET))]
+    );
+    let actor = &h.audit.list_by_study(&h.study).await.unwrap()[0].actor;
+    assert_eq!(actor, OWNER);
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
+async fn reattaching_records_no_audit_event() {
+    let h = Harness::new().await;
+    h.attach().await;
+
+    let (status, _) = send(
+        h.router(),
+        Method::POST,
+        &h.attach_uri(),
+        OWNER,
+        Some(attach_body()),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(h.dataset_events().await, []);
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
+async fn detaching_records_an_audit_event() {
+    let h = Harness::new().await;
+    h.attach().await;
+
+    send(h.router(), Method::DELETE, &h.detach_uri(), OWNER, None).await;
+
+    assert_eq!(
+        h.dataset_events().await,
+        [("study.dataset_detached".to_owned(), json!(DATASET))]
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
+async fn detaching_an_unattached_dataset_records_no_audit_event() {
+    let h = Harness::new().await;
+
+    let (status, _) = send(h.router(), Method::DELETE, &h.detach_uri(), OWNER, None).await;
+
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(h.dataset_events().await, []);
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL via DATASET_TEST_DATABASE_URL"]
+async fn forbidden_attach_records_no_audit_event() {
+    let h = Harness::new().await;
+
+    send(
+        h.router(),
+        Method::POST,
+        &h.attach_uri(),
+        MEMBER,
+        Some(attach_body()),
+    )
+    .await;
+
+    assert_eq!(h.dataset_events().await, []);
 }

@@ -111,6 +111,7 @@ async fn run() -> EngineResult<()> {
         datasets: Arc::new(infra_pg::PgDatasetRepository::new(pg_pool.clone())),
         members: Arc::clone(&user_study_repo) as _,
         studies: Arc::clone(&study_repo) as _,
+        audit: Arc::clone(&audit_repo) as _,
     };
     let state = api_http::AppState {
         study_repo,

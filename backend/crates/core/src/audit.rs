@@ -1,9 +1,9 @@
 //! Audit event model — an append-only history of consequential study actions.
 //!
 //! Every mutation of a study (lifecycle transitions, locator assignments,
-//! allocation edits, data purges, deletions) records an [`AuditEvent`]. The
-//! [`AuditRepository`](crate::ports::AuditRepository) port persists them; the
-//! study history view reads them back newest-first.
+//! allocation edits, dataset attachments, data purges, deletions) records an
+//! [`AuditEvent`]. The [`AuditRepository`](crate::ports::AuditRepository) port
+//! persists them; the study history view reads them back newest-first.
 //!
 //! `event_type` is drawn from the [`event_type`] constants so producers and
 //! the UI agree on a closed vocabulary.
@@ -25,6 +25,10 @@ pub mod event_type {
     pub const RATIO_CHANGED: &str = "study.ratio_changed";
     /// Non-production randomizations and blocks were purged. Detail carries counts.
     pub const NONPRODUCTION_PURGED: &str = "study.nonproduction_purged";
+    /// A dataset was attached to the study. Detail carries `name`.
+    pub const DATASET_ATTACHED: &str = "study.dataset_attached";
+    /// A dataset was detached and its snapshots deleted. Detail carries `name`.
+    pub const DATASET_DETACHED: &str = "study.dataset_detached";
     /// A study was deleted.
     pub const STUDY_DELETED: &str = "study.deleted";
 }
