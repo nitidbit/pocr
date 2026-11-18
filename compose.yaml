@@ -112,39 +112,14 @@ services:
       retries: 3
       start_period: 10s
 
-  # One-shot tools (migrate, sync). Never started by `up` or pulled by `pull` —
-  # guarded behind profiles ("tools", "sync"). Both use the engine image, which ships all
-  # three binaries, so they always match the engine's migrations and catalog
-  # contract. Attached to BOTH networks: `backend` for POCR postgres/redis
-  # (internal) and `satellite_backend` for the legacy Redis.
-  migrate:
-    image: andrewdrobinson/ucsf:pocr-engine
-    profiles: [ "tools" ]
-    entrypoint: [ "pocr-migrate" ]
-    restart: "no"
-    depends_on:
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    environment:
-      RUST_LOG: info
-    # DATABASE_URL, POCR_REDIS_URL, LEGACY_REDIS_URL are supplied at runtime via
-    # `docker compose run -e ...` — pocr-migrate reads these directly (not the
-    # *_FILE secrets the engine uses).
-    #
-    # Joined to satellite_backend (the legacy stack's network) so it can reach the
-    # legacy Redis, which publishes no host port. NOTE: both networks expose a
-    # service aliased `redis`; address every endpoint by container name
-    # (pocr-redis-1 / pocr-postgres-1 / satellite-redis-1), never the bare alias.
-    networks:
-      - backend
-      - satellite_backend
-
+  # One-shot dataset sync. Never started by `up` or pulled by `pull` — guarded
+  # behind the "sync" profile. Uses the engine image, which ships both binaries,
+  # so it always matches the engine's migrations and catalog contract.
+  #
   # Refreshes every study dataset attachment once, then exits:
   #   docker compose run --rm sync
   #   docker compose run --rm -e DATASET_ENVIRONMENT=nonproduction sync
-  # Schedule it from cron or a systemd timer. See docs/DEPLOYMENT.md section 5.
+  # Schedule it from cron or a systemd timer. See docs/DEPLOYMENT.md section 4.
   sync:
     image: andrewdrobinson/ucsf:pocr-engine
     profiles: [ "sync" ]
@@ -213,11 +188,6 @@ networks:
   frontend:
   backend:
     internal: true
-  # Legacy satellite stack's network, used only by the profiled `migrate` service
-  # to reach the legacy Redis during migration. Declared external so compose joins
-  # the existing network rather than creating one.
-  satellite_backend:
-    external: true
   # Outbound-only bridge for the profiled `sync` service to reach Caboodle; no
   # other service joins it.
   caboodle:
